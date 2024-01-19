@@ -764,7 +764,7 @@ contract Cellar is ERC4626, Owned, ERC721Holder {
      * @param receiver address to receive the shares.
      * @return shares amount of shares given for deposit.
      */
-    function deposit(uint256 assets, address receiver) public override nonReentrant returns (uint256 shares) {
+    function deposit(uint256 assets, address receiver) public virtual override nonReentrant returns (uint256 shares) {
         // Use `_calculateTotalAssetsOrTotalAssetsWithdrawable` instead of totalAssets bc re-entrancy is already checked in this function.
         (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply(true);
 
@@ -782,7 +782,7 @@ contract Cellar is ERC4626, Owned, ERC721Holder {
      * @param receiver address to receive the shares.
      * @return assets amount of assets deposited into the cellar.
      */
-    function mint(uint256 shares, address receiver) public override nonReentrant returns (uint256 assets) {
+    function mint(uint256 shares, address receiver) public virtual override nonReentrant returns (uint256 assets) {
         (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply(true);
 
         // previewMint rounds up, but initial mint could return zero assets, so check for rounding error.
