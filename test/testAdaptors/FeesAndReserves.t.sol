@@ -905,9 +905,9 @@ contract FeesAndReservesTest is MainnetStarterTest, AdaptorHelperFunctions {
     function feeData()
         public
         view
-        returns (uint64 strategistPlatformCut, uint64 platformFee, uint64 lastAccrual, address strategistPayoutAddress)
+        returns (uint64 strategistPlatformCut, address strategistPayoutAddress)
     {
-        return (0.8e18, 0, 0, strategist);
+        return (0.8e18, strategist);
     }
 
     function testMaliciousCallerChangingReserveAsset() external {

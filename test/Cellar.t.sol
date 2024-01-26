@@ -193,7 +193,7 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         // (, , uint64 lastAccrual, ) = cellar.feeData();
 
-        (uint64 strategistPlatformCut, , , address strategistPayoutAddress) = cellar.feeData();
+        (uint64 strategistPlatformCut, address strategistPayoutAddress) = cellar.feeData();
         assertEq(strategistPlatformCut, 0.75e18, "Platform cut should be set to 0.75e18.");
         assertEq(strategistPayoutAddress, strategist, "Strategist payout address should be equal to strategist.");
 
@@ -929,7 +929,7 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
         address newStrategistAddress = vm.addr(777);
         cellar.setStrategistPlatformCut(0.8e18);
         cellar.setStrategistPayoutAddress(newStrategistAddress);
-        (uint64 strategistPlatformCut, , , address strategistPayoutAddress) = cellar.feeData();
+        (uint64 strategistPlatformCut, address strategistPayoutAddress) = cellar.feeData();
         assertEq(strategistPlatformCut, 0.8e18, "Platform cut should be set to 0.8e18.");
         assertEq(
             strategistPayoutAddress,
@@ -1267,6 +1267,8 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
     // In future versions this will be fixed by having all yield converted into the cellar's accounting asset, then put into a vestedERC20 contract which gradually releases rewards to the cellar.
 
     // M5
+    error Cellar__Reentrancy();
+
     function testReentrancyAttack() external {
         // True means this cellar tries to re-enter caller on deposit calls.
         ReentrancyERC4626 maliciousCellar = new ReentrancyERC4626(USDC, "Bad Cellar", "BC", true);
@@ -1282,7 +1284,7 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
         deal(address(USDC), address(this), assets);
         USDC.approve(address(maliciousCellar), assets);
 
-        vm.expectRevert(bytes("REENTRANCY"));
+        vm.expectRevert(Cellar__Reentrancy.selector);
         cellar.deposit(assets, address(this));
     }
 

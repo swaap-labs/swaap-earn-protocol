@@ -12,6 +12,7 @@ import { Uint32Array } from "src/utils/Uint32Array.sol";
 import { BaseAdaptor } from "src/modules/adaptors/BaseAdaptor.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { ERC721Holder } from "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { Owned } from "@solmate/auth/Owned.sol";
 
 /**
@@ -19,7 +20,7 @@ import { Owned } from "@solmate/auth/Owned.sol";
  * @notice A composable ERC4626 that can use arbitrary DeFi assets/positions using adaptors.
  * @author crispymangoes
  */
-contract Cellar is ERC4626, Owned, ERC721Holder {
+contract Cellar is ERC4626, Ownable, ERC721Holder {
     using Uint32Array for uint32[];
     using SafeTransferLib for ERC20;
     using Math for uint256;
@@ -39,7 +40,7 @@ contract Cellar is ERC4626, Owned, ERC721Holder {
     /**
      * @notice `locked` is public, so that the state can be checked even during view function calls.
      */
-    bool public locked;
+    bool internal locked;
 
     /**
      * @notice Whether or not the contract is shutdown in case of an emergency.
@@ -59,7 +60,7 @@ contract Cellar is ERC4626, Owned, ERC721Holder {
     /**
      * @notice Stores the position id of the holding position in the creditPositions array.
      */
-    uint32 public holdingPosition;
+    uint32 internal holdingPosition;
 
     // ========================================= MULTICALL =========================================
 
@@ -68,19 +69,30 @@ contract Cellar is ERC4626, Owned, ERC721Holder {
      * @dev Does NOT return the function return values.
      */
     function multicall(bytes[] calldata data) external {
-        for (uint256 i = 0; i < data.length; i++) address(this).functionDelegateCall(data[i]);
+        for (uint256 i; i < data.length; ++i) address(this).functionDelegateCall(data[i]);
     }
 
     // ========================================= REENTRANCY GUARD =========================================
 
-    modifier nonReentrant() {
-        require(!locked, "REENTRANCY");
+    error Cellar__Reentrancy();
 
-        locked = true;
+    function _revertWhenReentrant() internal view {
+        if (locked) revert Cellar__Reentrancy();
+    }
 
-        _;
-
+    function _nonReentrantAfter() internal {
         locked = false;
+    }
+
+    function _nonReentrantBefore() internal {
+        _revertWhenReentrant();
+        locked = true;
+    }
+
+    modifier nonReentrant() {
+        _nonReentrantBefore();
+        _;
+        _nonReentrantAfter();
     }
 
     // ========================================= PRICE ROUTER CACHE =========================================
@@ -488,38 +500,25 @@ contract Cellar is ERC4626, Owned, ERC721Holder {
      */
     struct FeeData {
         uint64 strategistPlatformCut;
-        uint64 platformFee;
-        uint64 lastAccrual;
         address strategistPayoutAddress;
     }
 
     /**
      * @notice Stores all fee data for cellar.
      */
-    FeeData public feeData =
-        FeeData({
-            strategistPlatformCut: 0.75e18,
-            platformFee: 0.01e18,
-            lastAccrual: 0,
-            strategistPayoutAddress: address(0)
-        });
-
-    /**
-     * @notice Sets the max possible performance fee for this cellar.
-     */
-    uint64 public constant MAX_PLATFORM_FEE = 0.2e18;
+    FeeData public feeData;
 
     /**
      * @notice Sets the max possible fee cut for this cellar.
      */
-    uint64 public constant MAX_FEE_CUT = 1e18;
+    uint256 internal constant MAX_FEE_CUT = 1e18;
 
     /**
      * @notice Sets the Strategists cut of platform fees
      * @param cut the platform cut for the strategist
      * @dev Callable by Sommelier Governance.
      */
-    function setStrategistPlatformCut(uint64 cut) external onlyOwner {
+    function setStrategistPlatformCut(uint64 cut) public onlyOwner {
         if (cut > MAX_FEE_CUT) revert Cellar__InvalidFeeCut();
         emit StrategistPlatformCutChanged(feeData.strategistPlatformCut, cut);
 
@@ -619,14 +618,9 @@ contract Cellar is ERC4626, Owned, ERC721Holder {
     // =========================================== CONSTRUCTOR ===========================================
 
     /**
-     * @notice Id to get the gravity bridge from the registry.
-     */
-    uint256 public constant GRAVITY_BRIDGE_REGISTRY_SLOT = 0;
-
-    /**
      * @notice Id to get the price router from the registry.
      */
-    uint256 public constant PRICE_ROUTER_REGISTRY_SLOT = 2;
+    uint256 internal constant PRICE_ROUTER_REGISTRY_SLOT = 2;
 
     /**
      * @notice The minimum amount of shares to be minted in the contructor.
@@ -670,7 +664,7 @@ contract Cellar is ERC4626, Owned, ERC721Holder {
         uint256 _initialDeposit,
         uint64 _strategistPlatformCut,
         uint192 _shareSupplyCap
-    ) ERC4626(_asset, _name, _symbol) Owned(msg.sender) {
+    ) ERC4626(_asset, _name, _symbol) Ownable() {
         registry = _registry;
         priceRouter = PriceRouter(_registry.getAddress(PRICE_ROUTER_REGISTRY_SLOT));
 
@@ -691,7 +685,8 @@ contract Cellar is ERC4626, Owned, ERC721Holder {
         // Deposit _initialDeposit into holding position.
         _depositTo(_holdingPosition, _initialDeposit);
 
-        feeData.strategistPlatformCut = _strategistPlatformCut;
+        setStrategistPlatformCut(_strategistPlatformCut);
+
         transferOwnership(_owner);
     }
 
@@ -1009,7 +1004,7 @@ contract Cellar is ERC4626, Owned, ERC721Holder {
      */
     function totalAssets() public view override returns (uint256 assets) {
         _checkIfPaused();
-        require(!locked, "REENTRANCY");
+        _revertWhenReentrant();
         assets = _calculateTotalAssetsOrTotalAssetsWithdrawable(false);
     }
 
@@ -1019,7 +1014,7 @@ contract Cellar is ERC4626, Owned, ERC721Holder {
      */
     function totalAssetsWithdrawable() public view returns (uint256 assets) {
         _checkIfPaused();
-        require(!locked, "REENTRANCY");
+        _revertWhenReentrant();
         assets = _calculateTotalAssetsOrTotalAssetsWithdrawable(true);
     }
 
@@ -1114,7 +1109,7 @@ contract Cellar is ERC4626, Owned, ERC721Holder {
      * @return the max amount of assets withdrawable by `owner`.
      */
     function maxWithdraw(address owner) public view override returns (uint256) {
-        require(!locked, "REENTRANCY");
+        _revertWhenReentrant();
         return _findMax(owner, false);
     }
 
@@ -1126,7 +1121,7 @@ contract Cellar is ERC4626, Owned, ERC721Holder {
      * @return the max amount of shares redeemable by `owner`.
      */
     function maxRedeem(address owner) public view override returns (uint256) {
-        require(!locked, "REENTRANCY");
+        _revertWhenReentrant();
         return _findMax(owner, true);
     }
 
@@ -1244,7 +1239,7 @@ contract Cellar is ERC4626, Owned, ERC721Holder {
     /**
      * @notice Stores the max possible rebalance deviation for this cellar.
      */
-    uint64 public constant MAX_REBALANCE_DEVIATION = 0.1e18;
+    uint256 public constant MAX_REBALANCE_DEVIATION = 0.1e18;
 
     /**
      * @notice The percent the total assets of a cellar may deviate during a `callOnAdaptor`(rebalance) call.
@@ -1285,11 +1280,11 @@ contract Cellar is ERC4626, Owned, ERC721Holder {
      * @notice Internal helper function that accepts an Adaptor Call array, and makes calls to each adaptor.
      */
     function _makeAdaptorCalls(AdaptorCall[] memory data) internal {
-        for (uint256 i = 0; i < data.length; ++i) {
+        for (uint256 i; i < data.length; ++i) {
             address adaptor = data[i].adaptor;
             // Revert if adaptor not in catalogue, or adaptor is paused.
             if (!adaptorCatalogue[adaptor]) revert Cellar__CallToAdaptorNotAllowed(adaptor);
-            for (uint256 j = 0; j < data[i].callData.length; j++) {
+            for (uint256 j; j < data[i].callData.length; ++j) {
                 adaptor.functionDelegateCall(data[i].callData[j]);
                 emit AdaptorCalled(adaptor, data[i].callData[j]);
             }
@@ -1309,7 +1304,7 @@ contract Cellar is ERC4626, Owned, ERC721Holder {
      * @dev Callable by Sommelier Strategist, and Automation Actions contract.
      */
     function callOnAdaptor(AdaptorCall[] calldata data) external virtual nonReentrant {
-        if (msg.sender != owner && msg.sender != automationActions) revert Cellar__CallerNotApprovedToRebalance();
+        if (msg.sender != owner() && msg.sender != automationActions) revert Cellar__CallerNotApprovedToRebalance();
         _whenNotShutdown();
         _checkIfPaused();
         blockExternalReceiver = true;
@@ -1503,19 +1498,22 @@ contract Cellar is ERC4626, Owned, ERC721Holder {
     {
         uint256 creditLen = creditPositions.length;
         uint256 debtLen = debtPositions.length;
-        assets = new ERC20[](creditLen + debtLen);
-        balances = new uint256[](creditLen + debtLen);
-        isDebt = new bool[](creditLen + debtLen);
-        for (uint256 i = 0; i < creditLen; ++i) {
+        uint256 totalLen = creditLen + debtLen;
+        assets = new ERC20[](totalLen);
+        balances = new uint256[](totalLen);
+        isDebt = new bool[](totalLen);
+        for (uint256 i; i < creditLen; ++i) {
             assets[i] = _assetOf(creditPositions[i]);
             balances[i] = _balanceOf(creditPositions[i]);
             isDebt[i] = false;
         }
 
-        for (uint256 i = 0; i < debtLen; ++i) {
-            assets[i + creditPositions.length] = _assetOf(debtPositions[i]);
-            balances[i + creditPositions.length] = _balanceOf(debtPositions[i]);
-            isDebt[i + creditPositions.length] = true;
+        for (uint256 i; i < debtLen; ++i) {
+            // uint256 index;
+            uint256 index = i + creditLen;
+            assets[index] = _assetOf(debtPositions[i]);
+            balances[index] = _balanceOf(debtPositions[i]);
+            isDebt[index] = true;
         }
     }
 }

@@ -6,8 +6,6 @@ import { IFlashLoanRecipient, IERC20 } from "@balancer/interfaces/contracts/vaul
 import { CellarWithShareLockPeriod } from "src/base/permutations/CellarWithShareLockPeriod.sol";
 import { EIP712, ECDSA } from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 
-// import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-
 contract CellarWithShareLockFlashLoansWhitelisting is CellarWithShareLockPeriod, EIP712 {
     using SafeTransferLib for ERC20;
 
@@ -83,7 +81,7 @@ contract CellarWithShareLockFlashLoansWhitelisting is CellarWithShareLockPeriod,
         _makeAdaptorCalls(data);
 
         // Approve pool to repay all debt.
-        for (uint256 i = 0; i < amounts.length; ++i) {
+        for (uint256 i; i < amounts.length; ++i) {
             ERC20(address(tokens[i])).safeTransfer(balancerVault, (amounts[i] + feeAmounts[i]));
         }
     }
@@ -179,7 +177,7 @@ contract CellarWithShareLockFlashLoansWhitelisting is CellarWithShareLockPeriod,
 
             address signer = ECDSA.recover(digest, signature);
 
-            if (signer != automationActions && signer != owner) revert Cellar__InvalidSignature();
+            if (signer != automationActions && signer != owner()) revert Cellar__InvalidSignature();
         }
     }
 

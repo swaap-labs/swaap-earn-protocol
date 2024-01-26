@@ -424,7 +424,7 @@ contract FeesAndReserves is Owned, AutomationCompatibleInterface, ReentrancyGuar
         feesReadyForClaim[cellar] = 0;
 
         // Get the fee split, and payout address from the cellar, even thought the fee split is intended for platform fees
-        (uint64 strategistPlatformCut, , , address strategistPayout) = cellar.feeData();
+        (uint64 strategistPlatformCut, address strategistPayout) = cellar.feeData();
 
         // Make sure `strategistPlatformCut` is logical.
         if (strategistPlatformCut > 1e18) revert FeesAndReserves__InvalidCut();
