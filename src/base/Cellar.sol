@@ -494,8 +494,6 @@ contract Cellar is ERC4626, Ownable, ERC721Holder {
      * @notice Data related to fees.
      * @param strategistPlatformCut Determines how much platform fees go to strategist.
      *                              This should be a value out of 1e18 (ie. 1e18 represents 100%, 0 represents 0%).
-     * @param platformFee The percentage of total assets accrued as platform fees over a year.
-                          This should be a value out of 1e18 (ie. 1e18 represents 100%, 0 represents 0%).
      * @param strategistPayoutAddress Address to send the strategists fee shares.
      */
     struct FeeData {
