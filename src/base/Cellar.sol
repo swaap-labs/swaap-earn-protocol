@@ -1167,7 +1167,7 @@ contract Cellar is ERC4626, Ownable, ERC721Holder {
         shares = assets.mulDivUp(_totalSupply, _totalAssets);
     }
 
-    // =========================================== AUTOMATION ACTIONS LOGIC ===========================================
+    //cap =========================================== AUTOMATION ACTIONS LOGIC ===========================================
 
     /**
      * Emitted when sender is not approved to call `callOnAdaptor`.
@@ -1338,29 +1338,15 @@ contract Cellar is ERC4626, Ownable, ERC721Holder {
      */
     error Cellar__ShareSupplyCapExceeded();
 
-    /**
-     * @notice Proposed share supply cap is not logical.
-     */
-    error Cellar__InvalidShareSupplyCap();
+    event ShareSupplyCapChanged(uint192 newShareSupplyCap);
 
     /**
      * @notice Increases the share supply cap.
      * @dev Callable by Sommelier Governance.
      */
-    function increaseShareSupplyCap(uint192 _newShareSupplyCap) public onlyOwner {
-        if (_newShareSupplyCap < shareSupplyCap) revert Cellar__InvalidShareSupplyCap();
-
+    function setShareSupplyCap(uint192 _newShareSupplyCap) public onlyOwner {
         shareSupplyCap = _newShareSupplyCap;
-    }
-
-    /**
-     * @notice Decreases the share supply cap.
-     * @dev Callable by Sommelier Strategist.
-     */
-    function decreaseShareSupplyCap(uint192 _newShareSupplyCap) public onlyOwner {
-        if (_newShareSupplyCap > shareSupplyCap) revert Cellar__InvalidShareSupplyCap();
-
-        shareSupplyCap = _newShareSupplyCap;
+        emit ShareSupplyCapChanged(_newShareSupplyCap);
     }
 
     /**

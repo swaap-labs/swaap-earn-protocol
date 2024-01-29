@@ -85,7 +85,7 @@ contract AxelarProxyTest is MainnetStarterTest, AdaptorHelperFunctions {
         newShareSupplyCap = uint192(bound(newShareSupplyCap, 1, type(uint192).max - 1));
         bytes32 commandId = hex"01";
         string memory sourceChain = "sommelier";
-        bytes memory data = abi.encodeWithSelector(Cellar.decreaseShareSupplyCap.selector, newShareSupplyCap);
+        bytes memory data = abi.encodeWithSelector(Cellar.setShareSupplyCap.selector, newShareSupplyCap);
         bytes memory payload = abi.encode(0, address(cellar), 1, block.timestamp, data);
         proxy.execute(commandId, sourceChain, sender, payload);
 
@@ -135,7 +135,7 @@ contract AxelarProxyTest is MainnetStarterTest, AdaptorHelperFunctions {
         uint192 newShareSupplyCap = 0;
         bytes32 commandId = hex"01";
         string memory sourceChain = "ethereum";
-        bytes memory data = abi.encodeWithSelector(Cellar.decreaseShareSupplyCap.selector, newShareSupplyCap);
+        bytes memory data = abi.encodeWithSelector(Cellar.setShareSupplyCap.selector, newShareSupplyCap);
         bytes memory payload = abi.encode(0, address(cellar), 1, block.timestamp, data);
         vm.expectRevert(bytes(abi.encodeWithSelector(AxelarProxy.AxelarProxy__WrongSource.selector)));
         proxy.execute(commandId, sourceChain, sender, payload);
@@ -146,7 +146,7 @@ contract AxelarProxyTest is MainnetStarterTest, AdaptorHelperFunctions {
         bytes32 commandId = hex"01";
         string memory sourceChain = "sommelier";
         string memory wrongSender = "Not a Turbo Poggers Sommelier";
-        bytes memory data = abi.encodeWithSelector(Cellar.decreaseShareSupplyCap.selector, newShareSupplyCap);
+        bytes memory data = abi.encodeWithSelector(Cellar.setShareSupplyCap.selector, newShareSupplyCap);
         bytes memory payload = abi.encode(0, address(cellar), 1, block.timestamp, data);
         vm.expectRevert(bytes(abi.encodeWithSelector(AxelarProxy.AxelarProxy__WrongSender.selector)));
         proxy.execute(commandId, sourceChain, wrongSender, payload);
@@ -156,7 +156,7 @@ contract AxelarProxyTest is MainnetStarterTest, AdaptorHelperFunctions {
         uint192 newShareSupplyCap = 0;
         bytes32 commandId = hex"01";
         string memory sourceChain = "sommelier";
-        bytes memory data = abi.encodeWithSelector(Cellar.decreaseShareSupplyCap.selector, newShareSupplyCap);
+        bytes memory data = abi.encodeWithSelector(Cellar.setShareSupplyCap.selector, newShareSupplyCap);
         bytes memory payload = abi.encode(2, address(cellar), 1, block.timestamp, data);
         vm.expectRevert(bytes(abi.encodeWithSelector(AxelarProxy.AxelarProxy__WrongMsgId.selector)));
         proxy.execute(commandId, sourceChain, sender, payload);
@@ -166,7 +166,7 @@ contract AxelarProxyTest is MainnetStarterTest, AdaptorHelperFunctions {
         uint192 newShareSupplyCap = 0;
         bytes32 commandId = hex"01";
         string memory sourceChain = "sommelier";
-        bytes memory data = abi.encodeWithSelector(Cellar.decreaseShareSupplyCap.selector, newShareSupplyCap);
+        bytes memory data = abi.encodeWithSelector(Cellar.setShareSupplyCap.selector, newShareSupplyCap);
         bytes memory payload = abi.encode(0, address(cellar), 0, block.timestamp, data);
         vm.expectRevert(bytes(abi.encodeWithSelector(AxelarProxy.AxelarProxy__NonceTooOld.selector)));
         proxy.execute(commandId, sourceChain, sender, payload);
@@ -176,7 +176,7 @@ contract AxelarProxyTest is MainnetStarterTest, AdaptorHelperFunctions {
         uint192 newShareSupplyCap = 0;
         bytes32 commandId = hex"01";
         string memory sourceChain = "sommelier";
-        bytes memory data = abi.encodeWithSelector(Cellar.decreaseShareSupplyCap.selector, newShareSupplyCap);
+        bytes memory data = abi.encodeWithSelector(Cellar.setShareSupplyCap.selector, newShareSupplyCap);
         bytes memory payload = abi.encode(0, address(cellar), 1, block.timestamp - 1, data);
         vm.expectRevert(bytes(abi.encodeWithSelector(AxelarProxy.AxelarProxy__PastDeadline.selector)));
         proxy.execute(commandId, sourceChain, sender, payload);
@@ -186,14 +186,14 @@ contract AxelarProxyTest is MainnetStarterTest, AdaptorHelperFunctions {
         uint192 newShareSupplyCap = 0;
         bytes32 commandId = hex"01";
         string memory sourceChain = "sommelier";
-        bytes memory data = abi.encodeWithSelector(Cellar.decreaseShareSupplyCap.selector, newShareSupplyCap);
+        bytes memory data = abi.encodeWithSelector(Cellar.setShareSupplyCap.selector, newShareSupplyCap);
         bytes memory payload = abi.encode(0, address(cellar), type(uint256).max, block.timestamp, data);
 
         // Call goes through which sets the nonce to type uint256 max.
         proxy.execute(commandId, sourceChain, sender, payload);
 
         // Subsequent calls fails.
-        data = abi.encodeWithSelector(Cellar.increaseShareSupplyCap.selector, type(uint192).max);
+        data = abi.encodeWithSelector(Cellar.setShareSupplyCap.selector, type(uint192).max);
         payload = abi.encode(0, address(cellar), 1, block.timestamp, data);
 
         vm.expectRevert(bytes(abi.encodeWithSelector(AxelarProxy.AxelarProxy__NonceTooOld.selector)));

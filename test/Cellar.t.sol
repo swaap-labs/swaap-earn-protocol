@@ -373,7 +373,7 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
         assertEq(cellar.maxMint(address(this)), type(uint256).max, "Max Mint should equal type(uint256).max");
 
         uint192 newCap = 100e6;
-        cellar.decreaseShareSupplyCap(newCap);
+        cellar.setShareSupplyCap(newCap);
         assertEq(cellar.shareSupplyCap(), newCap, "Share Supply Cap should have been updated.");
         uint256 totalAssets = cellar.totalAssets();
         // Since shares are currently 1:1 with assets, they are interchangeable in below equation.
