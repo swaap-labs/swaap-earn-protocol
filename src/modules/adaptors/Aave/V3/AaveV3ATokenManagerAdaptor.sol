@@ -301,19 +301,6 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
         if (healthFactor < minimumHealthFactor) revert AaveV3ATokenAdaptor__HealthFactorTooLow();
     }
 
-    /**
-     * @notice Allows strategists to enter different EModes.
-     */
-    function changeEMode(uint8 accountId, uint8 categoryId) public {
-        address accountAddress = _getAccountExtensionAddress(accountId);
-
-        AaveV3AccountExtension(accountAddress).changeEMode(categoryId);
-
-        // Check that health factor is above adaptor minimum.
-        (, , , , , uint256 healthFactor) = pool.getUserAccountData(accountAddress);
-        if (healthFactor < minimumHealthFactor) revert AaveV3ATokenAdaptor__HealthFactorTooLow();
-    }
-
     function _requestATokenApprovalIfNeeded(address accountAddress, address token, uint256 amount) internal {
         if (ERC20(token).allowance(accountAddress, address(this)) < amount) {
             AaveV3AccountExtension(accountAddress).approveATokenToCellar(token);

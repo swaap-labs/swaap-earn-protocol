@@ -36,7 +36,14 @@ abstract contract AaveV3AccountHelper {
 
         bytes memory creationCode = _getCreationCode();
         // Create 2 will check if the account extension already exists and reverts if it does
-        return Create2.deploy(0, salt, creationCode);
+        address accountAddress = Create2.deploy(0, salt, creationCode);
+
+        // by default the account does not have any E mode enabled on Aave
+        if (accountId != 0) {
+            AaveV3AccountExtension(accountAddress).changeEMode(accountId);
+        }
+
+        return accountAddress;
     }
 
     function _extractAdaptorData(bytes memory adaptorData) internal view returns (address, address) {
