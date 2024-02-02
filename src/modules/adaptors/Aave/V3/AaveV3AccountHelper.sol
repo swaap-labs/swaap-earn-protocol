@@ -19,13 +19,13 @@ abstract contract AaveV3AccountHelper {
      */
     IPoolV3 public immutable pool;
 
-    bytes32 public immutable bytecodeHash;
+    bytes32 public immutable accountBytecodeHash;
 
     constructor(address v3Pool) {
         pool = IPoolV3(v3Pool);
 
         bytes memory creationCode = _getCreationCode();
-        bytecodeHash = keccak256(creationCode);
+        accountBytecodeHash = keccak256(creationCode);
     }
 
     error AaveV3AccountHelper__AccountExtensionDoesNotExist();
@@ -74,7 +74,7 @@ abstract contract AaveV3AccountHelper {
     function _getAccountAddress(uint8 id) internal view returns (address) {
         bytes32 salt = _getSaltById(id);
         // create 2 is necessary to have a deterministic address for the account extension using the bytecode hash
-        return Create2.computeAddress(salt, bytecodeHash);
+        return Create2.computeAddress(salt, accountBytecodeHash);
     }
 
     // extracts the account address and aave token from the adaptor data and verifies that the account exists
