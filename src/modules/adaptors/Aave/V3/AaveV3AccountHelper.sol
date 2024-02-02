@@ -30,6 +30,8 @@ abstract contract AaveV3AccountHelper {
 
     error AaveV3AccountHelper__AccountExtensionDoesNotExist();
 
+    event AccountExtensionCreated(address accountAddress, uint8 accountId);
+
     function createAccountExtension(bytes memory adaptorData) external returns (address) {
         (uint8 accountId, ) = _decodeAdaptorData(adaptorData);
         bytes32 salt = _getSaltById(accountId);
@@ -42,6 +44,8 @@ abstract contract AaveV3AccountHelper {
         if (accountId != 0) {
             AaveV3AccountExtension(accountAddress).changeEMode(accountId);
         }
+
+        emit AccountExtensionCreated(accountAddress, accountId);
 
         return accountAddress;
     }
