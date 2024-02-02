@@ -27,13 +27,13 @@ contract AaveV3DebtManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
     /**
      @notice Attempted borrow would lower Cellar health factor too low.
      */
-    error AaveV3DebtTokenAdaptor__HealthFactorTooLow();
+    error AaveV3DebtManagerAdaptor__HealthFactorTooLow();
 
     /**
      * @notice Strategist attempted to open an untracked Aave loan.
      * @param untrackedDebtPosition the address of the untracked loan
      */
-    error AaveV3DebtTokenAdaptor__DebtPositionsMustBeTracked(address untrackedDebtPosition);
+    error AaveV3DebtManagerAdaptor__DebtPositionsMustBeTracked(address untrackedDebtPosition);
 
     /**
      * @notice Minimum Health Factor enforced after every borrow.
@@ -86,6 +86,7 @@ contract AaveV3DebtManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
      */
     function balanceOf(bytes memory adaptorData) public view override returns (uint256) {
         (address accountAddress, address token) = _extractAdaptorData(adaptorData);
+        // no need to check if the account extension exists, if it does not it can't / shouldn't have any debt as aave debt is not transferable
         return ERC20(token).balanceOf(accountAddress);
     }
 
@@ -114,7 +115,7 @@ contract AaveV3DebtManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
      */
     function borrowFromAave(uint8 accountId, ERC20 debtTokenToBorrow, uint256 amountToBorrow) public {
         // should revert if account extension does not exist
-        address accountAddress = _getAccountExtensionAddress(accountId);
+        address accountAddress = _getAccountAddressAndVerify(accountId);
 
         _requestAaveDebtDelegationIfNecessary(accountAddress, address(debtTokenToBorrow), amountToBorrow);
 
@@ -124,7 +125,7 @@ contract AaveV3DebtManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
         );
         uint32 positionId = Cellar(address(this)).registry().getPositionHashToPositionId(positionHash);
         if (!Cellar(address(this)).isPositionUsed(positionId))
-            revert AaveV3DebtTokenAdaptor__DebtPositionsMustBeTracked(address(debtTokenToBorrow));
+            revert AaveV3DebtManagerAdaptor__DebtPositionsMustBeTracked(address(debtTokenToBorrow));
 
         // Open up new variable debt position on Aave.
         pool.borrow(
@@ -137,7 +138,7 @@ contract AaveV3DebtManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
 
         // Check that health factor is above adaptor minimum.
         (, , , , , uint256 healthFactor) = pool.getUserAccountData(accountAddress);
-        if (healthFactor < minimumHealthFactor) revert AaveV3DebtTokenAdaptor__HealthFactorTooLow();
+        if (healthFactor < minimumHealthFactor) revert AaveV3DebtManagerAdaptor__HealthFactorTooLow();
     }
 
     /**
@@ -148,7 +149,7 @@ contract AaveV3DebtManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
      */
     function repayAaveDebt(uint8 accountId, ERC20 tokenToRepay, uint256 amountToRepay) public {
         // should revert if account extension does not exist
-        address accountAddress = _getAccountExtensionAddress(accountId);
+        address accountAddress = _getAccountAddressAndVerify(accountId);
         tokenToRepay.safeApprove(address(pool), amountToRepay);
         pool.repay(address(tokenToRepay), amountToRepay, 2, accountAddress); // 2 is the interest rate mode,  either 1 for stable or 2 for variable
 
@@ -160,7 +161,7 @@ contract AaveV3DebtManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
      * @notice Allows strategist to use aTokens to repay debt tokens with the same underlying.
      */
     function repayWithATokens(uint8 accountId, ERC20 underlying, uint256 amount) public {
-        address accountAddress = _getAccountExtensionAddress(accountId);
+        address accountAddress = _getAccountAddressAndVerify(accountId);
         AaveV3AccountExtension(accountAddress).repayWithATokens(underlying, amount);
     }
 

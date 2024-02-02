@@ -46,21 +46,38 @@ abstract contract AaveV3AccountHelper {
         return accountAddress;
     }
 
+    // extracts the account address and aave token from the adaptor data without verifying that the account exists
     function _extractAdaptorData(bytes memory adaptorData) internal view returns (address, address) {
         (uint8 id, address aaveToken) = _decodeAdaptorData(adaptorData);
 
-        // should revert if account extension does not exist
-        address accountAddress = _getAccountExtensionAddress(id);
+        address accountAddress = _getAccountAddress(id);
 
         return (accountAddress, aaveToken);
     }
 
-    function _getAccountExtensionAddress(uint8 id) internal view returns (address) {
-        bytes32 salt = _getSaltById(id);
-        // create 2 is necessary to have a deterministic address for the account extension using the bytecode hash
-        address accountAddress = Create2.computeAddress(salt, bytecodeHash);
+    // extracts the account address and aave token from the adaptor data and verifies that the account exists
+    function _extractAdaptorDataAndVerify(bytes memory adaptorData) internal view returns (address, address) {
+        (address accountAddress, address aaveToken) = _extractAdaptorData(adaptorData);
 
         if (!Address.isContract(accountAddress)) {
+            revert AaveV3AccountHelper__AccountExtensionDoesNotExist();
+        }
+
+        return (accountAddress, aaveToken);
+    }
+
+    // extracts the account address
+    function _getAccountAddress(uint8 id) internal view returns (address) {
+        bytes32 salt = _getSaltById(id);
+        // create 2 is necessary to have a deterministic address for the account extension using the bytecode hash
+        return Create2.computeAddress(salt, bytecodeHash);
+    }
+
+    // extracts the account address and aave token from the adaptor data and verifies that the account exists
+    function _getAccountAddressAndVerify(uint8 id) internal view returns (address) {
+        address accountAddress = _getAccountAddress(id);
+
+        if(!Address.isContract(accountAddress)) {
             revert AaveV3AccountHelper__AccountExtensionDoesNotExist();
         }
 

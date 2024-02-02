@@ -5,7 +5,7 @@ import { BaseAdaptor, ERC20, SafeTransferLib, Cellar, PriceRouter, Math } from "
 import { IPoolV3 } from "src/interfaces/external/IPoolV3.sol";
 import { IAaveToken } from "src/interfaces/external/IAaveToken.sol";
 import { IAaveOracle } from "src/interfaces/external/IAaveOracle.sol";
-import { AaveV3AccountHelper } from "./AaveV3AccountHelper.sol";
+import { AaveV3AccountHelper, Address } from "./AaveV3AccountHelper.sol";
 import { AaveV3AccountExtension } from "./AaveV3AccountExtension.sol";
 
 /**
@@ -93,7 +93,7 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
      */
     function deposit(uint256 assets, bytes memory adaptorData, bytes memory) public override {
         // Deposit assets to Aave.
-        (address accountAddress, address aToken) = _extractAdaptorData(adaptorData);
+        (address accountAddress, address aToken) = _extractAdaptorDataAndVerify(adaptorData);
         ERC20 token = ERC20(IAaveToken(aToken).UNDERLYING_ASSET_ADDRESS());
 
         // instead of transferting the assets to the account, we deposit to the pool on behalf of the account
@@ -124,7 +124,7 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
         _externalReceiverCheck(receiver);
 
         // Withdraw assets from Aave.
-        (address accountAddress, address token) = _extractAdaptorData(adaptorData);
+        (address accountAddress, address token) = _extractAdaptorDataAndVerify(adaptorData);
         address underlyingAsset = IAaveToken(token).UNDERLYING_ASSET_ADDRESS();
 
         _requestATokenApprovalIfNeeded(accountAddress, address(token), assets);
@@ -168,6 +168,10 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
         bytes memory configData
     ) public view override returns (uint256) {
         (address accountAddress, address token) = _extractAdaptorData(adaptorData);
+
+        // if the account does not exist (yet) but has aToken sent to it, we still want to return 0
+        // because the cellar cannot withdraw from it unless it has been created
+        if(!Address.isContract(accountAddress)) return 0;
 
         (
             uint256 totalCollateralBase,
@@ -225,6 +229,11 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
      */
     function balanceOf(bytes memory adaptorData) public view override returns (uint256) {
         (address accountAddress, address token) = _extractAdaptorData(adaptorData);
+
+        // if the account does not exist (yet) but has aToken sent to it, we still want to return 0
+        // because the cellar cannot withdraw from it unless it has been created
+        if(!Address.isContract(accountAddress)) return 0;
+
         return ERC20(token).balanceOf(accountAddress);
     }
 
@@ -262,7 +271,7 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
      */
     function depositToAave(uint8 accountId, ERC20 tokenToDeposit, uint256 amountToDeposit) public {
         // should revert if account extension does not exist
-        address accountAddress = _getAccountExtensionAddress(accountId);
+        address accountAddress = _getAccountAddressAndVerify(accountId);
 
         amountToDeposit = _maxAvailable(tokenToDeposit, amountToDeposit);
         tokenToDeposit.safeApprove(address(pool), amountToDeposit);
@@ -278,7 +287,8 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
      * @param amountToWithdraw the amount of `tokenToWithdraw` to withdraw from Aave
      */
     function withdrawFromAave(uint8 accountId, ERC20 tokenToWithdraw, uint256 amountToWithdraw) public {
-        address accountAddress = _getAccountExtensionAddress(accountId);
+        // should revert if account extension does not exist
+        address accountAddress = _getAccountAddressAndVerify(accountId);
 
         _requestATokenApprovalIfNeeded(accountAddress, address(tokenToWithdraw), amountToWithdraw);
 
@@ -292,7 +302,8 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
      * @notice Allows strategists to adjust an asset's isolation mode.
      */
     function adjustIsolationModeAssetAsCollateral(uint8 accountId, address asset, bool useAsCollateral) public {
-        address accountAddress = _getAccountExtensionAddress(accountId);
+        // should revert if account extension does not exist
+        address accountAddress = _getAccountAddressAndVerify(accountId);
 
         AaveV3AccountExtension(accountAddress).adjustIsolationModeAssetAsCollateral(asset, useAsCollateral);
 
