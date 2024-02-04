@@ -49,6 +49,11 @@ abstract contract BaseAdaptor {
      */
     error BaseAdaptor__ConstructorHealthFactorTooLow();
 
+    /**
+     * @notice Attempted to interact with a position that is not used in the calling cellar.
+     */
+    error BaseAdaptor__PositionNotUsed(bytes adaptorData);
+
     //============================================ Global Functions ===========================================
     /**
      * @dev Identifier unique to this adaptor for a shared registry.
@@ -211,6 +216,38 @@ abstract contract BaseAdaptor {
      */
     function revokeApproval(ERC20 asset, address spender) public {
         asset.safeApprove(spender, 0);
+    }
+
+    /**
+     * @notice Allows cellar to validate if a position is used in the calling cellar.
+     * If the cellar is deployed (code size > 0), this function will check if the position is used.
+     * If not deployed, this function will not check if the position is being used as it is assumed that it is
+     * being used by the initial deposit function in the constructor which already adds the position to the cellar.
+     */
+    function _verifyUsedPositionIfDeployed(bytes memory adaptorData) internal view {
+        uint256 cellarCodeSize;
+        address cellarAddress = address(this);
+        
+        assembly {
+            cellarCodeSize := extcodesize(cellarAddress)
+        }
+        
+        if (cellarCodeSize > 0) {
+            _verifyUsedPosition(adaptorData);
+        }
+    }
+
+    /**
+     * @notice Allows cellar to validate if a position is used in the calling cellar.
+     */
+    function _verifyUsedPosition(
+        bytes memory adaptorData
+    ) internal view {
+        // Check that erc4626Vault position is setup to be used in the calling cellar.
+        bytes32 positionHash = keccak256(abi.encode(identifier(), isDebt(), adaptorData));
+        uint32 positionId = Cellar(address(this)).registry().getPositionHashToPositionId(positionHash);
+        if (!Cellar(address(this)).isPositionUsed(positionId))
+            revert BaseAdaptor__PositionNotUsed(adaptorData);
     }
 
 }
