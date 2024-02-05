@@ -11,7 +11,6 @@ import { AaveV3AccountExtension } from "./AaveV3AccountExtension.sol";
 /**
  * @title Aave debtToken Adaptor
  * @notice Allows Cellars to interact with Aave debtToken positions.
- * @author crispymangoes
  */
 contract AaveV3DebtManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
     using SafeTransferLib for ERC20;
@@ -28,12 +27,6 @@ contract AaveV3DebtManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
      @notice Attempted borrow would lower Cellar health factor too low.
      */
     error AaveV3DebtManagerAdaptor__HealthFactorTooLow();
-
-    /**
-     * @notice Strategist attempted to open an untracked Aave loan.
-     * @param untrackedDebtPosition the address of the untracked loan
-     */
-    error AaveV3DebtManagerAdaptor__DebtPositionsMustBeTracked(address untrackedDebtPosition);
 
     /**
      * @notice Minimum Health Factor enforced after every borrow.
@@ -85,7 +78,7 @@ contract AaveV3DebtManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
      * @notice Returns the cellars balance of the positions debtToken.
      */
     function balanceOf(bytes memory adaptorData) public view override returns (uint256) {
-        (address accountAddress, address token) = _extractAdaptorData(adaptorData);
+        (address accountAddress, address token) = _extractAdaptorData(adaptorData, msg.sender);
         // no need to check if the account extension exists, if it does not it can't / shouldn't have any debt as aave debt is not transferable
         return ERC20(token).balanceOf(accountAddress);
     }
@@ -94,7 +87,7 @@ contract AaveV3DebtManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
      * @notice Returns the positions debtToken underlying asset.
      */
     function assetOf(bytes memory adaptorData) public view override returns (ERC20) {
-        (, address token) = _extractAdaptorData(adaptorData);
+        (, address token) = _extractAdaptorData(adaptorData, msg.sender);
         return ERC20(IAaveToken(token).UNDERLYING_ASSET_ADDRESS());
     }
 
@@ -114,18 +107,12 @@ contract AaveV3DebtManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
      * @param amountToBorrow the amount of `debtTokenToBorrow` to borrow on Aave.
      */
     function borrowFromAave(uint8 accountId, ERC20 debtTokenToBorrow, uint256 amountToBorrow) public {
+        _validateDebtToken(accountId, debtTokenToBorrow);
+
         // should revert if account extension does not exist
-        address accountAddress = _getAccountAddressAndVerify(accountId);
+        address accountAddress = _getAccountAddressAndVerify(accountId, address(this));
 
         _requestAaveDebtDelegationIfNecessary(accountAddress, address(debtTokenToBorrow), amountToBorrow);
-
-        // Check that debt position is properly set up to be tracked in the Cellar.
-        bytes32 positionHash = keccak256(
-            abi.encode(identifier(), true, abi.encode(accountId, address(debtTokenToBorrow)))
-        );
-        uint32 positionId = Cellar(address(this)).registry().getPositionHashToPositionId(positionHash);
-        if (!Cellar(address(this)).isPositionUsed(positionId))
-            revert AaveV3DebtManagerAdaptor__DebtPositionsMustBeTracked(address(debtTokenToBorrow));
 
         // Open up new variable debt position on Aave.
         pool.borrow(
@@ -144,25 +131,30 @@ contract AaveV3DebtManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
     /**
      * @notice Allows strategists to repay loan debt on Aave.
      * @dev Uses `_maxAvailable` helper function, see BaseAdaptor.sol
-     * @param tokenToRepay the underlying ERC20 token you want to repay, NOT the debtToken.
+     * @param underlyingToken the underlying ERC20 token you want to repay, NOT the debtToken.
      * @param amountToRepay the amount of `tokenToRepay` to repay with.
      */
-    function repayAaveDebt(uint8 accountId, ERC20 tokenToRepay, uint256 amountToRepay) public {
+    function repayAaveDebt(uint8 accountId, ERC20 underlyingToken, uint256 amountToRepay) public {
+        // we don't need to check if the debt token exists or if the adaptor data is valid, 
+        // as the debt is not transferable and there is no way to obtain it without borrowing it beforehand
+        // by validating that the adaptor data is tracked by the cellar
+        // _validateDebtToken(accountId, IAaveToken(address(tokenToRepay))
+
         // should revert if account extension does not exist
-        address accountAddress = _getAccountAddressAndVerify(accountId);
-        tokenToRepay.safeApprove(address(pool), amountToRepay);
-        pool.repay(address(tokenToRepay), amountToRepay, 2, accountAddress); // 2 is the interest rate mode,  either 1 for stable or 2 for variable
+        address accountAddress = _getAccountAddressAndVerify(accountId, address(this));
+        underlyingToken.safeApprove(address(pool), amountToRepay);
+        pool.repay(address(underlyingToken), amountToRepay, 2, accountAddress); // 2 is the interest rate mode,  either 1 for stable or 2 for variable
 
         // Zero out approvals if necessary.
-        _revokeExternalApproval(tokenToRepay, address(pool));
+        _revokeExternalApproval(underlyingToken, address(pool));
     }
 
     /**
      * @notice Allows strategist to use aTokens to repay debt tokens with the same underlying.
      */
-    function repayWithATokens(uint8 accountId, ERC20 underlying, uint256 amount) public {
-        address accountAddress = _getAccountAddressAndVerify(accountId);
-        AaveV3AccountExtension(accountAddress).repayWithATokens(underlying, amount);
+    function repayWithATokens(uint8 accountId, ERC20 underlyingToken, uint256 amount) public {
+        address accountAddress = _getAccountAddressAndVerify(accountId, address(this));
+        AaveV3AccountExtension(accountAddress).repayWithATokens(underlyingToken, amount);
     }
 
     /**
@@ -177,9 +169,13 @@ contract AaveV3DebtManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
         pool.flashLoan(address(this), loanToken, loanAmount, modes, address(this), params, 0);
     }
 
-    function _requestAaveDebtDelegationIfNecessary(address accountAddress, address token, uint256 amount) internal {
-        if (ICreditDelegationToken(token).borrowAllowance(accountAddress, address(this)) < amount) {
-            AaveV3AccountExtension(accountAddress).approveDebtDelegationToCellar(token);
+    function _requestAaveDebtDelegationIfNecessary(address accountAddress, address debtToken, uint256 amount) internal {
+        if (ICreditDelegationToken(debtToken).borrowAllowance(accountAddress, address(this)) < amount) {
+            AaveV3AccountExtension(accountAddress).approveDebtDelegationToCellar(debtToken);
         }
+    }
+
+    function _validateDebtToken(uint8 accountId, ERC20 debtToken) internal view {
+        _verifyUsedPosition(abi.encode(accountId, debtToken));
     }
 }

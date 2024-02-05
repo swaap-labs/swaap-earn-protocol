@@ -29,39 +29,49 @@ abstract contract AaveV3AccountHelper {
     }
 
     error AaveV3AccountHelper__AccountExtensionDoesNotExist();
+    error AaveV3AccountHelper__AccountExtensionAddresDoNotMatch();
 
     event AccountExtensionCreated(uint8 indexed accountId, address accountAddress);
 
-    function createAccountExtension(bytes memory adaptorData) external returns (address) {
-        (uint8 accountId, ) = _decodeAdaptorData(adaptorData);
-        bytes32 salt = _getSaltById(accountId);
+    function _createAccountExtensionIfNeeded(uint8 accountId) internal returns (address) { 
+        address expectedAccountAddress = _getAccountAddress(accountId, address(this));
 
-        bytes memory creationCode = _getCreationCode();
-        // Create 2 will check if the account extension already exists and reverts if it does
-        address accountAddress = Create2.deploy(0, salt, creationCode);
+        // if the account does not exist (yet), we still want to create the account
+        if(!Address.isContract(expectedAccountAddress)) {
+            bytes memory creationCode = _getCreationCode();
+            // Create 2 will check if the account extension already exists and reverts if it does
+            bytes32 salt = _getSaltById(accountId);
+            address deployedAccountAddress = Create2.deploy(0, salt, creationCode);
+            
+            // this should never happen, but just in case
+            if(deployedAccountAddress != expectedAccountAddress) {
+                revert AaveV3AccountHelper__AccountExtensionAddresDoNotMatch();
+            }
 
-        // by default the account does not have any E mode enabled on Aave
-        if (accountId != 0) {
-            AaveV3AccountExtension(accountAddress).changeEMode(accountId);
+            // by default the account does not have any E mode enabled on Aave
+            if (accountId != 0) {
+                // we enable the E mode for the account if it is not the default account
+                AaveV3AccountExtension(expectedAccountAddress).changeEMode(accountId);
+            }
+
+            emit AccountExtensionCreated(accountId, expectedAccountAddress);
         }
 
-        emit AccountExtensionCreated(accountId, accountAddress);
-
-        return accountAddress;
+        return expectedAccountAddress;
     }
 
     // extracts the account address and aave token from the adaptor data without verifying that the account exists
-    function _extractAdaptorData(bytes memory adaptorData) internal view returns (address, address) {
+    function _extractAdaptorData(bytes memory adaptorData, address cellarAddress) internal view returns (address, address) {
         (uint8 id, address aaveToken) = _decodeAdaptorData(adaptorData);
 
-        address accountAddress = _getAccountAddress(id);
+        address accountAddress = _getAccountAddress(id, cellarAddress);
 
         return (accountAddress, aaveToken);
     }
 
     // extracts the account address and aave token from the adaptor data and verifies that the account exists
-    function _extractAdaptorDataAndVerify(bytes memory adaptorData) internal view returns (address, address) {
-        (address accountAddress, address aaveToken) = _extractAdaptorData(adaptorData);
+    function _extractAdaptorDataAndVerify(bytes memory adaptorData, address cellarAddress) internal view returns (address, address) {
+        (address accountAddress, address aaveToken) = _extractAdaptorData(adaptorData, cellarAddress);
 
         if (!Address.isContract(accountAddress)) {
             revert AaveV3AccountHelper__AccountExtensionDoesNotExist();
@@ -71,15 +81,15 @@ abstract contract AaveV3AccountHelper {
     }
 
     // extracts the account address
-    function _getAccountAddress(uint8 id) internal view returns (address) {
+    function _getAccountAddress(uint8 id, address cellarAddress) internal view returns (address) {
         bytes32 salt = _getSaltById(id);
         // create 2 is necessary to have a deterministic address for the account extension using the bytecode hash
-        return Create2.computeAddress(salt, accountBytecodeHash);
+        return Create2.computeAddress(salt, accountBytecodeHash, cellarAddress);
     }
 
     // extracts the account address and aave token from the adaptor data and verifies that the account exists
-    function _getAccountAddressAndVerify(uint8 id) internal view returns (address) {
-        address accountAddress = _getAccountAddress(id);
+    function _getAccountAddressAndVerify(uint8 id, address cellarAddress) internal view returns (address) {
+        address accountAddress = _getAccountAddress(id, cellarAddress);
 
         if(!Address.isContract(accountAddress)) {
             revert AaveV3AccountHelper__AccountExtensionDoesNotExist();

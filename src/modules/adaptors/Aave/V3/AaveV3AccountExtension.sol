@@ -10,7 +10,7 @@ import { ICreditDelegationToken } from "src/interfaces/external/ICreditDelegatio
 /**
  * @title Aave Account Adaptor
  * @notice Allows Cellars to create multiple aave accounts and interact with Aave positions.
- * @dev This adaptor should be used in conjunction with the AaveV3AccountDeployer and is not
+ * @dev This adaptor should be used in conjunction with the AaveV3AccountManager and is not
  * meant to be used as a standalone contract.
  */
 contract AaveV3AccountExtension {
@@ -44,19 +44,19 @@ contract AaveV3AccountExtension {
 
     //============================================ Global Functions ===========================================
 
-    function approveATokenToCellar(address token) external onlyCellar {
-        ERC20(token).safeApprove(cellar, type(uint256).max);
+    function approveATokenToCellar(address aToken) external onlyCellar {
+        ERC20(aToken).safeApprove(cellar, type(uint256).max);
     }
 
-    function approveDebtDelegationToCellar(address token) external onlyCellar {
-        ICreditDelegationToken(token).approveDelegation(cellar, type(uint256).max);
+    function approveDebtDelegationToCellar(address debtToken) external onlyCellar {
+        ICreditDelegationToken(debtToken).approveDelegation(cellar, type(uint256).max);
     }
 
     /**
      * @notice Allows strategists to adjust an asset's isolation mode.
      */
-    function adjustIsolationModeAssetAsCollateral(address asset, bool useAsCollateral) external onlyCellar {
-        pool.setUserUseReserveAsCollateral(asset, useAsCollateral);
+    function adjustIsolationModeAssetAsCollateral(address underlyingToken, bool useAsCollateral) external onlyCellar {
+        pool.setUserUseReserveAsCollateral(underlyingToken, useAsCollateral);
     }
 
     /**
@@ -71,5 +71,14 @@ contract AaveV3AccountExtension {
      */
     function repayWithATokens(ERC20 underlying, uint256 amount) public onlyCellar {
         pool.repayWithATokens(address(underlying), amount, 2);
+    }
+
+    /** 
+     * @notice Allows strategist to withdraw assets from Aave.
+     * @param receiver the address to receive the withdrawed assets
+     * @param amount the amount of `underlyingToken` to withdraw from Aave.
+     */
+    function withdrawFromAave(address receiver, address underlyingToken, uint256 amount) external onlyCellar {
+        pool.withdraw(underlyingToken, amount, receiver);
     }
 }

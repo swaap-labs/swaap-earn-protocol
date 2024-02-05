@@ -2,7 +2,6 @@
 pragma solidity 0.8.21;
 
 import { BaseAdaptor, ERC20, SafeTransferLib, Cellar, PriceRouter, Math } from "src/modules/adaptors/BaseAdaptor.sol";
-import { IPoolV3 } from "src/interfaces/external/IPoolV3.sol";
 import { IAaveToken } from "src/interfaces/external/IAaveToken.sol";
 import { IAaveOracle } from "src/interfaces/external/IAaveOracle.sol";
 import { AaveV3AccountHelper, Address } from "./AaveV3AccountHelper.sol";
@@ -11,15 +10,15 @@ import { AaveV3AccountExtension } from "./AaveV3AccountExtension.sol";
 /**
  * @title Aave aToken Adaptor
  * @notice Allows Cellars to interact with Aave aToken positions.
- * @author crispymangoes
  */
 contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
     using SafeTransferLib for ERC20;
     using Math for uint256;
 
     //==================== Adaptor Data Specification ====================
-    // adaptorData = abi.encode(address aToken)
+    // adaptorData = abi.encode(uint8 accountId, address aToken)
     // Where:
+    // `accountId` is the account extension id this adaptor is working with
     // `aToken` is the aToken address position this adaptor is working with
     //================= Configuration Data Specification =================
     // configurationData = abi.encode(minimumHealthFactor uint256)
@@ -35,6 +34,8 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
     // Cellars with multiple aToken positions MUST only specify minimum
     // health factor on ONE of the positions. Failing to do so will result
     // in user withdraws temporarily being blocked.
+    // An aToken should always have a position in the cellar as well as a position
+    // for its underlying asset. The adapter does not check the latter for gas optimzation purposes.
     //====================================================================
 
     /**
@@ -92,12 +93,19 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
      * @dev configurationData is NOT used because this action will only increase the health factor
      */
     function deposit(uint256 assets, bytes memory adaptorData, bytes memory) public override {
+        // we need to verify that the position is used by the cellar before depositing assets
+        // this is to prevent the strategist from depositing assets into a position that is not used by the cellar
+        _verifyUsedPositionIfDeployed(adaptorData);
+
         // Deposit assets to Aave.
-        (address accountAddress, address aToken) = _extractAdaptorDataAndVerify(adaptorData);
+        (uint8 accountId, address aToken) = _decodeAdaptorData(adaptorData);
+
+        address accountAddress = _createAccountExtensionIfNeeded(accountId);
+
         ERC20 token = ERC20(IAaveToken(aToken).UNDERLYING_ASSET_ADDRESS());
 
         // instead of transferting the assets to the account, we deposit to the pool on behalf of the account
-        // for gas optimization purposes
+        // for gas optimization purposes        
         token.safeApprove(address(pool), assets);
         pool.supply(address(token), assets, accountAddress, 0);
 
@@ -124,12 +132,10 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
         _externalReceiverCheck(receiver);
 
         // Withdraw assets from Aave.
-        (address accountAddress, address token) = _extractAdaptorDataAndVerify(adaptorData);
-        address underlyingAsset = IAaveToken(token).UNDERLYING_ASSET_ADDRESS();
+        (address accountAddress, address aToken) = _extractAdaptorDataAndVerify(adaptorData, address(this));
+        address underlyingAsset = IAaveToken(aToken).UNDERLYING_ASSET_ADDRESS();
 
-        _requestATokenApprovalIfNeeded(accountAddress, address(token), assets);
-
-        pool.withdraw(underlyingAsset, assets, accountAddress);
+        AaveV3AccountExtension(accountAddress).withdrawFromAave(receiver, underlyingAsset, assets);
 
         (, uint256 totalDebtBase, , , , uint256 healthFactor) = pool.getUserAccountData(accountAddress);
         if (totalDebtBase > 0) {
@@ -146,8 +152,10 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
             if (healthFactor < minHealthFactor) revert AaveV3ATokenAdaptor__HealthFactorTooLow();
         }
 
+        // TODO either remove this or add a check to make sure the receiver is the cellar 
+        // when withdrawing from account extension before transfering to receiver
         // Transfer assets to receiver.
-        ERC20(underlyingAsset).safeTransfer(receiver, assets);
+        // ERC20(underlyingAsset).safeTransfer(receiver, assets);
     }
 
     /**
@@ -167,7 +175,7 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
         bytes memory adaptorData,
         bytes memory configData
     ) public view override returns (uint256) {
-        (address accountAddress, address token) = _extractAdaptorData(adaptorData);
+        (address accountAddress, address aToken) = _extractAdaptorData(adaptorData, msg.sender);
 
         // if the account does not exist (yet) but has aToken sent to it, we still want to return 0
         // because the cellar cannot withdraw from it unless it has been created
@@ -183,7 +191,7 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
         ) = pool.getUserAccountData(accountAddress);
 
         // If Cellar has no Aave debt, then return the cellars balance of the aToken.
-        if (totalDebtBase == 0) return ERC20(token).balanceOf(accountAddress);
+        if (totalDebtBase == 0) return ERC20(aToken).balanceOf(accountAddress);
 
         // Cellar has Aave debt, so if cellar is entered into a non zero emode, return 0.
         if (pool.getUserEMode(accountAddress) != 0) return 0;
@@ -213,13 +221,13 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
         // `currentLiquidationThreshold` has 4 decimals, so multiply by 1e14 to get 18 decimals on denominator.
 
         // Need to convert Base into position underlying.
-        ERC20 underlyingAsset = ERC20(IAaveToken(token).UNDERLYING_ASSET_ADDRESS());
+        ERC20 underlyingAsset = ERC20(IAaveToken(aToken).UNDERLYING_ASSET_ADDRESS());
 
         // Convert `maxBorrowableWithMin` from Base to position underlying asset.
         PriceRouter priceRouter = Cellar(msg.sender).priceRouter();
         uint256 underlyingAssetToUSD = priceRouter.getPriceInUSD(underlyingAsset);
         uint256 withdrawable = maxBorrowableWithMin.mulDivDown(10 ** underlyingAsset.decimals(), underlyingAssetToUSD);
-        uint256 balance = ERC20(token).balanceOf(accountAddress);
+        uint256 balance = ERC20(aToken).balanceOf(accountAddress);
         // Check if withdrawable is greater than the position balance and if so return the balance instead of withdrawable.
         return withdrawable > balance ? balance : withdrawable;
     }
@@ -228,21 +236,21 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
      * @notice Returns the cellars balance of the positions aToken.
      */
     function balanceOf(bytes memory adaptorData) public view override returns (uint256) {
-        (address accountAddress, address token) = _extractAdaptorData(adaptorData);
+        (address accountAddress, address aToken) = _extractAdaptorData(adaptorData, msg.sender);
 
         // if the account does not exist (yet) but has aToken sent to it, we still want to return 0
         // because the cellar cannot withdraw from it unless it has been created
         if(!Address.isContract(accountAddress)) return 0;
 
-        return ERC20(token).balanceOf(accountAddress);
+        return ERC20(aToken).balanceOf(accountAddress);
     }
 
     /**
      * @notice Returns the positions aToken underlying asset.
      */
     function assetOf(bytes memory adaptorData) public view override returns (ERC20) {
-        (, address token) = _extractAdaptorData(adaptorData);
-        return ERC20(IAaveToken(token).UNDERLYING_ASSET_ADDRESS());
+        (, address aToken) = _decodeAdaptorData(adaptorData);
+        return ERC20(IAaveToken(aToken).UNDERLYING_ASSET_ADDRESS());
     }
 
     function assetsUsed(bytes memory adaptorData) public view override returns (ERC20[] memory assets) {
@@ -266,33 +274,38 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
     /**
      * @notice Allows strategists to lend assets on Aave.
      * @dev Uses `_maxAvailable` helper function, see BaseAdaptor.sol
-     * @param tokenToDeposit the token to lend on Aave
+     * @param accountId the account id to lend on Aave
+     * @param aToken the token to lend on Aave (corresponds to the aToken)
      * @param amountToDeposit the amount of `tokenToDeposit` to lend on Aave.
      */
-    function depositToAave(uint8 accountId, ERC20 tokenToDeposit, uint256 amountToDeposit) public {
-        // should revert if account extension does not exist
-        address accountAddress = _getAccountAddressAndVerify(accountId);
+    function depositToAave(uint8 accountId, IAaveToken aToken, uint256 amountToDeposit) public {
+        // since this function can be called by the strategist, we need to verify that the adaptorData is defined in
+        // in a position that is used by the cellar
+        _validateAToken(accountId, aToken);
+
+        address accountAddress = _createAccountExtensionIfNeeded(accountId);
+
+        ERC20 tokenToDeposit = ERC20(aToken.UNDERLYING_ASSET_ADDRESS());
 
         amountToDeposit = _maxAvailable(tokenToDeposit, amountToDeposit);
         tokenToDeposit.safeApprove(address(pool), amountToDeposit);
         pool.supply(address(tokenToDeposit), amountToDeposit, accountAddress, 0);
 
         // Zero out approvals if necessary.
-        _revokeExternalApproval(tokenToDeposit, address(pool));
+        _revokeExternalApproval(ERC20(tokenToDeposit), address(pool));
     }
 
     /**
      * @notice Allows strategists to withdraw assets from Aave.
-     * @param tokenToWithdraw the token to withdraw from Aave.
+     * @param underlyingToken the underlying token to withdraw from Aave.
      * @param amountToWithdraw the amount of `tokenToWithdraw` to withdraw from Aave
      */
-    function withdrawFromAave(uint8 accountId, ERC20 tokenToWithdraw, uint256 amountToWithdraw) public {
+    function withdrawFromAave(uint8 accountId, address underlyingToken, uint256 amountToWithdraw) public {
         // should revert if account extension does not exist
-        address accountAddress = _getAccountAddressAndVerify(accountId);
+        address accountAddress = _getAccountAddressAndVerify(accountId, address(this));
 
-        _requestATokenApprovalIfNeeded(accountAddress, address(tokenToWithdraw), amountToWithdraw);
-
-        pool.withdraw(address(tokenToWithdraw), amountToWithdraw, accountAddress);
+        AaveV3AccountExtension(accountAddress).withdrawFromAave(address(this), underlyingToken, amountToWithdraw);
+        
         // Check that health factor is above adaptor minimum.
         (, , , , , uint256 healthFactor) = pool.getUserAccountData(accountAddress);
         if (healthFactor < minimumHealthFactor) revert AaveV3ATokenAdaptor__HealthFactorTooLow();
@@ -300,21 +313,33 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
 
     /**
      * @notice Allows strategists to adjust an asset's isolation mode.
+     * @param accountId the account id to adjust isolation mode / colalteral mode for
+     * @param underlyingToken the underlying asset to adjust isolation mode / collateral mode for
+     * @param useAsCollateral whether to use the asset as collateral or not
      */
-    function adjustIsolationModeAssetAsCollateral(uint8 accountId, address asset, bool useAsCollateral) public {
+    function adjustIsolationModeAssetAsCollateral(uint8 accountId, address underlyingToken, bool useAsCollateral) public {
         // should revert if account extension does not exist
-        address accountAddress = _getAccountAddressAndVerify(accountId);
+        address accountAddress = _getAccountAddressAndVerify(accountId, address(this));
 
-        AaveV3AccountExtension(accountAddress).adjustIsolationModeAssetAsCollateral(asset, useAsCollateral);
+        AaveV3AccountExtension(accountAddress).adjustIsolationModeAssetAsCollateral(underlyingToken, useAsCollateral);
 
         // Check that health factor is above adaptor minimum.
         (, , , , , uint256 healthFactor) = pool.getUserAccountData(accountAddress);
         if (healthFactor < minimumHealthFactor) revert AaveV3ATokenAdaptor__HealthFactorTooLow();
     }
 
-    function _requestATokenApprovalIfNeeded(address accountAddress, address token, uint256 amount) internal {
-        if (ERC20(token).allowance(accountAddress, address(this)) < amount) {
-            AaveV3AccountExtension(accountAddress).approveATokenToCellar(token);
-        }
+    /**
+     * @notice Allows strategist to use aTokens to repay debt tokens with the same underlying.
+     * @param accountId the id of the account used as an extension to the cellar.
+     * @param aToken any aave aToken used in the account that is used by a position in the cellar.
+     */
+    function createAccountExtension(uint8 accountId, IAaveToken aToken) public returns(address) {
+        _validateAToken(accountId, aToken);
+        return _createAccountExtensionIfNeeded(accountId);
+    }
+
+    function _validateAToken(uint8 accountId, IAaveToken aToken) internal view {
+        // should revert if account extension does not exist
+        _verifyUsedPosition(abi.encode(accountId, address(aToken)));
     }
 }
