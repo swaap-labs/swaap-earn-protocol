@@ -61,6 +61,11 @@ import { ConvexCurveAdaptor } from "src/modules/adaptors/Convex/ConvexCurveAdapt
 
 import { CurvePool } from "src/interfaces/external/Curve/CurvePool.sol";
 
+import { SwaapPoolAdaptor } from "src/modules/adaptors/Swaap/SwaapPoolAdaptor.sol";
+
+import { AaveV3ATokenManagerAdaptor } from "src/modules/adaptors/Aave/V3/AaveV3ATokenManagerAdaptor.sol";
+import { AaveV3DebtManagerAdaptor } from "src/modules/adaptors/Aave/V3/AaveV3DebtManagerAdaptor.sol";
+
 contract AdaptorHelperFunctions {
     // ========================================= General FUNCTIONS =========================================
 
@@ -170,6 +175,77 @@ contract AdaptorHelperFunctions {
                 debtToken,
                 amountToRepay
             );
+    }
+
+    // ========================================= Aave V3 Manager FUNCTIONS =========================================
+
+    function _createBytesDataToLendOnAaveV3Manager(
+        uint8 accountId,
+        ERC20 tokenToLend,
+        uint256 amountToLend
+    ) internal pure returns (bytes memory) {
+        return
+            abi.encodeWithSelector(
+                AaveV3ATokenManagerAdaptor.depositToAave.selector,
+                accountId,
+                tokenToLend,
+                amountToLend
+            );
+    }
+
+    function _createBytesDataToWithdrawFromAaveV3Manager(
+        uint8 accountId,
+        ERC20 tokenToWithdraw,
+        uint256 amountToWithdraw
+    ) internal pure returns (bytes memory) {
+        return
+            abi.encodeWithSelector(
+                AaveV3ATokenManagerAdaptor.withdrawFromAave.selector,
+                accountId,
+                tokenToWithdraw,
+                amountToWithdraw
+            );
+    }
+
+    function _createBytesDataToBorrowFromAaveV3Manager(
+        uint8 accountId,
+        ERC20 debtToken,
+        uint256 amountToBorrow
+    ) internal pure returns (bytes memory) {
+        return
+            abi.encodeWithSelector(
+                AaveV3DebtManagerAdaptor.borrowFromAave.selector,
+                accountId,
+                debtToken,
+                amountToBorrow
+            );
+    }
+
+    function _createBytesDataToRepayToAaveV3Manager(
+        uint8 accountId,
+        ERC20 tokenToRepay,
+        uint256 amountToRepay
+    ) internal pure returns (bytes memory) {
+        return
+            abi.encodeWithSelector(
+                AaveV3DebtManagerAdaptor.repayAaveDebt.selector,
+                accountId,
+                tokenToRepay,
+                amountToRepay
+            );
+    }
+
+    function _createBytesDataToFlashLoanFromAaveV3Manager(
+        address[] memory loanToken,
+        uint256[] memory loanAmount,
+        bytes memory params
+    ) internal pure returns (bytes memory) {
+        return abi.encodeWithSelector(AaveV3DebtManagerAdaptor.flashLoan.selector, loanToken, loanAmount, params);
+    }
+
+    function _createBytesDataToCreateAaveAccount(uint8 accountId, address aToken) internal pure returns (bytes memory) {
+        return
+            abi.encodeWithSelector(AaveV3ATokenManagerAdaptor.createAccountExtension.selector, accountId, aToken);
     }
 
     // ========================================= Aave V3 FUNCTIONS =========================================
@@ -292,6 +368,25 @@ contract AdaptorHelperFunctions {
                 tokenToRepay,
                 amountToRepay
             );
+    }
+
+    // ========================================= Swaap FUNCTIONS =========================================
+    function _createBytesDataToJoinSwaapPool(
+        ERC20 pool,
+        ERC20[] memory tokens,
+        uint256[] memory maxAmountsIn,
+        uint256 sptShares
+    ) internal pure returns (bytes memory) {
+        return abi.encodeWithSelector(SwaapPoolAdaptor.joinPool.selector, pool, tokens, maxAmountsIn, sptShares);
+    }
+
+    function _createBytesDataToExitSwaapPool(
+        ERC20 pool,
+        ERC20[] memory tokens,
+        uint256[] memory minAmountsOut,
+        uint256 sptShares
+    ) internal pure returns (bytes memory) {
+        return abi.encodeWithSelector(SwaapPoolAdaptor.exitPool.selector, pool, tokens, minAmountsOut, sptShares);
     }
 
     // ========================================= Balancer FUNCTIONS =========================================
