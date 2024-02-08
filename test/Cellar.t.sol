@@ -713,7 +713,7 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
         cellar.callOnAdaptor(data);
     }
 
-    function testRegistryPauseButCellarIgnoringIt() external {
+    function testRegistryPauseButEndDurationReached() external {
         // Empty call on adaptor argument.
         bytes[] memory emptyCall;
         Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
@@ -724,23 +724,9 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         registry.batchPause(targets);
 
-        // Cellar is fully paused, but governance chooses to ignore it.
-        cellar.toggleIgnorePause();
-        assertEq(cellar.isPaused(), false, "Cellar should not be paused.");
-
         deal(address(USDC), address(this), 100e6);
-        cellar.deposit(1e6, address(this));
-        cellar.mint(1e6, address(this));
-        cellar.withdraw(1e6, address(this), address(this));
-        cellar.redeem(1e6, address(this), address(this));
-        cellar.totalAssets();
-        cellar.totalAssetsWithdrawable();
-        cellar.maxWithdraw(address(this));
-        cellar.maxRedeem(address(this));
-        cellar.callOnAdaptor(data);
 
-        // Governance chooses to accept the pause.
-        cellar.toggleIgnorePause();
+        // Cellar is fully paused from the registry.
         assertEq(cellar.isPaused(), true, "Cellar should be paused.");
 
         vm.expectRevert(bytes(abi.encodeWithSelector(Cellar.Cellar__Paused.selector)));
@@ -769,6 +755,74 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         vm.expectRevert(bytes(abi.encodeWithSelector(Cellar.Cellar__Paused.selector)));
         cellar.callOnAdaptor(data);
+
+        // After 9 month, cellar should ignore the pause whatever the state of the registry for this cellar.
+        uint256 futureTime = block.timestamp + 30 days * 9;
+        vm.warp(futureTime);
+
+        // Cellar is fully paused from the registry.
+        assertEq(cellar.isPaused(), false, "Cellar should not be paused.");
+
+        // Update the external source of price
+        mockUsdcUsd.setMockUpdatedAt(block.timestamp);
+        mockWethUsd.setMockUpdatedAt(block.timestamp);
+        mockWbtcUsd.setMockUpdatedAt(block.timestamp);
+
+        cellar.deposit(1e6, address(this));
+        cellar.mint(1e6, address(this));
+        cellar.withdraw(1e6, address(this), address(this));
+        cellar.redeem(1e6, address(this), address(this));
+        cellar.totalAssets();
+        cellar.totalAssetsWithdrawable();
+        cellar.maxWithdraw(address(this));
+        cellar.maxRedeem(address(this));
+        cellar.callOnAdaptor(data);
+    }
+
+    function testEndPauseDurationButCellarIsShutDownThenLiftShutdown() external {
+        // Empty call on adaptor argument.
+        bytes[] memory emptyCall;
+        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        data[0] = Cellar.AdaptorCall({ adaptor: address(cellarAdaptor), callData: emptyCall });
+
+        address[] memory targets = new address[](1);
+        targets[0] = address(cellar);
+
+        uint256 assetToDepositOrWithdraw = 1;
+        deal(address(USDC), address(this), assetToDepositOrWithdraw);
+        cellar.deposit(1, address(this));
+
+        registry.batchPause(targets);
+        // Cellar is fully paused from the registry.
+        assertEq(cellar.isPaused(), true, "Cellar should be paused.");
+
+        cellar.initiateShutdown();
+        // Cellar is also shutdown.
+        assertTrue(cellar.isShutdown(), "Should have initiated shutdown.");
+
+        vm.expectRevert(bytes(abi.encodeWithSelector(Cellar.Cellar__Paused.selector)));
+        cellar.withdraw(assetToDepositOrWithdraw, address(this), address(this));
+
+        // Go 9 months after the creation of the cellar.
+        uint256 futureTime = block.timestamp + 30 days * 9;
+        vm.warp(futureTime);
+
+        // Update the external source of price
+        mockUsdcUsd.setMockUpdatedAt(block.timestamp);
+        mockWethUsd.setMockUpdatedAt(block.timestamp);
+        mockWbtcUsd.setMockUpdatedAt(block.timestamp);
+
+        // Shutdown but pause end duration reached
+        cellar.withdraw(assetToDepositOrWithdraw, address(this), address(this));
+        assertEq(USDC.balanceOf(address(this)), assetToDepositOrWithdraw, "Should withdraw while shutdown.");
+
+        vm.expectRevert(bytes(abi.encodeWithSelector(Cellar.Cellar__ContractShutdown.selector)));
+        cellar.deposit(assetToDepositOrWithdraw, address(this));
+
+        // Governance decides to lift the shutdown.
+        cellar.liftShutdown();
+        cellar.deposit(assetToDepositOrWithdraw, address(this));
+        assertEq(cellar.totalAssets(), assetToDepositOrWithdraw + initialAssets, "Cellar should be open for deposits.");
     }
 
     function testShutdown() external {
