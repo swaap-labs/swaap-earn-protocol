@@ -48,11 +48,6 @@ contract Cellar is ERC4626, Ownable, ERC721Holder {
     bool public isShutdown;
 
     /**
-     * @notice Pauses all user entry/exits, and strategist rebalances.
-     */
-    bool public ignorePause;
-
-    /**
      * @notice This bool is used to stop strategists from abusing Base Adaptor functions(deposit/withdraw).
      */
     bool public blockExternalReceiver;
@@ -61,6 +56,11 @@ contract Cellar is ERC4626, Ownable, ERC721Holder {
      * @notice Stores the position id of the holding position in the creditPositions array.
      */
     uint32 internal holdingPosition;
+
+    /**
+     * @notice Sets the end date when the cellar pause mode will be disregarded whatever its state.
+     */
+    uint256 public immutable cellarEndPauseTimestamp;
 
     // ========================================= MULTICALL =========================================
 
@@ -561,27 +561,19 @@ contract Cellar is ERC4626, Ownable, ERC721Holder {
      * @notice View function external contracts can use to see if the cellar is paused.
      */
     function isPaused() external view returns (bool) {
-        if (!ignorePause) {
+        if (cellarEndPauseTimestamp > block.timestamp){
             return registry.isCallerPaused(address(this));
         }
-        return false;
+        return false;        
     }
 
     /**
      * @notice Pauses all user entry/exits, and strategist rebalances.
      */
     function _checkIfPaused() internal view {
-        if (!ignorePause) {
+        if (cellarEndPauseTimestamp > block.timestamp) {
             if (registry.isCallerPaused(address(this))) revert Cellar__Paused();
         }
-    }
-
-    /**
-     * @notice Allows governance to choose whether or not to respect a pause.
-     * @dev Callable by Sommelier Governance.
-     */
-    function toggleIgnorePause() external onlyOwner {
-        ignorePause = ignorePause ? false : true;
     }
 
     /**
@@ -614,6 +606,11 @@ contract Cellar is ERC4626, Ownable, ERC721Holder {
     }
 
     // =========================================== CONSTRUCTOR ===========================================
+
+    /**
+     * @notice Delay between the creation of the cellar and the end of the pause mode the current pause state.
+     */
+    uint256 internal constant DELAY_UNTIL_END_PAUSE = 30 days * 9; // 9 months
 
     /**
      * @notice Id to get the price router from the registry.
@@ -663,6 +660,7 @@ contract Cellar is ERC4626, Ownable, ERC721Holder {
         uint64 _strategistPlatformCut,
         uint192 _shareSupplyCap
     ) ERC4626(_asset, _name, _symbol) Ownable() {
+        cellarEndPauseTimestamp = block.timestamp + DELAY_UNTIL_END_PAUSE;
         registry = _registry;
         priceRouter = PriceRouter(_registry.getAddress(PRICE_ROUTER_REGISTRY_SLOT));
 
