@@ -8,6 +8,7 @@ import { MockOneInchAdaptor } from "src/mocks/adaptors/MockOneInchAdaptor.sol";
 import "test/resources/MainnetStarter.t.sol";
 
 import { AdaptorHelperFunctions } from "test/resources/AdaptorHelperFunctions.sol";
+import { PriceRouter } from "src/modules/price-router/PriceRouter.sol";
 
 contract CellarOneInchTest is MainnetStarterTest, AdaptorHelperFunctions {
     using SafeTransferLib for ERC20;
@@ -39,8 +40,8 @@ contract CellarOneInchTest is MainnetStarterTest, AdaptorHelperFunctions {
         // Run Starter setUp code.
         _setUp();
 
-        oneInchAdaptor = new OneInchAdaptor(swapTarget);
-        mockOneInchAdaptor = new MockOneInchAdaptor(mockSwapTarget);
+        oneInchAdaptor = new OneInchAdaptor(swapTarget, address(erc20Adaptor));
+        mockOneInchAdaptor = new MockOneInchAdaptor(mockSwapTarget, address(erc20Adaptor));
 
         PriceRouter.ChainlinkDerivativeStorage memory stor;
 
@@ -156,40 +157,6 @@ contract CellarOneInchTest is MainnetStarterTest, AdaptorHelperFunctions {
         vm.expectRevert(bytes(abi.encodeWithSelector(BaseAdaptor.BaseAdaptor__Slippage.selector)));
         cellar.callOnAdaptor(data);
 
-        // Try making a swap where the from `asset` is supported, but the `to` asset is not.
-        from = USDC;
-        to = ERC20(address(1));
-        fromAmount = 1_000e6;
-        slippageSwapData = abi.encodeWithSignature(
-            "slippageSwap(address,address,uint256,uint32)",
-            from,
-            to,
-            fromAmount,
-            0.99e4
-        );
-        adaptorCalls[0] = _createBytesDataToSwap(from, to, fromAmount, slippageSwapData);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(mockOneInchAdaptor), callData: adaptorCalls });
-        vm.expectRevert(
-            bytes(abi.encodeWithSelector(BaseAdaptor.BaseAdaptor__PricingNotSupported.selector, address(1)))
-        );
-        cellar.callOnAdaptor(data);
-
-        // Make a swap where the `from` asset is not supported.
-        from = DAI;
-        to = USDC;
-        fromAmount = 1_000e18;
-        deal(address(DAI), address(cellar), fromAmount);
-        slippageSwapData = abi.encodeWithSignature(
-            "slippageSwap(address,address,uint256,uint32)",
-            from,
-            to,
-            fromAmount,
-            0.99e4
-        );
-        adaptorCalls[0] = _createBytesDataToSwap(from, to, fromAmount, slippageSwapData);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(mockOneInchAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
-
         // Demonstrate that multiple swaps back to back can max out slippage and still work.
         from = USDC;
         to = WETH;
@@ -209,6 +176,50 @@ contract CellarOneInchTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         // Above rebalance works, but this attack vector will be mitigated on the steward side, by flagging suspicious rebalances,
         // such as the one above.
+    }
+
+    function testRevertForUnsupportedAssets() external {
+        ERC20 from;
+        ERC20 to;
+        uint256 fromAmount;
+        bytes memory slippageSwapData;
+        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        bytes[] memory adaptorCalls = new bytes[](1);
+
+        // Try making a swap where the from `asset` is supported, but the `to` asset is not by a position in the cellar.
+        from = USDC;
+        to = ERC20(address(1));
+        fromAmount = 1_000e6;
+        slippageSwapData = abi.encodeWithSignature(
+            "slippageSwap(address,address,uint256,uint32)",
+            from,
+            to,
+            fromAmount,
+            0.99e4
+        );
+        adaptorCalls[0] = _createBytesDataToSwap(from, to, fromAmount, slippageSwapData);
+        data[0] = Cellar.AdaptorCall({ adaptor: address(mockOneInchAdaptor), callData: adaptorCalls });
+
+        vm.expectRevert(abi.encodeWithSelector(BaseAdaptor.BaseAdaptor__PositionNotUsed.selector, abi.encode(address(1))));
+        cellar.callOnAdaptor(data);
+
+        // Make a swap where the `from` asset is not supported by the price router.
+        from = DAI;
+        to = USDC;
+        fromAmount = 1_000e18;
+        deal(address(DAI), address(cellar), fromAmount);
+        slippageSwapData = abi.encodeWithSignature(
+            "slippageSwap(address,address,uint256,uint32)",
+            from,
+            to,
+            fromAmount,
+            0.99e4
+        );
+        adaptorCalls[0] = _createBytesDataToSwap(from, to, fromAmount, slippageSwapData);
+        data[0] = Cellar.AdaptorCall({ adaptor: address(mockOneInchAdaptor), callData: adaptorCalls });
+        
+        vm.expectRevert(abi.encodeWithSelector(PriceRouter.PriceRouter__UnsupportedAsset.selector, address(DAI)));
+        cellar.callOnAdaptor(data);
     }
 
     function slippageSwap(ERC20 from, ERC20 to, uint256 inAmount, uint32 slippage) public {
