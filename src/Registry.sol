@@ -445,7 +445,7 @@ contract Registry is Ownable {
         // Check that assets position uses are supported for pricing operations.
         ERC20[] memory assets = BaseAdaptor(adaptor).assetsUsed(adaptorData);
         PriceRouter priceRouter = PriceRouter(getAddress[PRICE_ROUTER_REGISTRY_SLOT]);
-        for (uint256 i; i < assets.length; i++) {
+        for (uint256 i; i < assets.length; ++i) {
             if (!priceRouter.isSupported(assets[i])) revert Registry__PositionPricingNotSetUp(address(assets[i]));
         }
 
@@ -486,5 +486,74 @@ contract Registry is Ownable {
      */
     function revertIfPositionIsNotTrusted(uint32 positionId) public view {
         if (!isPositionTrusted[positionId]) revert Registry__PositionIsNotTrusted(positionId);
+    }
+
+    // ========================================== LIMIT ADAPTOR SWAP VOLUME LOGIC ==========================================
+
+    error Registry__CellarTradingVolumeExceeded(address cellar);
+    error Registry__InvalidVolumeInput();
+
+    struct CellarVolumeData {
+        uint48 lastUpdate;
+        uint48 periodLength;
+        uint80 volumeInUSD; // volume per period in USD and 8 decimals (80 bits are largely sufficient)
+        uint80 maxVolumeInUSD; // volume per period in USD and 8 decimals (80 bits are largely sufficient)
+    }
+
+    mapping(address => CellarVolumeData) public cellarsAdaptorVolumeData;
+    
+    /**
+     * @notice View the amount of assets in each Cellar Position.
+     * @dev If the cellar volume parameters were not set, the cellar won't be able to trade.
+     */
+    function checkAndUpdateCellarTradeVolume(uint256 volumeInUSD) external {
+        
+        // caller should be the cellar through the swap adapters
+        CellarVolumeData storage cellarVolumeData = cellarsAdaptorVolumeData[msg.sender];
+
+        if (cellarVolumeData.maxVolumeInUSD == type(uint80).max) return;
+
+        // input sanity check
+        if (volumeInUSD > type(uint80).max) revert Registry__InvalidVolumeInput();
+
+        uint256 endPeriod;
+        unchecked {
+            endPeriod = cellarVolumeData.lastUpdate + cellarVolumeData.periodLength;
+        }
+
+        if (block.timestamp > endPeriod) {
+            cellarVolumeData.lastUpdate = uint48(block.timestamp);
+            cellarVolumeData.volumeInUSD = uint80(volumeInUSD);
+        } else {
+            cellarVolumeData.volumeInUSD += uint80(volumeInUSD);
+        }
+
+        if (cellarVolumeData.volumeInUSD > cellarVolumeData.maxVolumeInUSD) 
+            revert Registry__CellarTradingVolumeExceeded(msg.sender);
+    }
+
+    /**
+     * @notice Set the max allowed volume for an adaptor to trade in a period.
+     * @param cellar the address of the cellar
+     * @param periodLength the length of the period in seconds
+     * @param maxVolumeInUSD the max volume an adaptor can trade in a period
+     * @param resetVolume the current volume an adaptor has traded
+     */
+    function setMaxAllowedAdaptorVolumeParams(
+        address cellar,
+        uint48 periodLength,
+        uint80 maxVolumeInUSD,
+        bool resetVolume
+    ) external onlyOwner{
+        // there is no explicit limit on volume since it can depend on the size of the cellar,
+        // as well as the strategies involved
+        CellarVolumeData storage cellarVolumeData = cellarsAdaptorVolumeData[cellar];
+        cellarVolumeData.periodLength = periodLength;
+        cellarVolumeData.maxVolumeInUSD = maxVolumeInUSD;
+
+        if (resetVolume) {
+            cellarVolumeData.lastUpdate = uint48(block.timestamp);
+            cellarVolumeData.volumeInUSD = 0;
+        }
     }
 }
