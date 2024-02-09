@@ -84,11 +84,34 @@ contract CellarOneInchTest is MainnetStarterTest, AdaptorHelperFunctions {
         initialAssets = cellar.totalAssets();
     }
 
+    function testRevertOneInchSwapWhenTotalVolumeIsSurpassed() external {
+        // Deposit into Cellar.
+        uint256 assets = 10_000_000;
+        deal(address(USDC), address(this), assets);
+        cellar.deposit(assets, address(this));
+
+        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        bytes[] memory adaptorCalls = new bytes[](1);
+        adaptorCalls[0] = _createBytesDataToSwap(USDC, WETH, assets, swapCallData);
+
+        data[0] = Cellar.AdaptorCall({ adaptor: address(oneInchAdaptor), callData: adaptorCalls });
+        
+        vm.expectRevert(abi.encodeWithSelector(Registry.Registry__CellarTradingVolumeExceeded.selector, address(cellar)));
+        cellar.callOnAdaptor(data);
+    }
+
     function testOneInchSwap() external {
         // Deposit into Cellar.
         uint256 assets = 10_000_000;
         deal(address(USDC), address(this), assets);
         cellar.deposit(assets, address(this));
+
+        registry.setMaxAllowedAdaptorVolumeParams(
+            address(cellar),
+            1 days, // period length
+            type(uint80).max, // max volume traded
+            true // reset volume
+        );
 
         {
             Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
@@ -109,11 +132,195 @@ contract CellarOneInchTest is MainnetStarterTest, AdaptorHelperFunctions {
         );
     }
 
+    function testVolumeIsIncrementedCorrectly() external {
+        // Deposit into Cellar.
+        uint256 assets = 1_000_000e6;
+        deal(address(USDC), address(this), assets);
+        cellar.deposit(assets, address(this));
+
+        uint256 periodLength = 2 hours;
+
+        ERC20 from;
+        ERC20 to;
+        uint256 fromAmount;
+        bytes memory slippageSwapData;
+        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        bytes[] memory adaptorCalls = new bytes[](1);
+
+        // Make a swap where both assets are supported by the price router, and slippage is good.
+        from = USDC;
+        to = WETH;
+        fromAmount = 1_000e6;
+        slippageSwapData = abi.encodeWithSignature(
+            "slippageSwap(address,address,uint256,uint32)",
+            from,
+            to,
+            fromAmount,
+            0.99e4
+        );
+
+        registry.setMaxAllowedAdaptorVolumeParams(
+            address(cellar),
+            uint48(periodLength), // period length
+            type(uint80).max, // max volume traded
+            true // reset volume
+        );
+
+        uint48 initLastUpdate;
+
+        (
+            uint48 newLastUpdate,
+            uint48 newPeriodLength,
+            uint80 newVolumeInUSD,
+            uint80 newMaxVolumeInUSD
+        ) = registry.cellarsAdaptorVolumeData(address(cellar));
+
+        // checking that the variables are set correctly after setting the volume parameters
+        assertApproxEqAbs(newLastUpdate, block.timestamp, 1, "lastUpdate should be the current block timestamp after resetting cellar volume data");
+        assertEq(newPeriodLength, periodLength, "periodLength should be equal to the initial period");
+        assertEq(newVolumeInUSD, 0, "volumeInUSD should be 0 after resetting cellar volume data");
+        assertEq(newMaxVolumeInUSD, type(uint80).max, "maxVolumeInUSD should be equal to type(uint80).max");
+
+        initLastUpdate = newLastUpdate;
+
+        // Make the swap.
+        adaptorCalls[0] = _createBytesDataToSwap(from, to, fromAmount, slippageSwapData);
+        data[0] = Cellar.AdaptorCall({ adaptor: address(mockOneInchAdaptor), callData: adaptorCalls });
+        cellar.callOnAdaptor(data);
+
+        (
+            newLastUpdate,
+            newPeriodLength,
+            newVolumeInUSD,
+            newMaxVolumeInUSD
+        ) = registry.cellarsAdaptorVolumeData(address(cellar));
+
+        // checking that the variables are set correctly after swapping
+        // when the max volume is set to type(uint80).max
+        assertEq(newLastUpdate, initLastUpdate, "lastUpdate should be the current block timestamp after a trade");
+        assertEq(newPeriodLength, periodLength, "periodLength should be equal to the initial period");
+        assertEq(newVolumeInUSD, 0, "Cellar volume should remain the same when max volume is set to type(uint80).max");
+        assertEq(newMaxVolumeInUSD, type(uint80).max, "maxVolumeInUSD should remain the same after a trade");
+    
+        registry.setMaxAllowedAdaptorVolumeParams(
+            address(cellar),
+            uint48(periodLength), // period length
+            type(uint80).max / 2, // max volume traded
+            false // reset volume
+        );
+
+        // checking that the variables are set correctly after swapping 
+        // when the max volume is set to less than type(uint80).max
+        cellar.callOnAdaptor(data);
+
+        (
+            newLastUpdate,
+            newPeriodLength,
+            newVolumeInUSD,
+            newMaxVolumeInUSD
+        ) = registry.cellarsAdaptorVolumeData(address(cellar));
+
+        assertEq(newLastUpdate, initLastUpdate, "lastUpdate should be equal to the initial lastUpdate");
+        assertEq(newPeriodLength, periodLength, "periodLength should be equal to the initial period");
+        assertApproxEqRel(newVolumeInUSD, fromAmount * 1e8 / 1e6, 0.01e18, "Cellar volume should be updated");
+        assertEq(newMaxVolumeInUSD, type(uint80).max / 2, "maxVolumeInUSD should remain the same after a trade");
+
+        // advance time by 5 minutes
+        skip(5 minutes);
+
+        cellar.callOnAdaptor(data);
+
+        (
+            newLastUpdate,
+            newPeriodLength,
+            newVolumeInUSD,
+            newMaxVolumeInUSD
+        ) = registry.cellarsAdaptorVolumeData(address(cellar));
+
+        // checking that the variables are set correctly after swapping twice
+        // when the max volume is set to less than type(uint80).max
+        assertEq(newLastUpdate, initLastUpdate, "lastUpdate should be equal to the initial lastUpdate");
+        assertEq(newPeriodLength, periodLength, "periodLength should be equal to the initial period");
+        assertApproxEqRel(newVolumeInUSD, fromAmount * 2 * 1e8 / 1e6, 0.01e18, "Cellar volume should be updated after a trade");
+        assertEq(newMaxVolumeInUSD, type(uint80).max / 2, "maxVolumeInUSD should remain the same after a trade");
+
+        skip(periodLength);
+
+        // Make the swap again.
+        cellar.callOnAdaptor(data);
+
+        (
+            newLastUpdate,
+            newPeriodLength,
+            newVolumeInUSD,
+            newMaxVolumeInUSD
+        ) = registry.cellarsAdaptorVolumeData(address(cellar));
+
+        // checking that the variables are set correctly after swapping several
+        // when the max volume is set to less than type(uint80).max and the period has passed
+        assertApproxEqAbs(newLastUpdate, block.timestamp, 1, "lastUpdate should be updated");
+        assertEq(newPeriodLength, periodLength, "periodLength should be equal to the initial period after a trade");
+        assertApproxEqRel(newVolumeInUSD, fromAmount * 1e8 / 1e6, 0.01e18, "Cellar volume should be reset and then updated");
+        assertEq(newMaxVolumeInUSD, type(uint80).max / 2, "maxVolumeInUSD should remain the same after a trade");
+
+        initLastUpdate = newLastUpdate;
+
+        // advance time by 5 minutes
+        skip(5 minutes);
+
+        registry.setMaxAllowedAdaptorVolumeParams(
+            address(cellar),
+            uint48(periodLength) * 2, // period length
+            type(uint80).max, // max volume traded
+            false // reset volume
+        );
+
+        (
+            newLastUpdate,
+            newPeriodLength,
+            newVolumeInUSD,
+            newMaxVolumeInUSD
+        ) = registry.cellarsAdaptorVolumeData(address(cellar));
+
+        // checking that the variables are after setting max volume and period length only
+        assertEq(newLastUpdate, initLastUpdate, "lastUpdate should remain the same");
+        assertEq(newPeriodLength, periodLength * 2, "periodLength should be equal to the initial period after a trade");
+        assertApproxEqRel(newVolumeInUSD, fromAmount * 1e8 / 1e6, 0.01e18, "Cellar volume should not be reset");
+        assertEq(newMaxVolumeInUSD, type(uint80).max, "maxVolumeInUSD should be updated");
+
+        registry.setMaxAllowedAdaptorVolumeParams(
+            address(cellar),
+            uint48(periodLength), // period length
+            type(uint80).max, // max volume traded
+            true // reset volume
+        );
+
+        (
+            newLastUpdate,
+            newPeriodLength,
+            newVolumeInUSD,
+            newMaxVolumeInUSD
+        ) = registry.cellarsAdaptorVolumeData(address(cellar));
+
+        // checking that the variables are after setting max volume and period length and resetting volume
+        assertApproxEqAbs(newLastUpdate, block.timestamp, 1, "lastUpdate should be updated after a reset");
+        assertEq(newPeriodLength, periodLength, "periodLength should be updated");
+        assertEq(newVolumeInUSD, 0, "Cellar volume should be set to 0 after a reset");
+        assertEq(newMaxVolumeInUSD, type(uint80).max, "maxVolumeInUSD should be updated");
+    }
+
     function testSlippageChecks() external {
         // Deposit into Cellar.
         uint256 assets = 1_000_000e6;
         deal(address(USDC), address(this), assets);
         cellar.deposit(assets, address(this));
+
+        registry.setMaxAllowedAdaptorVolumeParams(
+            address(cellar),
+            1 days, // period length
+            type(uint80).max, // max volume traded
+            true // reset volume
+        );
 
         ERC20 from;
         ERC20 to;
@@ -179,6 +386,13 @@ contract CellarOneInchTest is MainnetStarterTest, AdaptorHelperFunctions {
     }
 
     function testRevertForUnsupportedAssets() external {
+        registry.setMaxAllowedAdaptorVolumeParams(
+            address(cellar),
+            1 days, // period length
+            type(uint80).max, // max volume traded
+            true // reset volume
+        );
+        
         ERC20 from;
         ERC20 to;
         uint256 fromAmount;
@@ -218,7 +432,7 @@ contract CellarOneInchTest is MainnetStarterTest, AdaptorHelperFunctions {
         adaptorCalls[0] = _createBytesDataToSwap(from, to, fromAmount, slippageSwapData);
         data[0] = Cellar.AdaptorCall({ adaptor: address(mockOneInchAdaptor), callData: adaptorCalls });
         
-        vm.expectRevert(abi.encodeWithSelector(PriceRouter.PriceRouter__UnsupportedAsset.selector, address(DAI)));
+        vm.expectRevert(abi.encodeWithSelector(PriceRouter.PriceRouter__UnknownDerivative.selector, 0));
         cellar.callOnAdaptor(data);
     }
 
