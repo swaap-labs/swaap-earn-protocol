@@ -84,14 +84,14 @@ contract ParaswapAdaptor is PositionlessAdaptor {
 
         if (tokenInValueOut < tokenInAmountIn.mulDivDown(slippage(), 1e4)) revert BaseAdaptor__Slippage();
 
-        // Insure spender has zero approval.
+        // Ensure spender has zero approval.
         _revokeExternalApproval(tokenIn, spender);
     }
 
     function _validateTokenOutIsUsed(address tokenOut) internal view {
         bytes memory adaptorData = abi.encode(tokenOut);
         // This adaptor has no underlying position, so no need to validate token out.
-        bytes32 positionHash = keccak256(abi.encode(erc20AdaptorIdentifier, false, abi.encode(adaptorData)));
+        bytes32 positionHash = keccak256(abi.encode(erc20AdaptorIdentifier, false, adaptorData));
         uint32 positionId = Cellar(address(this)).registry().getPositionHashToPositionId(positionHash);
         if (!Cellar(address(this)).isPositionUsed(positionId))
             revert BaseAdaptor__PositionNotUsed(adaptorData);
