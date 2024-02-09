@@ -9,7 +9,7 @@ import { EIP712, ECDSA } from "@openzeppelin/contracts/utils/cryptography/EIP712
 contract CellarWithShareLockFlashLoansWhitelisting is CellarWithShareLockPeriod, EIP712 {
     using SafeTransferLib for ERC20;
 
-    uint256 private constant WHITELIST_VALIDITY_PERIOD = 5 minutes;
+    uint256 internal constant WHITELIST_VALIDITY_PERIOD = 5 minutes;
     bytes32 public constant WHITELIST_TYPEHASH =
         keccak256("Whitelist(address sender,address receiver,uint256 signedAt)");
 
