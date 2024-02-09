@@ -142,7 +142,7 @@ contract CellarWithShareLockFlashLoansWhitelisting is CellarWithShareLockPeriod,
         address receiver,
         uint256 signedAt,
         bytes memory signature
-    ) external nonReentrant returns (uint256 shares) {
+    ) external returns (uint256 shares) {
         _verifyWhitelistSignature(receiver, signedAt, signature);
         return super.deposit(assets, receiver);
     }
@@ -160,7 +160,7 @@ contract CellarWithShareLockFlashLoansWhitelisting is CellarWithShareLockPeriod,
         address receiver,
         uint256 signedAt,
         bytes memory signature
-    ) external nonReentrant returns (uint256 assets) {
+    ) external returns (uint256 assets) {
         _verifyWhitelistSignature(receiver, signedAt, signature);
         return super.mint(shares, receiver);
     }
