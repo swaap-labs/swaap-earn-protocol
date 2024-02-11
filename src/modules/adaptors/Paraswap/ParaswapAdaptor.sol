@@ -1,20 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.21;
 
-import { ERC20, SafeTransferLib, Cellar, PriceRouter, Registry, Math } from "src/modules/adaptors/BaseAdaptor.sol";
-import { Address } from "@openzeppelin/contracts/utils/Address.sol";
-import { PositionlessAdaptor } from "src/modules/adaptors/PositionlessAdaptor.sol";
-import { BaseAdaptor } from "src/modules/adaptors/BaseAdaptor.sol";
+import { AggregatorBaseAdaptor, ERC20 } from "src/modules/adaptors/AggregatorBaseAdaptor.sol";
 
 /**
  * @title Paraswap Adaptor
  * @notice Allows Cellars to swap with Paraswap.
  */
-contract ParaswapAdaptor is PositionlessAdaptor {
-    using SafeTransferLib for ERC20;
-    using Math for uint256;
-    using Address for address;
-
+contract ParaswapAdaptor is AggregatorBaseAdaptor {
+    
     //==================== Adaptor Data Specification ====================
     // NOT USED
     //================= Configuration Data Specification =================
@@ -36,15 +30,9 @@ contract ParaswapAdaptor is PositionlessAdaptor {
      */
     address public immutable spender;
 
-    /**
-     * @notice The erc20 adaptor contract used by the cellars on the current network.
-     */
-    bytes32 public immutable erc20AdaptorIdentifier;
-
-    constructor(address _target, address _spender, address _erc20Adaptor) {
+    constructor(address _target, address _spender, address _erc20Adaptor) AggregatorBaseAdaptor(_erc20Adaptor) {
         target = _target;
         spender = _spender;
-        erc20AdaptorIdentifier = BaseAdaptor(_erc20Adaptor).identifier();
     }
 
     //============================================ Global Functions ===========================================
@@ -59,41 +47,16 @@ contract ParaswapAdaptor is PositionlessAdaptor {
     }
 
     //============================================ Strategist Functions ===========================================
-
     /**
      * @notice Allows strategists to make ERC20 swaps using paraswap.
      */
-    function swapWithParaswap(ERC20 tokenIn, ERC20 tokenOut, uint256 amount, bytes memory swapCallData) public {
-        _validateTokenOutIsUsed(address(tokenOut));
-
-        PriceRouter priceRouter = Cellar(address(this)).priceRouter();
-
-        tokenIn.safeApprove(spender, amount);
-        
-        // Save token balances.
-        uint256 tokenInBalance = tokenIn.balanceOf(address(this));
-        uint256 tokenOutBalance = tokenOut.balanceOf(address(this));
-
-        // Perform Swap.
-        target.functionCall(swapCallData);
-
-        uint256 tokenInAmountIn = tokenInBalance - tokenIn.balanceOf(address(this));
-        uint256 tokenOutAmountOut = tokenOut.balanceOf(address(this)) - tokenOutBalance;
-
-        uint256 tokenInValueOut = priceRouter.getValue(tokenOut, tokenOutAmountOut, tokenIn);
-
-        if (tokenInValueOut < tokenInAmountIn.mulDivDown(slippage(), 1e4)) revert BaseAdaptor__Slippage();
-
-        // Ensure spender has zero approval.
-        _revokeExternalApproval(tokenIn, spender);
-    }
-
-    function _validateTokenOutIsUsed(address tokenOut) internal view {
-        bytes memory adaptorData = abi.encode(tokenOut);
-        // This adaptor has no underlying position, so no need to validate token out.
-        bytes32 positionHash = keccak256(abi.encode(erc20AdaptorIdentifier, false, adaptorData));
-        uint32 positionId = Cellar(address(this)).registry().getPositionHashToPositionId(positionHash);
-        if (!Cellar(address(this)).isPositionUsed(positionId))
-            revert BaseAdaptor__PositionNotUsed(adaptorData);
+    function swapWithParaswap(
+        ERC20 tokenIn,
+        ERC20 tokenOut,
+        uint256 amount,
+        uint32 customSlippage,
+        bytes memory swapCallData
+    ) external {
+        _swapWithAggregator(tokenIn, tokenOut, amount, target, spender, customSlippage, swapCallData);
     }
 }
