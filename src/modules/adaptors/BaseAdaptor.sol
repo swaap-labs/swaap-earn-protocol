@@ -76,7 +76,7 @@ abstract contract BaseAdaptor {
     /**
      * @notice Max possible slippage when making a swap router swap.
      */
-    function slippage() public pure returns (uint32) {
+    function slippage() public pure virtual returns (uint32) {
         return 0.9e4;
     }
 
