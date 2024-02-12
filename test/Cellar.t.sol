@@ -804,8 +804,7 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
         cellar.callOnAdaptor(data);
 
         // After 9 month, cellar should ignore the pause whatever the state of the registry for this cellar.
-        uint256 futureTime = block.timestamp + mockCellar.getDelayUntilEndPause();
-        vm.warp(futureTime);
+        skip(mockCellar.getDelayUntilEndPause());
 
         // Cellar is fully paused from the registry.
         assertEq(cellar.isPaused(), false, "Cellar should not be paused.");
@@ -861,8 +860,7 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
         cellar.withdraw(assetToDepositOrWithdraw, address(this), address(this));
 
         // Go 9 months after the creation of the cellar.
-        uint256 futureTime = block.timestamp + mockCellar.getDelayUntilEndPause();
-        vm.warp(futureTime);
+        skip(mockCellar.getDelayUntilEndPause());
 
         // Update the external source of price
         mockUsdcUsd.setMockUpdatedAt(block.timestamp);
