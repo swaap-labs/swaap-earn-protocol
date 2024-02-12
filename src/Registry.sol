@@ -490,6 +490,14 @@ contract Registry is Ownable {
 
     // ========================================== LIMIT ADAPTOR SWAP VOLUME LOGIC ==========================================
 
+    event CellarTradeVolumeDataUpdated(
+        address indexed cellar,
+        uint48 lastUpdate,
+        uint48 periodLength,
+        uint80 volumeInUSD,
+        uint80 maxVolumeInUSD
+    );
+
     error Registry__CellarTradingVolumeExceeded(address cellar);
     error Registry__InvalidVolumeInput();
 
@@ -530,6 +538,14 @@ contract Registry is Ownable {
 
         if (cellarVolumeData.volumeInUSD > cellarVolumeData.maxVolumeInUSD) 
             revert Registry__CellarTradingVolumeExceeded(msg.sender);
+
+        emit CellarTradeVolumeDataUpdated(
+            msg.sender,
+            cellarVolumeData.lastUpdate,
+            cellarVolumeData.periodLength,
+            cellarVolumeData.volumeInUSD,
+            cellarVolumeData.maxVolumeInUSD
+        );
     }
 
     /**
@@ -555,5 +571,13 @@ contract Registry is Ownable {
             cellarVolumeData.lastUpdate = uint48(block.timestamp);
             cellarVolumeData.volumeInUSD = 0;
         }
+
+        emit CellarTradeVolumeDataUpdated(
+            cellar,
+            cellarVolumeData.lastUpdate,
+            cellarVolumeData.periodLength,
+            cellarVolumeData.volumeInUSD,
+            cellarVolumeData.maxVolumeInUSD
+        );    
     }
 }
