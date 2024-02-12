@@ -5,6 +5,7 @@ import { ReentrancyERC4626 } from "src/mocks/ReentrancyERC4626.sol";
 import { CellarAdaptor } from "src/modules/adaptors/Sommelier/CellarAdaptor.sol";
 import { ERC20DebtAdaptor } from "src/mocks/ERC20DebtAdaptor.sol";
 import { MockDataFeed } from "src/mocks/MockDataFeed.sol";
+import { MockCellar } from "src/mocks/MockCellar.sol";
 
 // Import Everything from Starter file.
 import "test/resources/MainnetStarter.t.sol";
@@ -20,6 +21,8 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
     Cellar private usdcCLR;
     Cellar private wethCLR;
     Cellar private wbtcCLR;
+
+    MockCellar private mockCellar;
 
     CellarAdaptor private cellarAdaptor;
 
@@ -145,6 +148,40 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         initialAssets = cellar.totalAssets();
         initialShares = cellar.totalSupply();
+    }
+
+    function deployMockCellar(
+        Registry registry,
+        ERC20 holdingAsset,
+        string memory mockCellarName,
+        uint32 holdingPosition,
+        uint256 initialDeposit,
+        uint64 platformCut
+    ) internal returns(MockCellar) {
+        // Approve new cellar to spend assets.
+        address mockCellarAddress = deployer.getAddress(mockCellarName);
+        deal(address(holdingAsset), address(this), initialDeposit);
+        holdingAsset.approve(mockCellarAddress, initialDeposit);
+
+
+        bytes memory creationCode;
+        bytes memory constructorArgs;
+
+        creationCode = type(MockCellar).creationCode;
+        constructorArgs = abi.encode(
+            address(this),
+            registry,
+            holdingAsset,
+            mockCellarName,
+            mockCellarName,
+            holdingPosition,
+            abi.encode(true),
+            initialDeposit,
+            platformCut,
+            type(uint192).max
+        );
+
+        return MockCellar(deployer.deployContract(mockCellarName, creationCode, constructorArgs, 0));
     }
 
     // ========================================= INITIALIZATION TEST =========================================
@@ -714,6 +751,16 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
     }
 
     function testRegistryPauseButEndDurationReached() external {
+        // Deploy mockCellar to access internal variable
+        mockCellar = deployMockCellar(
+            registry,
+            USDC,
+            "Mock Cellar",
+            usdcPosition,
+            100e6,
+            0.75e18
+        );
+
         // Empty call on adaptor argument.
         bytes[] memory emptyCall;
         Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
@@ -757,7 +804,7 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
         cellar.callOnAdaptor(data);
 
         // After 9 month, cellar should ignore the pause whatever the state of the registry for this cellar.
-        uint256 futureTime = block.timestamp + 30 days * 9;
+        uint256 futureTime = block.timestamp + mockCellar.getDelayUntilEndPause();
         vm.warp(futureTime);
 
         // Cellar is fully paused from the registry.
@@ -780,6 +827,16 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
     }
 
     function testEndPauseDurationButCellarIsShutDownThenLiftShutdown() external {
+        // Deploy mockCellar to access internal variable
+        mockCellar = deployMockCellar(
+            registry,
+            USDC,
+            "Mock Cellar",
+            usdcPosition,
+            100e6,
+            0.75e18
+        );
+
         // Empty call on adaptor argument.
         bytes[] memory emptyCall;
         Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
@@ -804,7 +861,7 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
         cellar.withdraw(assetToDepositOrWithdraw, address(this), address(this));
 
         // Go 9 months after the creation of the cellar.
-        uint256 futureTime = block.timestamp + 30 days * 9;
+        uint256 futureTime = block.timestamp + mockCellar.getDelayUntilEndPause();
         vm.warp(futureTime);
 
         // Update the external source of price
