@@ -60,7 +60,7 @@ contract Cellar is ERC4626, Ownable, ERC721Holder {
     /**
      * @notice Sets the end date when the cellar pause mode will be disregarded whatever its state.
      */
-    uint256 public immutable cellarEndPauseTimestamp;
+    uint256 public immutable endPauseTimestamp;
 
     // ========================================= MULTICALL =========================================
 
@@ -561,7 +561,7 @@ contract Cellar is ERC4626, Ownable, ERC721Holder {
      * @notice View function external contracts can use to see if the cellar is paused.
      */
     function isPaused() external view returns (bool) {
-        if (cellarEndPauseTimestamp > block.timestamp){
+        if (block.timestamp < endPauseTimestamp){
             return registry.isCallerPaused(address(this));
         }
         return false;        
@@ -571,7 +571,7 @@ contract Cellar is ERC4626, Ownable, ERC721Holder {
      * @notice Pauses all user entry/exits, and strategist rebalances.
      */
     function _checkIfPaused() internal view {
-        if (cellarEndPauseTimestamp > block.timestamp) {
+        if (block.timestamp < endPauseTimestamp) {
             if (registry.isCallerPaused(address(this))) revert Cellar__Paused();
         }
     }
@@ -660,7 +660,7 @@ contract Cellar is ERC4626, Ownable, ERC721Holder {
         uint64 _strategistPlatformCut,
         uint192 _shareSupplyCap
     ) ERC4626(_asset, _name, _symbol) Ownable() {
-        cellarEndPauseTimestamp = block.timestamp + DELAY_UNTIL_END_PAUSE;
+        endPauseTimestamp = block.timestamp + DELAY_UNTIL_END_PAUSE;
         registry = _registry;
         priceRouter = PriceRouter(_registry.getAddress(PRICE_ROUTER_REGISTRY_SLOT));
 
