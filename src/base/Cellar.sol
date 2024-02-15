@@ -11,7 +11,6 @@ import { PriceRouter } from "src/modules/price-router/PriceRouter.sol";
 import { Uint32Array } from "src/utils/Uint32Array.sol";
 import { BaseAdaptor } from "src/modules/adaptors/BaseAdaptor.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
-import { ERC721Holder } from "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { Owned } from "@solmate/auth/Owned.sol";
 
@@ -20,7 +19,7 @@ import { Owned } from "@solmate/auth/Owned.sol";
  * @notice A composable ERC4626 that can use arbitrary DeFi assets/positions using adaptors.
  * @author crispymangoes
  */
-contract Cellar is ERC4626, Ownable, ERC721Holder {
+contract Cellar is ERC4626, Ownable {
     using Uint32Array for uint32[];
     using SafeTransferLib for ERC20;
     using Math for uint256;
