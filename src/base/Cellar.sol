@@ -2,9 +2,8 @@
 pragma solidity 0.8.21;
 
 import { Math } from "src/utils/Math.sol";
-import { ERC4626 } from "src/base/ERC4626.sol";
+import { ERC4626, ERC20 } from "src/base/ERC4626.sol";
 import { SafeTransferLib } from "@solmate/utils/SafeTransferLib.sol";
-import { ERC20 } from "@solmate/tokens/ERC20.sol";
 import { Registry } from "src/Registry.sol";
 import { PriceRouter } from "src/modules/price-router/PriceRouter.sol";
 import { Uint32Array } from "src/utils/Uint32Array.sol";
@@ -561,6 +560,8 @@ contract Cellar is ERC4626, Ownable {
      */
     Registry public immutable registry;
 
+    uint8 internal immutable _ASSET_DECIMALS;
+
     /**
      * @notice Address of the fees manager contract.
      */
@@ -591,7 +592,7 @@ contract Cellar is ERC4626, Ownable {
         bytes memory _holdingPositionConfig,
         uint256 _initialDeposit,
         uint192 _shareSupplyCap
-    ) ERC4626(_asset) ERC20(_name, _symbol, _asset.decimals()) Ownable() {
+    ) ERC4626(_asset) ERC20(_name, _symbol, 18) Ownable() {
         endPauseTimestamp = block.timestamp + DELAY_UNTIL_END_PAUSE;
         registry = _registry;
         priceRouter = PriceRouter(_registry.getAddress(PRICE_ROUTER_REGISTRY_SLOT));
@@ -608,8 +609,9 @@ contract Cellar is ERC4626, Ownable {
 
         // Deposit into Cellar, and mint shares to Deployer address.
         _asset.safeTransferFrom(_owner, address(this), _initialDeposit);
-        // Set the share price as 1:1 with underlying asset.
-        _mint(msg.sender, _initialDeposit);
+        // Set the share price as 1:1 * 10**(18- asset decimals) with underlying asset.
+        _ASSET_DECIMALS = uint8(_asset.decimals());
+        _mint(msg.sender, _initialDeposit * (10 ** (18 - _ASSET_DECIMALS)));
         // Deposit _initialDeposit into holding position.
         _depositTo(_holdingPosition, _initialDeposit);
 
@@ -881,7 +883,7 @@ contract Cellar is ERC4626, Ownable {
         // Save asset price in USD, and decimals to reduce external calls.
         WithdrawPricing memory pricingInfo;
         pricingInfo.priceQuoteUSD = priceRouter.getPriceInUSD(asset);
-        pricingInfo.oneQuote = 10 ** decimals;
+        pricingInfo.oneQuote = 10 ** _ASSET_DECIMALS;
         uint256 creditLength = creditPositions.length;
         for (uint256 i; i < creditLength; ++i) {
             uint32 position = creditPositions[i];

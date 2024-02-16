@@ -400,34 +400,43 @@ contract SimpleSlippageRouterTest is MainnetStarterTest, AdaptorHelperFunctions 
     function testRedeemMinAssetsUnmet(uint256 assets) external {
         // test revert in redeem()
         assets = bound(assets, 1e6, 100_000e6);
+        uint192 assetsToShares = uint192(cellar.totalSupply() / cellar.totalAssets());
 
         // deal USDC assets to test contract
         deal(address(USDC), address(this), assets);
         deposit1 = assets / 2;
-        minShares1 = deposit1;
+        minShares1 = deposit1 * assetsToShares;
         deadline1 = uint64(block.timestamp + 1 days);
         // deposit half using the SSR
+        uint256 receivedShares = cellar.balanceOf(address(this));
         simpleSlippageRouter.deposit(cellar, deposit1, minShares1, deadline1);
+        receivedShares = cellar.balanceOf(address(this)) - receivedShares;
+
+        assertEq(
+            receivedShares,
+            deposit1 * assetsToShares,
+            "deposit(): Test contract should have received expected shares"
+        );
 
         // redeem half of the shares test contract has using the SSR
-        uint256 withdraw1 = deposit1 / 2;
-        uint256 maxShares1 = withdraw1; // assume 1:1 USDC:Shares shareprice
+        uint256 maxShares1 = receivedShares / 2;
+        uint256 withdrawAssets1 = maxShares1 / assetsToShares;
 
-        cellar.approve(address(simpleSlippageRouter), withdraw1);
+        cellar.approve(address(simpleSlippageRouter), maxShares1);
         uint256 quotedAssetAmount = cellar.previewRedeem(maxShares1);
         vm.expectRevert(
             bytes(
                 abi.encodeWithSelector(
                     SimpleSlippageRouter.SimpleSlippageRouter__RedeemMinAssetsUnmet.selector,
                     maxShares1,
-                    withdraw1 + 1,
+                    withdrawAssets1 + 1,
                     quotedAssetAmount
                 )
             )
         );
-        simpleSlippageRouter.redeem(cellar, maxShares1, withdraw1 + 1, deadline1);
+        simpleSlippageRouter.redeem(cellar, maxShares1, withdrawAssets1 + 1, deadline1);
 
         // Use a value for withdraw1 that will pass the conditional logic.
-        simpleSlippageRouter.redeem(cellar, maxShares1, withdraw1, deadline1);
+        simpleSlippageRouter.redeem(cellar, maxShares1, withdrawAssets1, deadline1);
     }
 }

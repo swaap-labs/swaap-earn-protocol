@@ -264,15 +264,19 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
         assertEq(USDC.balanceOf(address(this)), assets, "Should have withdrawn assets to user.");
     }
 
-    function testMintAndRedeem(uint256 shares) external {
-        shares = bound(shares, 1e6, type(uint112).max);
+    function testMintAndRedeem(uint256 assetsToDeposit) external {
+        // minimum is set to assetsToShares to avoid Cellar__ZeroAssets() revert
+        uint192 assetsToShares = uint192(cellar.totalSupply() / cellar.totalAssets());
+        assetsToDeposit = bound(assetsToDeposit, 1e6, type(uint112).max);
+
+        uint256 shares = assetsToDeposit * assetsToShares;
 
         // Change decimals from the 18 used by shares to the 6 used by USDC.
-        deal(address(USDC), address(this), shares);
+        deal(address(USDC), address(this), shares / assetsToShares);
 
         // Try minting more assets than balance.
         vm.expectRevert("TRANSFER_FROM_FAILED");
-        cellar.mint(shares + 1e18, address(this));
+        cellar.mint(shares + 100e18, address(this));
 
         // Test single mint.
         uint256 assets = cellar.mint(shares, address(this));
@@ -304,6 +308,8 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
         deal(address(USDC), address(this), assets);
         cellar.deposit(assets, address(this));
 
+        uint256 assetsToShares = cellar.totalSupply() / cellar.totalAssets();
+
         _depositToCellar(cellar, wethCLR, 2_000e6); // 1 Ether
         _depositToCellar(cellar, wbtcCLR, 30_000e6); // 1 WBTC
         assertEq(
@@ -319,7 +325,7 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
         uint256 shares = cellar.withdraw(32_000e6, address(this), address(this));
 
         assertEq(cellar.balanceOf(address(this)), 0, "Should have redeemed all shares.");
-        assertEq(shares, 32_000e6, "Should returned all redeemed shares.");
+        assertEq(shares, 32_000e6 * assetsToShares, "Should returned all redeemed shares.");
         assertEq(WETH.balanceOf(address(this)), 1e18, "Should have transferred position balance to user.");
         assertEq(WBTC.balanceOf(address(this)), 1e8, "Should have transferred position balance to user.");
         assertLt(WETH.balanceOf(address(wethCLR)), 1e18, "Should have transferred balance from WETH position.");
@@ -350,7 +356,12 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
             3_000e6 + initialAssets,
             "Should have updated total assets with assets deposited."
         );
-        assertEq(cellar.totalSupply(), 3_000e6 + initialShares, "Should have updated total supply with deposit");
+        uint256 assetsToShares = cellar.totalSupply() / cellar.totalAssets();
+        assertEq(
+            cellar.totalSupply(),
+            (3_000e6 + initialShares) * assetsToShares,
+            "Should have updated total supply with deposit"
+        );
 
         // Move USDC position to the back of the withdraw queue.
         cellar.swapPositions(0, 4, false);
@@ -359,7 +370,7 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
         uint256 shares = cellar.withdraw(3_000e6, address(this), address(this));
 
         assertEq(cellar.balanceOf(address(this)), 0, "Should have redeemed all shares.");
-        assertEq(shares, 3000e6, "Should returned all redeemed shares.");
+        assertEq(shares, 3000e6 * assetsToShares, "Should returned all redeemed shares.");
         assertEq(WETH.balanceOf(address(this)), 1.5e18, "Should have transferred position balance to user.");
         assertLt(WETH.balanceOf(address(wethCLR)), 1e18, "Should have transferred balance from WETH cellar position.");
         assertLt(
@@ -392,27 +403,32 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
         // Currently limits are not set, so they should report type(uint256).max
         assertEq(cellar.maxDeposit(address(this)), type(uint256).max, "Max Deposit should equal type(uint256).max");
         assertEq(cellar.maxMint(address(this)), type(uint256).max, "Max Mint should equal type(uint256).max");
+        uint192 assetsToShares = uint192(cellar.totalSupply() / cellar.totalAssets());
 
-        uint192 newCap = 100e6;
+        uint192 newCap = uint192(100e6 * assetsToShares);
         cellar.setShareSupplyCap(newCap);
         assertEq(cellar.shareSupplyCap(), newCap, "Share Supply Cap should have been updated.");
         uint256 totalAssets = cellar.totalAssets();
-        // Since shares are currently 1:1 with assets, they are interchangeable in below equation.
-        uint256 expectedMax = newCap - totalAssets;
-        assertEq(cellar.maxDeposit(address(this)), expectedMax, "Max Deposit should equal expected.");
-        assertEq(cellar.maxMint(address(this)), expectedMax, "Max Mint should equal expected.");
+        // Shares are not necessarily 1:1 with assets.
+        uint256 expectedMaxShares = newCap - (totalAssets * assetsToShares);
+        assertEq(
+            cellar.maxDeposit(address(this)),
+            expectedMaxShares / assetsToShares,
+            "Max Deposit should equal expected."
+        );
+        assertEq(cellar.maxMint(address(this)), expectedMaxShares, "Max Mint should equal expected.");
 
-        uint256 amountToExceedCap = expectedMax + 1;
-        deal(address(USDC), address(this), amountToExceedCap);
+        uint256 depositAmountToExceedCap = expectedMaxShares / assetsToShares + 1;
+        deal(address(USDC), address(this), depositAmountToExceedCap);
 
         vm.expectRevert(bytes(abi.encodeWithSelector(Cellar.Cellar__ShareSupplyCapExceeded.selector)));
-        cellar.deposit(amountToExceedCap, address(this));
+        cellar.deposit(depositAmountToExceedCap, address(this));
 
         vm.expectRevert(bytes(abi.encodeWithSelector(Cellar.Cellar__ShareSupplyCapExceeded.selector)));
-        cellar.mint(amountToExceedCap, address(this));
+        cellar.mint(expectedMaxShares + 1, address(this));
 
         // But if 1 wei is removed, deposit works.
-        cellar.deposit(amountToExceedCap - 1, address(this));
+        cellar.deposit(depositAmountToExceedCap - 1, address(this));
 
         // Max function should now return 0.
         assertEq(cellar.maxDeposit(address(this)), 0, "Max Deposit should equal 0");
@@ -689,6 +705,8 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         registry.batchPause(targets);
 
+        uint256 assetsToShares = cellar.totalSupply() / cellar.totalAssets();
+
         assertEq(cellar.isPaused(), true, "Cellar should be paused.");
 
         // Cellar is fully paused.
@@ -696,13 +714,13 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
         cellar.deposit(1e6, address(this));
 
         vm.expectRevert(bytes(abi.encodeWithSelector(Cellar.Cellar__Paused.selector)));
-        cellar.mint(1e6, address(this));
+        cellar.mint(1e6 * assetsToShares, address(this));
 
         vm.expectRevert(bytes(abi.encodeWithSelector(Cellar.Cellar__Paused.selector)));
         cellar.withdraw(1e6, address(this), address(this));
 
         vm.expectRevert(bytes(abi.encodeWithSelector(Cellar.Cellar__Paused.selector)));
-        cellar.redeem(1e6, address(this), address(this));
+        cellar.redeem(1e6 * assetsToShares, address(this), address(this));
 
         vm.expectRevert(bytes(abi.encodeWithSelector(Cellar.Cellar__Paused.selector)));
         cellar.totalAssets();
@@ -724,9 +742,9 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
         assertEq(cellar.isPaused(), false, "Cellar should not be paused.");
         deal(address(USDC), address(this), 100e6);
         cellar.deposit(1e6, address(this));
-        cellar.mint(1e6, address(this));
+        cellar.mint(1e6 * assetsToShares, address(this));
         cellar.withdraw(1e6, address(this), address(this));
-        cellar.redeem(1e6, address(this), address(this));
+        cellar.redeem(1e6 * assetsToShares, address(this), address(this));
         cellar.totalAssets();
         cellar.totalAssetsWithdrawable();
         cellar.maxWithdraw(address(this));
@@ -1225,6 +1243,7 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
         // asset. Emergency governance proposal to move funds into some new
         // safety contract, shutdown old cellar, and allow users to withdraw
         // from the safety contract.
+        uint192 assetsToShares = uint192(cellar.totalSupply() / cellar.totalAssets());
 
         cellar.addPosition(5, usdtPosition, abi.encode(true), false);
 
@@ -1253,12 +1272,12 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
         cellar.deposit(1, attacker);
         vm.stopPrank();
 
-        cellar.redeem(50e6, address(this), address(this));
+        cellar.redeem(50e6 * assetsToShares, address(this), address(this));
 
         // USDC depeggs to $0.10.
         mockUsdcUsd.setMockAnswer(0.1e8);
 
-        cellar.redeem(50e6, address(this), address(this));
+        cellar.redeem(50e6 * assetsToShares, address(this), address(this));
 
         // Eventhough USDC depegged further, cellar rebalanced out of USDC
         // removing its exposure to it.  So users can expect to get the
