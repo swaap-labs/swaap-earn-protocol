@@ -2,7 +2,7 @@
 pragma solidity 0.8.21;
 
 import { Extension, PriceRouter, ERC20, Math } from "src/modules/price-router/Extensions/Extension.sol";
-import { ERC4626 } from "@solmate/mixins/ERC4626.sol";
+import { ERC4626 } from "src/base/ERC4626.sol";
 
 /**
  * @title Sommelier Price Router ERC4626 Extension

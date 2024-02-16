@@ -10,7 +10,7 @@ import { IGravity } from "src/interfaces/external/IGravity.sol";
 
 // Import Helpers
 import { Math } from "src/utils/Math.sol";
-import { ERC4626 } from "@solmate/mixins/ERC4626.sol";
+import { ERC4626 } from "src/base/ERC4626.sol";
 import { SafeTransferLib } from "@solmate/utils/SafeTransferLib.sol";
 import { ERC20 } from "@solmate/tokens/ERC20.sol";
 import { MainnetAddresses } from "test/resources/MainnetAddresses.sol";

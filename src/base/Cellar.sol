@@ -2,10 +2,9 @@
 pragma solidity 0.8.21;
 
 import { Math } from "src/utils/Math.sol";
-import { ERC4626 } from "@solmate/mixins/ERC4626.sol";
+import { ERC4626 } from "src/base/ERC4626.sol";
 import { SafeTransferLib } from "@solmate/utils/SafeTransferLib.sol";
 import { ERC20 } from "@solmate/tokens/ERC20.sol";
-// import { ERC4626, SafeTransferLib, Math, ERC20 } from "src/base/ERC4626.sol";
 import { Registry } from "src/Registry.sol";
 import { PriceRouter } from "src/modules/price-router/PriceRouter.sol";
 import { Uint32Array } from "src/utils/Uint32Array.sol";
@@ -592,7 +591,7 @@ contract Cellar is ERC4626, Ownable {
         bytes memory _holdingPositionConfig,
         uint256 _initialDeposit,
         uint192 _shareSupplyCap
-    ) ERC4626(_asset, _name, _symbol) Ownable() {
+    ) ERC4626(_asset) ERC20(_name, _symbol, _asset.decimals()) Ownable() {
         endPauseTimestamp = block.timestamp + DELAY_UNTIL_END_PAUSE;
         registry = _registry;
         priceRouter = PriceRouter(_registry.getAddress(PRICE_ROUTER_REGISTRY_SLOT));

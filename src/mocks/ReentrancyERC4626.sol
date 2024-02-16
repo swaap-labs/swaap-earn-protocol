@@ -11,7 +11,12 @@ contract ReentrancyERC4626 is ERC4626, Test {
     // True tries reentrancy, False manipulates callers totalSupply
     bool private immutable style;
 
-    constructor(ERC20 _asset, string memory _name, string memory _symbol, bool _style) ERC4626(_asset, _name, _symbol) {
+    constructor(
+        ERC20 _asset,
+        string memory _name,
+        string memory _symbol,
+        bool _style
+    ) ERC4626(_asset) ERC20(_name, _symbol, _asset.decimals()) {
         style = _style;
     }
 

@@ -2,7 +2,7 @@
 pragma solidity 0.8.21;
 
 import { CurveEMAExtension, CurvePool } from "src/modules/price-router/Extensions/Curve/CurveEMAExtension.sol";
-import { ERC4626 } from "@solmate/mixins/ERC4626.sol";
+import { ERC4626 } from "src/base/ERC4626.sol";
 
 // Import Everything from Starter file.
 import "test/resources/MainnetStarter.t.sol";
