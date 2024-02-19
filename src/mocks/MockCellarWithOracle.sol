@@ -21,7 +21,6 @@ contract MockCellarWithOracle is Cellar {
         uint32 _holdingPosition,
         bytes memory _holdingPositionConfig,
         uint256 _initialDeposit,
-        uint64 _strategistPlatformCut,
         uint192 _shareSupplyCap
     )
         Cellar(
@@ -33,7 +32,6 @@ contract MockCellarWithOracle is Cellar {
             _holdingPosition,
             _holdingPositionConfig,
             _initialDeposit,
-            _strategistPlatformCut,
             _shareSupplyCap
         )
     {}

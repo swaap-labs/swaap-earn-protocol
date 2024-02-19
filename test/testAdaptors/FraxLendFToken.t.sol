@@ -97,9 +97,8 @@ contract FraxLendFTokenAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
 
         string memory cellarName = "FraxLend Cellar V0.0";
         uint256 initialDeposit = 1e18;
-        uint64 platformCut = 0.75e18;
 
-        cellar = _createCellar(cellarName, FRAX, fraxPosition, abi.encode(0), initialDeposit, platformCut);
+        cellar = _createCellar(cellarName, FRAX, fraxPosition, abi.encode(0), initialDeposit);
 
         cellar.addAdaptorToCatalogue(address(fTokenAdaptor));
         cellar.addAdaptorToCatalogue(address(fTokenAdaptorV2));
@@ -905,9 +904,8 @@ contract FraxLendFTokenAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
         address adaptorToUse
     ) internal returns (Cellar simpleCellar) {
         uint256 initialDeposit = 1e18;
-        uint64 platformCut = 0.75e18;
 
-        simpleCellar = _createCellar(cellarName, FRAX, fraxPosition, abi.encode(0), initialDeposit, platformCut);
+        simpleCellar = _createCellar(cellarName, FRAX, fraxPosition, abi.encode(0), initialDeposit);
 
         simpleCellar.addAdaptorToCatalogue(address(adaptorToUse));
         simpleCellar.addPositionToCatalogue(holdingPosition);

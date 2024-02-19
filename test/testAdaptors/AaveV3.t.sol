@@ -75,7 +75,6 @@ contract CellarAaveV3Test is MainnetStarterTest, AdaptorHelperFunctions {
 
         string memory cellarName = "AAVE Debt Cellar V0.0";
         uint256 initialDeposit = 1e6;
-        uint64 platformCut = 0.75e18;
 
         // Approve new cellar to spend assets.
         address cellarAddress = deployer.getAddress(cellarName);
@@ -92,7 +91,6 @@ contract CellarAaveV3Test is MainnetStarterTest, AdaptorHelperFunctions {
             aV3USDCPosition,
             abi.encode(minHealthFactor),
             initialDeposit,
-            platformCut,
             type(uint192).max,
             address(pool)
         );

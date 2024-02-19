@@ -76,9 +76,8 @@ contract CellarAaveV2MorphoTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         string memory cellarName = "Morpho Aave V2 Cellar V0.0";
         uint256 initialDeposit = 1e12;
-        uint64 platformCut = 0.75e18;
 
-        cellar = _createCellar(cellarName, WETH, morphoAWethPosition, abi.encode(true), initialDeposit, platformCut);
+        cellar = _createCellar(cellarName, WETH, morphoAWethPosition, abi.encode(true), initialDeposit);
 
         cellar.addAdaptorToCatalogue(address(aTokenAdaptor));
         cellar.addAdaptorToCatalogue(address(debtTokenAdaptor));
@@ -386,9 +385,8 @@ contract CellarAaveV2MorphoTest is MainnetStarterTest, AdaptorHelperFunctions {
         // Allows for strategist withdraw form morpho.
         string memory cellarName = "MORPHO P2P Cellar";
         uint256 initialDeposit = 1e6;
-        uint64 platformCut = 0.75e18;
 
-        cellar = _createCellar(cellarName, USDC, morphoAUsdcPosition, abi.encode(0), initialDeposit, platformCut);
+        cellar = _createCellar(cellarName, USDC, morphoAUsdcPosition, abi.encode(0), initialDeposit);
 
         cellar.addAdaptorToCatalogue(address(aTokenAdaptor));
         cellar.addAdaptorToCatalogue(address(swapWithUniswapAdaptor));

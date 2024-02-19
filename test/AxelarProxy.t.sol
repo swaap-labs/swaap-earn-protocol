@@ -68,9 +68,8 @@ contract AxelarProxyTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         string memory cellarName = "Dummy Cellar V0.0";
         uint256 initialDeposit = 1e6;
-        uint64 platformCut = 0.75e18;
 
-        cellar = _createCellar(cellarName, USDC, usdcPosition, abi.encode(0), initialDeposit, platformCut);
+        cellar = _createCellar(cellarName, USDC, usdcPosition, abi.encode(0), initialDeposit);
         vm.label(address(cellar), "usdcCLR");
 
         cellar.addAdaptorToCatalogue(address(aaveATokenAdaptor));

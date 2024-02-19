@@ -24,7 +24,6 @@ contract CellarWithAaveFlashLoans is Cellar {
         uint32 _holdingPosition,
         bytes memory _holdingPositionConfig,
         uint256 _initialDeposit,
-        uint64 _strategistPlatformCut,
         uint192 _shareSupplyCap,
         address _aavePool
     )
@@ -37,7 +36,6 @@ contract CellarWithAaveFlashLoans is Cellar {
             _holdingPosition,
             _holdingPositionConfig,
             _initialDeposit,
-            _strategistPlatformCut,
             _shareSupplyCap
         )
     {

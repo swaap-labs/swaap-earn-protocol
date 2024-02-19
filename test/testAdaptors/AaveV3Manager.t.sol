@@ -78,14 +78,21 @@ contract CellarAaveV3Test is MainnetStarterTest, AdaptorHelperFunctions {
         registry.trustAdaptor(address(aaveDebtManagerAdaptor));
 
         registry.trustPosition(usdcPosition, address(erc20Adaptor), abi.encode(USDC));
-        registry.trustPosition(aV3USDCPosition, address(aaveATokenManagerAdaptor), abi.encode(DEFAULT_ACCOUNT, address(aV3USDC)));
-        registry.trustPosition(debtUSDCPosition, address(aaveDebtManagerAdaptor), abi.encode(DEFAULT_ACCOUNT, address(dV3USDC)));
+        registry.trustPosition(
+            aV3USDCPosition,
+            address(aaveATokenManagerAdaptor),
+            abi.encode(DEFAULT_ACCOUNT, address(aV3USDC))
+        );
+        registry.trustPosition(
+            debtUSDCPosition,
+            address(aaveDebtManagerAdaptor),
+            abi.encode(DEFAULT_ACCOUNT, address(dV3USDC))
+        );
 
         uint256 minHealthFactor = 1.1e18;
 
         string memory cellarName = "AAVE Debt Cellar V0.0";
         uint256 initialDeposit = 1e6;
-        uint64 platformCut = 0.75e18;
 
         // Approve new cellar to spend assets.
         address cellarAddress = deployer.getAddress(cellarName);
@@ -102,7 +109,6 @@ contract CellarAaveV3Test is MainnetStarterTest, AdaptorHelperFunctions {
             aV3USDCPosition,
             abi.encode(minHealthFactor),
             initialDeposit,
-            platformCut,
             type(uint192).max,
             address(pool)
         );
@@ -131,18 +137,25 @@ contract CellarAaveV3Test is MainnetStarterTest, AdaptorHelperFunctions {
 
         // assert that the account was deployed in the setup.
         assertTrue(Address.isContract(account0), "Account 0 should be a contract.");
-        assertEq(AaveV3AccountExtension(account0).cellar(), address(cellar), "Cellar should be the owner of the account.");
+        assertEq(
+            AaveV3AccountExtension(account0).cellar(),
+            address(cellar),
+            "Cellar should be the owner of the account."
+        );
     }
 
     event AccountExtensionCreated(uint8 indexed accountId, address accountAddress);
 
     function testCreateAaveAccountExtension() external {
-
         address account1 = _getAccountAddress(ACCOUNT_EMODE_ONE);
 
         assertFalse(Address.isContract(account1), "Account 1 should not be a contract yet.");
 
-        registry.trustPosition(aV3WETHPositionEmode, address(aaveATokenManagerAdaptor), abi.encode(ACCOUNT_EMODE_ONE, address(aV3WETH)));
+        registry.trustPosition(
+            aV3WETHPositionEmode,
+            address(aaveATokenManagerAdaptor),
+            abi.encode(ACCOUNT_EMODE_ONE, address(aV3WETH))
+        );
         cellar.addPositionToCatalogue(aV3WETHPositionEmode);
         cellar.addPosition(2, aV3WETHPositionEmode, abi.encode(0), false);
 
@@ -166,7 +179,6 @@ contract CellarAaveV3Test is MainnetStarterTest, AdaptorHelperFunctions {
     }
 
     function testRevertWhenDeployAaveAccountWithIncorrectData() external {
-
         address account1 = _getAccountAddress(ACCOUNT_EMODE_ONE);
 
         assertFalse(Address.isContract(account1), "Account 1 should not be a contract yet.");
@@ -184,7 +196,7 @@ contract CellarAaveV3Test is MainnetStarterTest, AdaptorHelperFunctions {
                 abi.encode(ACCOUNT_EMODE_ONE, address(aV3USDC))
             )
         );
-        
+
         cellar.callOnAdaptor(data);
     }
 
@@ -229,7 +241,11 @@ contract CellarAaveV3Test is MainnetStarterTest, AdaptorHelperFunctions {
     function testWithdrawalLogicNoEModeNoDebt() external {
         // Add aV3WETH as a trusted position to the registry, then to the cellar.
         uint32 aV3WETHPosition = 1_000_003;
-        registry.trustPosition(aV3WETHPosition, address(aaveATokenManagerAdaptor), abi.encode(DEFAULT_ACCOUNT, address(aV3WETH)));
+        registry.trustPosition(
+            aV3WETHPosition,
+            address(aaveATokenManagerAdaptor),
+            abi.encode(DEFAULT_ACCOUNT, address(aV3WETH))
+        );
         cellar.addPositionToCatalogue(aV3WETHPosition);
         cellar.addPosition(2, aV3WETHPosition, abi.encode(0), false);
 
@@ -266,7 +282,11 @@ contract CellarAaveV3Test is MainnetStarterTest, AdaptorHelperFunctions {
 
     function testWithdrawalLogicEmodeNoDebt() external {
         // Even if EMode is set, all assets are still withdrawable.
-        registry.trustPosition(aV3WETHPositionEmode, address(aaveATokenManagerAdaptor), abi.encode(ACCOUNT_EMODE_ONE, address(aV3WETH)));
+        registry.trustPosition(
+            aV3WETHPositionEmode,
+            address(aaveATokenManagerAdaptor),
+            abi.encode(ACCOUNT_EMODE_ONE, address(aV3WETH))
+        );
         cellar.addPositionToCatalogue(aV3WETHPositionEmode);
         cellar.addPosition(2, aV3WETHPositionEmode, abi.encode(0), false);
 
@@ -276,7 +296,11 @@ contract CellarAaveV3Test is MainnetStarterTest, AdaptorHelperFunctions {
         cellar.addPosition(3, wethPosition, abi.encode(0), false);
 
         uint32 aV3USDCPositionEmodeONE = 1111;
-        registry.trustPosition(aV3USDCPositionEmodeONE, address(aaveATokenManagerAdaptor), abi.encode(ACCOUNT_EMODE_ONE, address(aV3USDC)));
+        registry.trustPosition(
+            aV3USDCPositionEmodeONE,
+            address(aaveATokenManagerAdaptor),
+            abi.encode(ACCOUNT_EMODE_ONE, address(aV3USDC))
+        );
         cellar.addPositionToCatalogue(aV3USDCPositionEmodeONE);
         cellar.addPosition(4, aV3USDCPositionEmodeONE, abi.encode(0), false);
 
@@ -293,7 +317,7 @@ contract CellarAaveV3Test is MainnetStarterTest, AdaptorHelperFunctions {
         uint256 wethAmount = priceRouter.getValue(USDC, assets / 2, WETH);
         deal(address(USDC), address(cellar), assets / 2);
         deal(address(WETH), address(cellar), wethAmount);
-        
+
         Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](2);
         adaptorCalls[0] = _createBytesDataToLendOnAaveV3Manager(ACCOUNT_EMODE_ONE, aV3USDC, type(uint256).max);
@@ -312,12 +336,20 @@ contract CellarAaveV3Test is MainnetStarterTest, AdaptorHelperFunctions {
     function testWithdrawalLogicEModeWithDebt() external {
         uint256 initialAssets = cellar.totalAssets();
         // Add aV3WETH as a trusted position to the registry, then to the cellar.
-        registry.trustPosition(aV3WETHPositionEmode, address(aaveATokenManagerAdaptor), abi.encode(ACCOUNT_EMODE_ONE, address(aV3WETH)));
+        registry.trustPosition(
+            aV3WETHPositionEmode,
+            address(aaveATokenManagerAdaptor),
+            abi.encode(ACCOUNT_EMODE_ONE, address(aV3WETH))
+        );
         cellar.addPositionToCatalogue(aV3WETHPositionEmode);
         cellar.addPosition(2, aV3WETHPositionEmode, abi.encode(0), false);
 
         uint32 debtWETHPosition = 1_000_004;
-        registry.trustPosition(debtWETHPosition, address(aaveDebtManagerAdaptor), abi.encode(ACCOUNT_EMODE_ONE, address(dV3WETH)));
+        registry.trustPosition(
+            debtWETHPosition,
+            address(aaveDebtManagerAdaptor),
+            abi.encode(ACCOUNT_EMODE_ONE, address(dV3WETH))
+        );
         cellar.addPositionToCatalogue(debtWETHPosition);
         cellar.addPosition(1, debtWETHPosition, abi.encode(0), true);
 
@@ -343,7 +375,7 @@ contract CellarAaveV3Test is MainnetStarterTest, AdaptorHelperFunctions {
         bytes[] memory adaptorCalls0 = new bytes[](2);
         adaptorCalls0[0] = _createBytesDataToLendOnAaveV3Manager(DEFAULT_ACCOUNT, aV3USDC, type(uint256).max);
         adaptorCalls0[1] = _createBytesDataToLendOnAaveV3Manager(ACCOUNT_EMODE_ONE, aV3WETH, type(uint256).max);
-        
+
         data[0] = Cellar.AdaptorCall({ adaptor: address(aaveATokenManagerAdaptor), callData: adaptorCalls0 });
 
         bytes[] memory adaptorCalls1 = new bytes[](1);
@@ -364,12 +396,20 @@ contract CellarAaveV3Test is MainnetStarterTest, AdaptorHelperFunctions {
         uint256 initialAssets = cellar.totalAssets();
         // Add aV3WETH as a trusted position to the registry, then to the cellar.
         uint32 aV3WETHPosition = 1_000_003;
-        registry.trustPosition(aV3WETHPosition, address(aaveATokenManagerAdaptor), abi.encode(DEFAULT_ACCOUNT, address(aV3WETH)));
+        registry.trustPosition(
+            aV3WETHPosition,
+            address(aaveATokenManagerAdaptor),
+            abi.encode(DEFAULT_ACCOUNT, address(aV3WETH))
+        );
         cellar.addPositionToCatalogue(aV3WETHPosition);
         cellar.addPosition(2, aV3WETHPosition, abi.encode(0), false);
 
         uint32 debtWETHPosition = 1_000_004;
-        registry.trustPosition(debtWETHPosition, address(aaveDebtManagerAdaptor), abi.encode(DEFAULT_ACCOUNT, address(dV3WETH)));
+        registry.trustPosition(
+            debtWETHPosition,
+            address(aaveDebtManagerAdaptor),
+            abi.encode(DEFAULT_ACCOUNT, address(dV3WETH))
+        );
         cellar.addPositionToCatalogue(debtWETHPosition);
         cellar.addPosition(1, debtWETHPosition, abi.encode(0), true);
 
@@ -538,7 +578,12 @@ contract CellarAaveV3Test is MainnetStarterTest, AdaptorHelperFunctions {
         data[0] = Cellar.AdaptorCall({ adaptor: address(aaveDebtManagerAdaptor), callData: adaptorCalls });
         cellar.callOnAdaptor(data);
 
-        assertApproxEqAbs(dV3USDC.balanceOf(_getAccountAddress(DEFAULT_ACCOUNT)), 0, 1, "Cellar should have no dV3USDC left.");
+        assertApproxEqAbs(
+            dV3USDC.balanceOf(_getAccountAddress(DEFAULT_ACCOUNT)),
+            0,
+            1,
+            "Cellar should have no dV3USDC left."
+        );
     }
 
     function testWithdrawableFromaV3USDC() external {
@@ -580,12 +625,20 @@ contract CellarAaveV3Test is MainnetStarterTest, AdaptorHelperFunctions {
 
         // Add WETH, aV3WETH, and dV3WETH as trusted positions to the registry.
         uint32 aV3WETHPosition = 1_000_003;
-        registry.trustPosition(aV3WETHPosition, address(aaveATokenManagerAdaptor), abi.encode(DEFAULT_ACCOUNT, address(aV3WETH)));
+        registry.trustPosition(
+            aV3WETHPosition,
+            address(aaveATokenManagerAdaptor),
+            abi.encode(DEFAULT_ACCOUNT, address(aV3WETH))
+        );
         cellar.addPositionToCatalogue(aV3WETHPosition);
         cellar.addPosition(2, aV3WETHPosition, abi.encode(0), false);
 
         uint32 debtWETHPosition = 1_000_004;
-        registry.trustPosition(debtWETHPosition, address(aaveDebtManagerAdaptor), abi.encode(DEFAULT_ACCOUNT, address(dV3WETH)));
+        registry.trustPosition(
+            debtWETHPosition,
+            address(aaveDebtManagerAdaptor),
+            abi.encode(DEFAULT_ACCOUNT, address(dV3WETH))
+        );
         cellar.addPositionToCatalogue(debtWETHPosition);
         cellar.addPosition(1, debtWETHPosition, abi.encode(0), true);
 
@@ -722,12 +775,20 @@ contract CellarAaveV3Test is MainnetStarterTest, AdaptorHelperFunctions {
     function testMultipleATokensAndDebtTokens() external {
         // Add WETH, aV3WETH, and dV3WETH as trusted positions to the registry.
         uint32 aV3WETHPosition = 1_000_003;
-        registry.trustPosition(aV3WETHPosition, address(aaveATokenManagerAdaptor), abi.encode(DEFAULT_ACCOUNT, address(aV3WETH)));
+        registry.trustPosition(
+            aV3WETHPosition,
+            address(aaveATokenManagerAdaptor),
+            abi.encode(DEFAULT_ACCOUNT, address(aV3WETH))
+        );
         cellar.addPositionToCatalogue(aV3WETHPosition);
         cellar.addPosition(2, aV3WETHPosition, abi.encode(0), false);
 
         uint32 debtWETHPosition = 1_000_004;
-        registry.trustPosition(debtWETHPosition, address(aaveDebtManagerAdaptor), abi.encode(DEFAULT_ACCOUNT, address(dV3WETH)));
+        registry.trustPosition(
+            debtWETHPosition,
+            address(aaveDebtManagerAdaptor),
+            abi.encode(DEFAULT_ACCOUNT, address(dV3WETH))
+        );
         cellar.addPositionToCatalogue(debtWETHPosition);
         cellar.addPosition(1, debtWETHPosition, abi.encode(0), true);
 
@@ -753,7 +814,11 @@ contract CellarAaveV3Test is MainnetStarterTest, AdaptorHelperFunctions {
         bytes[] memory adaptorCallsFourthAdaptor = new bytes[](2);
         adaptorCallsFirstAdaptor[0] = _createBytesDataToWithdrawFromAaveV3Manager(DEFAULT_ACCOUNT, USDC, assets / 2);
         adaptorCallsSecondAdaptor[0] = _createBytesDataForSwapWithUniv3(USDC, WETH, 500, assets / 2);
-        adaptorCallsThirdAdaptor[0] = _createBytesDataToLendOnAaveV3Manager(DEFAULT_ACCOUNT, aV3WETH, type(uint256).max);
+        adaptorCallsThirdAdaptor[0] = _createBytesDataToLendOnAaveV3Manager(
+            DEFAULT_ACCOUNT,
+            aV3WETH,
+            type(uint256).max
+        );
         adaptorCallsFourthAdaptor[0] = _createBytesDataToBorrowFromAaveV3Manager(DEFAULT_ACCOUNT, dV3USDC, assets / 4);
         uint256 wethAmount = priceRouter.getValue(USDC, assets / 2, WETH) / 2; // To get approx a 50% LTV loan.
         adaptorCallsFourthAdaptor[1] = _createBytesDataToBorrowFromAaveV3Manager(DEFAULT_ACCOUNT, dV3WETH, wethAmount);
@@ -843,9 +908,17 @@ contract CellarAaveV3Test is MainnetStarterTest, AdaptorHelperFunctions {
         // Debt Position
         // 0) dV3USDC
         uint32 aV3WETHPosition = 1_000_003;
-        registry.trustPosition(aV3WETHPosition, address(aaveATokenManagerAdaptor), abi.encode(DEFAULT_ACCOUNT, address(aV3WETH)));
+        registry.trustPosition(
+            aV3WETHPosition,
+            address(aaveATokenManagerAdaptor),
+            abi.encode(DEFAULT_ACCOUNT, address(aV3WETH))
+        );
         uint32 aV3WBTCPosition = 1_000_004;
-        registry.trustPosition(aV3WBTCPosition, address(aaveATokenManagerAdaptor), abi.encode(DEFAULT_ACCOUNT, address(aV3WBTC)));
+        registry.trustPosition(
+            aV3WBTCPosition,
+            address(aaveATokenManagerAdaptor),
+            abi.encode(DEFAULT_ACCOUNT, address(aV3WBTC))
+        );
         cellar.addPositionToCatalogue(aV3WETHPosition);
         cellar.addPositionToCatalogue(aV3WBTCPosition);
         cellar.addPosition(1, aV3WETHPosition, abi.encode(0), false);
@@ -871,7 +944,11 @@ contract CellarAaveV3Test is MainnetStarterTest, AdaptorHelperFunctions {
         uint256 amountToSwap = assets.mulDivDown(8, 10);
         {
             bytes[] memory adaptorCalls = new bytes[](1);
-            adaptorCalls[0] = _createBytesDataToWithdrawFromAaveV3Manager(DEFAULT_ACCOUNT, USDC, assets.mulDivDown(8, 10));
+            adaptorCalls[0] = _createBytesDataToWithdrawFromAaveV3Manager(
+                DEFAULT_ACCOUNT,
+                USDC,
+                assets.mulDivDown(8, 10)
+            );
 
             data[0] = Cellar.AdaptorCall({ adaptor: address(aaveATokenManagerAdaptor), callData: adaptorCalls });
         }
@@ -969,7 +1046,7 @@ contract CellarAaveV3Test is MainnetStarterTest, AdaptorHelperFunctions {
             data[4] = Cellar.AdaptorCall({ adaptor: address(aaveATokenManagerAdaptor), callData: adaptorCalls });
         }
         // Adjust rebalance deviation to account for slippage and fees(swap and flash loan).
-        
+
         cellar.setRebalanceDeviation(0.03e18);
 
         cellar.callOnAdaptor(data);
@@ -1021,9 +1098,14 @@ contract CellarAaveV3Test is MainnetStarterTest, AdaptorHelperFunctions {
             bytes[] memory adaptorCallsInsideFlashLoanSecondAdaptor = new bytes[](1);
             bytes[] memory adaptorCallsInsideFlashLoanThirdAdaptor = new bytes[](1);
             // Repay USDC debt.
-            adaptorCallsInsideFlashLoanFirstAdaptor[0] = _createBytesDataToRepayToAaveV3Manager(DEFAULT_ACCOUNT, USDC, USDCtoFlashLoan);
+            adaptorCallsInsideFlashLoanFirstAdaptor[0] = _createBytesDataToRepayToAaveV3Manager(
+                DEFAULT_ACCOUNT,
+                USDC,
+                USDCtoFlashLoan
+            );
             // Withdraw WETH and swap for USDC.
-            adaptorCallsInsideFlashLoanSecondAdaptor[0] = _createBytesDataToWithdrawFromAaveV3Manager(DEFAULT_ACCOUNT, 
+            adaptorCallsInsideFlashLoanSecondAdaptor[0] = _createBytesDataToWithdrawFromAaveV3Manager(
+                DEFAULT_ACCOUNT,
                 WETH,
                 cellarAV3WETH
             );
@@ -1077,7 +1159,7 @@ contract CellarAaveV3Test is MainnetStarterTest, AdaptorHelperFunctions {
         );
     }
 
-    function _getAccountAddress(uint8 accountId) internal view returns(address) {
+    function _getAccountAddress(uint8 accountId) internal view returns (address) {
         bytes32 salt = bytes32(uint256(accountId));
         bytes32 bytecodeHash = aaveATokenManagerAdaptor.accountBytecodeHash();
 

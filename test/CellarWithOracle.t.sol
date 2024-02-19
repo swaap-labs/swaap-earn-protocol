@@ -76,7 +76,6 @@ contract CellarWithOracleTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         string memory cellarName = "Simple Cellar V0.0";
         uint256 initialDeposit = 1e6;
-        uint64 platformCut = 0.75e18;
 
         creationCode = type(CellarWithOracle).creationCode;
         constructorArgs = abi.encode(
@@ -88,7 +87,6 @@ contract CellarWithOracleTest is MainnetStarterTest, AdaptorHelperFunctions {
             usdcPosition,
             abi.encode(true),
             initialDeposit,
-            platformCut,
             type(uint192).max
         );
 

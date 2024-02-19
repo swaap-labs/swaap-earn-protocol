@@ -65,12 +65,11 @@ contract SimpleSlippageRouterTest is MainnetStarterTest, AdaptorHelperFunctions 
         // Create Dummy Cellars.
         string memory cellarName = "Dummy Cellar V0.0";
         uint256 initialDeposit = 1e6;
-        uint64 platformCut = 0.75e18;
 
         cellarName = "Cellar V0.0";
         initialDeposit = 1e6;
-        platformCut = 0.75e18;
-        cellar = _createCellar(cellarName, USDC, usdcPosition, abi.encode(true), initialDeposit, platformCut);
+
+        cellar = _createCellar(cellarName, USDC, usdcPosition, abi.encode(true), initialDeposit);
 
         vm.label(address(cellar), "cellar");
 

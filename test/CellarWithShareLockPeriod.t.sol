@@ -73,7 +73,6 @@ contract CellarWithShareLockPeriodTest is MainnetStarterTest, AdaptorHelperFunct
         // Create Cellar.
         string memory cellarName = "Share Lock Cellar V0.0";
         uint256 initialDeposit = 1e6;
-        uint64 platformCut = 0.75e18;
 
         // Approve new cellar to spend assets.
         address cellarAddress = deployer.getAddress(cellarName);
@@ -92,7 +91,6 @@ contract CellarWithShareLockPeriodTest is MainnetStarterTest, AdaptorHelperFunct
             usdcPosition,
             abi.encode(true),
             initialDeposit,
-            platformCut,
             type(uint192).max
         );
 
@@ -104,7 +102,7 @@ contract CellarWithShareLockPeriodTest is MainnetStarterTest, AdaptorHelperFunct
         cellar.addPositionToCatalogue(wbtcPosition);
         cellar.addPosition(2, wbtcPosition, abi.encode(true), false);
 
-        cellar.setStrategistPayoutAddress(strategist);
+        // cellar.setStrategistPayoutAddress(strategist);
 
         vm.label(address(cellar), "cellar");
         vm.label(strategist, "strategist");
@@ -196,7 +194,6 @@ contract CellarWithShareLockPeriodTest is MainnetStarterTest, AdaptorHelperFunct
         // Initialize test Cellar.
         string memory cellarName = "Share Lock Cellar V0.1";
         uint256 initialDeposit = 1e6;
-        uint64 platformCut = 0.75e18;
 
         // Approve new cellar to spend assets.
         address cellarAddress = deployer.getAddress(cellarName);
@@ -215,7 +212,6 @@ contract CellarWithShareLockPeriodTest is MainnetStarterTest, AdaptorHelperFunct
             usdcPosition,
             abi.encode(true),
             initialDeposit,
-            platformCut,
             type(uint192).max
         );
 

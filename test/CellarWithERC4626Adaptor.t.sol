@@ -96,21 +96,18 @@ contract CellarWithERC4626AdaptorTest is MainnetStarterTest, AdaptorHelperFuncti
         // Create Dummy Cellars.
         string memory cellarName = "Dummy Cellar V0.0";
         uint256 initialDeposit = 1e6;
-        uint64 platformCut = 0.75e18;
 
-        usdcCLR = _createCellar(cellarName, USDC, usdcPosition, abi.encode(true), initialDeposit, platformCut);
+        usdcCLR = _createCellar(cellarName, USDC, usdcPosition, abi.encode(true), initialDeposit);
         vm.label(address(usdcCLR), "usdcCLR");
 
         cellarName = "Dummy Cellar V0.1";
         initialDeposit = 1e12;
-        platformCut = 0.75e18;
-        wethCLR = _createCellar(cellarName, WETH, wethPosition, abi.encode(true), initialDeposit, platformCut);
+        wethCLR = _createCellar(cellarName, WETH, wethPosition, abi.encode(true), initialDeposit);
         vm.label(address(wethCLR), "wethCLR");
 
         cellarName = "Dummy Cellar V0.2";
         initialDeposit = 1e4;
-        platformCut = 0.75e18;
-        wbtcCLR = _createCellar(cellarName, WBTC, wbtcPosition, abi.encode(true), initialDeposit, platformCut);
+        wbtcCLR = _createCellar(cellarName, WBTC, wbtcPosition, abi.encode(true), initialDeposit);
         vm.label(address(wbtcCLR), "wbtcCLR");
 
         // Add Cellar Positions to the registry.
@@ -120,8 +117,7 @@ contract CellarWithERC4626AdaptorTest is MainnetStarterTest, AdaptorHelperFuncti
 
         cellarName = "Cellar V0.0";
         initialDeposit = 1e6;
-        platformCut = 0.75e18;
-        cellar = _createCellar(cellarName, USDC, usdcPosition, abi.encode(true), initialDeposit, platformCut);
+        cellar = _createCellar(cellarName, USDC, usdcPosition, abi.encode(true), initialDeposit);
 
         // Set up remaining cellar positions.
         cellar.addPositionToCatalogue(usdcCLRPosition);
@@ -136,8 +132,6 @@ contract CellarWithERC4626AdaptorTest is MainnetStarterTest, AdaptorHelperFuncti
         cellar.addPosition(5, wbtcPosition, abi.encode(true), false);
         cellar.addAdaptorToCatalogue(address(erc4626Adaptor));
         cellar.addPositionToCatalogue(usdtPosition);
-
-        cellar.setStrategistPayoutAddress(strategist);
 
         vm.label(address(cellar), "cellar");
         vm.label(strategist, "strategist");
@@ -203,8 +197,7 @@ contract CellarWithERC4626AdaptorTest is MainnetStarterTest, AdaptorHelperFuncti
         // Create Cellar B
         string memory cellarName = "Cellar B V0.0";
         uint256 initialDeposit = 1e6;
-        uint64 platformCut = 0.75e18;
-        Cellar cellarB = _createCellar(cellarName, USDC, usdcPosition, abi.encode(true), initialDeposit, platformCut);
+        Cellar cellarB = _createCellar(cellarName, USDC, usdcPosition, abi.encode(true), initialDeposit);
 
         uint32 cellarBPosition = 10;
         registry.trustPosition(cellarBPosition, address(erc4626Adaptor), abi.encode(cellarB));
@@ -212,8 +205,7 @@ contract CellarWithERC4626AdaptorTest is MainnetStarterTest, AdaptorHelperFuncti
         // Create Cellar A
         cellarName = "Cellar A V0.0";
         initialDeposit = 1e6;
-        platformCut = 0.75e18;
-        Cellar cellarA = _createCellar(cellarName, USDC, usdcPosition, abi.encode(true), initialDeposit, platformCut);
+        Cellar cellarA = _createCellar(cellarName, USDC, usdcPosition, abi.encode(true), initialDeposit);
 
         cellarA.addPositionToCatalogue(cellarBPosition);
         cellarA.addPosition(0, cellarBPosition, abi.encode(true), false);
@@ -261,16 +253,8 @@ contract CellarWithERC4626AdaptorTest is MainnetStarterTest, AdaptorHelperFuncti
 
         string memory cellarName = "Meta Cellar V0.0";
         uint256 initialDeposit = 1e6;
-        uint64 platformCut = 0.75e18;
 
-        Cellar metaCellar = _createCellar(
-            cellarName,
-            USDC,
-            usdcPosition,
-            abi.encode(true),
-            initialDeposit,
-            platformCut
-        );
+        Cellar metaCellar = _createCellar(cellarName, USDC, usdcPosition, abi.encode(true), initialDeposit);
         initialAssets = metaCellar.totalAssets();
 
         metaCellar.addPositionToCatalogue(cellarPosition);

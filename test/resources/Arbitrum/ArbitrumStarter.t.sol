@@ -93,8 +93,7 @@ contract MainnetStarterTest is Test, MainnetAddresses {
         ERC20 holdingAsset,
         uint32 holdingPosition,
         bytes memory holdingPositionConfig,
-        uint256 initialDeposit,
-        uint64 platformCut
+        uint256 initialDeposit
     ) internal returns (Cellar) {
         // Approve new cellar to spend assets.
         address cellarAddress = deployer.getAddress(cellarName);
@@ -113,7 +112,6 @@ contract MainnetStarterTest is Test, MainnetAddresses {
             holdingPosition,
             holdingPositionConfig,
             initialDeposit,
-            platformCut,
             type(uint192).max
         );
 

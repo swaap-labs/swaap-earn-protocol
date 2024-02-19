@@ -13,23 +13,22 @@ contract MockCellarWithShareLockFlashLoansWhitelisting is CellarWithShareLockFla
         uint32 _holdingPosition,
         bytes memory _holdingPositionConfig,
         uint256 _initialDeposit,
-        uint64 _strategistPlatformCut,
         uint192 _shareSupplyCap,
         address _balancerVault
-    ) 
-    CellarWithShareLockFlashLoansWhitelisting(
-        _owner,
-        _registry,
-        _asset,
-        _name,
-        _symbol,
-        _holdingPosition,
-        _holdingPositionConfig,
-        _initialDeposit,
-        _strategistPlatformCut,
-        _shareSupplyCap,
-        _balancerVault
-    ) {}
+    )
+        CellarWithShareLockFlashLoansWhitelisting(
+            _owner,
+            _registry,
+            _asset,
+            _name,
+            _symbol,
+            _holdingPosition,
+            _holdingPositionConfig,
+            _initialDeposit,
+            _shareSupplyCap,
+            _balancerVault
+        )
+    {}
 
     function getExpirationDurationSignature() public pure returns (uint256) {
         return WHITELIST_VALIDITY_PERIOD;
@@ -39,7 +38,11 @@ contract MockCellarWithShareLockFlashLoansWhitelisting is CellarWithShareLockFla
         return _hashTypedDataV4(structHash);
     }
 
-    function mockVerifyWhitelistSignaturePublic(address receiver, uint256 signedAt, bytes memory signature) public view {
+    function mockVerifyWhitelistSignaturePublic(
+        address receiver,
+        uint256 signedAt,
+        bytes memory signature
+    ) public view {
         _verifyWhitelistSignature(receiver, signedAt, signature);
     }
 }

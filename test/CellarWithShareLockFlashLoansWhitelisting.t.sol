@@ -91,7 +91,6 @@ contract MockCellarWithShareLockFlashLoansWhitelistingTest is MainnetStarterTest
         // Create Cellar.
         string memory cellarName = "Share Lock Whitelist Cellar V0.0";
         uint256 initialDeposit = 1e6;
-        uint64 platformCut = 0.75e18;
 
         // Approve new cellar to spend assets.
         address cellarAddress = deployer.getAddress(cellarName);
@@ -110,11 +109,12 @@ contract MockCellarWithShareLockFlashLoansWhitelistingTest is MainnetStarterTest
             usdcPosition,
             abi.encode(true),
             initialDeposit,
-            platformCut,
             type(uint192).max
         );
 
-        cellar = MockCellarWithShareLockFlashLoansWhitelisting(deployer.deployContract(cellarName, creationCode, constructorArgs, 0));
+        cellar = MockCellarWithShareLockFlashLoansWhitelisting(
+            deployer.deployContract(cellarName, creationCode, constructorArgs, 0)
+        );
 
         // Set up remaining cellar positions.
         cellar.addPositionToCatalogue(wethPosition);
@@ -122,7 +122,7 @@ contract MockCellarWithShareLockFlashLoansWhitelistingTest is MainnetStarterTest
         cellar.addPositionToCatalogue(wbtcPosition);
         cellar.addPosition(2, wbtcPosition, abi.encode(true), false);
 
-        cellar.setStrategistPayoutAddress(strategist);
+        // cellar.setStrategistPayoutAddress(strategist);
 
         vm.label(address(cellar), "cellar");
         vm.label(strategist, "strategist");
@@ -151,7 +151,7 @@ contract MockCellarWithShareLockFlashLoansWhitelistingTest is MainnetStarterTest
         mockWbtcUsd.setMockUpdatedAt(block.timestamp);
     }
 
-    function getSignatureForCellar(uint256 privateKey) internal view returns (bytes memory signature){
+    function getSignatureForCellar(uint256 privateKey) internal view returns (bytes memory signature) {
         bytes32 digest = cellar.getHashTypedDataV4(
             keccak256(abi.encode(cellar.WHITELIST_TYPEHASH(), address(this), address(this), block.timestamp))
         );
@@ -169,7 +169,11 @@ contract MockCellarWithShareLockFlashLoansWhitelistingTest is MainnetStarterTest
 
         // // Mint the same quantity of shares. as the deposit
         uint256 assets_deposited = cellar.mint(shares, address(this));
-        assertEq(initialAssets + assets + assets_deposited, cellar.totalAssets(), "Cellar should have deposited assets");
+        assertEq(
+            initialAssets + assets + assets_deposited,
+            cellar.totalAssets(),
+            "Cellar should have deposited assets"
+        );
 
         // Check for other cellar methods
         cellar.totalAssetsWithdrawable();
@@ -197,10 +201,14 @@ contract MockCellarWithShareLockFlashLoansWhitelistingTest is MainnetStarterTest
         cellar.transferOwnership(bob);
 
         // Expect revert with regular deposit and mint
-        vm.expectRevert(bytes(abi.encodeWithSelector(CellarWithShareLockFlashLoansWhitelisting.Cellar__WhitelistEnabled.selector)));
+        vm.expectRevert(
+            bytes(abi.encodeWithSelector(CellarWithShareLockFlashLoansWhitelisting.Cellar__WhitelistEnabled.selector))
+        );
         cellar.deposit(assets, address(this));
 
-        vm.expectRevert(bytes(abi.encodeWithSelector(CellarWithShareLockFlashLoansWhitelisting.Cellar__WhitelistEnabled.selector)));
+        vm.expectRevert(
+            bytes(abi.encodeWithSelector(CellarWithShareLockFlashLoansWhitelisting.Cellar__WhitelistEnabled.selector))
+        );
         cellar.mint(shares, address(this));
 
         // Get signature
@@ -240,7 +248,9 @@ contract MockCellarWithShareLockFlashLoansWhitelistingTest is MainnetStarterTest
 
         cellar.mockVerifyWhitelistSignaturePublic(address(this), block.timestamp, signatureCorrect);
 
-        vm.expectRevert(bytes(abi.encodeWithSelector(CellarWithShareLockFlashLoansWhitelisting.Cellar__InvalidSignature.selector)));
+        vm.expectRevert(
+            bytes(abi.encodeWithSelector(CellarWithShareLockFlashLoansWhitelisting.Cellar__InvalidSignature.selector))
+        );
         cellar.mockVerifyWhitelistSignaturePublic(address(this), block.timestamp, signatureWrong);
     }
 
@@ -258,7 +268,9 @@ contract MockCellarWithShareLockFlashLoansWhitelistingTest is MainnetStarterTest
 
         cellar.mockVerifyWhitelistSignaturePublic(address(this), block.timestamp, signatureCorrect);
 
-        vm.expectRevert(bytes(abi.encodeWithSelector(CellarWithShareLockFlashLoansWhitelisting.Cellar__InvalidSignature.selector)));
+        vm.expectRevert(
+            bytes(abi.encodeWithSelector(CellarWithShareLockFlashLoansWhitelisting.Cellar__InvalidSignature.selector))
+        );
         cellar.mockVerifyWhitelistSignaturePublic(address(this), block.timestamp, signatureWrong);
     }
 
@@ -269,9 +281,7 @@ contract MockCellarWithShareLockFlashLoansWhitelistingTest is MainnetStarterTest
         bytes memory signature = getSignatureForCellar(whateverPrivateKey);
 
         cellar.mockVerifyWhitelistSignaturePublic(address(this), block.timestamp, signature);
-
     }
-
 
     function testUserDelayAboveValidity() external {
         cellar.enableWhitelist();
@@ -288,10 +298,16 @@ contract MockCellarWithShareLockFlashLoansWhitelistingTest is MainnetStarterTest
         // Last second to sign
         moveForwardAndUpdateOracle(cellar.getExpirationDurationSignature());
         cellar.mockVerifyWhitelistSignaturePublic(address(this), timestampSignature, signature);
-        
+
         // Validity period of signature passed
         moveForwardAndUpdateOracle(1);
-        vm.expectRevert(bytes(abi.encodeWithSelector(CellarWithShareLockFlashLoansWhitelisting.Cellar__InvalidSignatureDeadline.selector)));
+        vm.expectRevert(
+            bytes(
+                abi.encodeWithSelector(
+                    CellarWithShareLockFlashLoansWhitelisting.Cellar__InvalidSignatureDeadline.selector
+                )
+            )
+        );
         cellar.mockVerifyWhitelistSignaturePublic(address(this), timestampSignature, signature);
 
         // Now disable whitelist and verification should pass

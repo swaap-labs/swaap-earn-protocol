@@ -60,9 +60,8 @@ contract CellarAdaptorWithSDaiTest is MainnetStarterTest, AdaptorHelperFunctions
 
         string memory cellarName = "Savings DAI Cellar V0.0";
         uint256 initialDeposit = 1e18;
-        uint64 platformCut = 0.75e18;
 
-        cellar = _createCellar(cellarName, DAI, daiPosition, abi.encode(0), initialDeposit, platformCut);
+        cellar = _createCellar(cellarName, DAI, daiPosition, abi.encode(0), initialDeposit);
 
         cellar.setRebalanceDeviation(0.01e18);
 

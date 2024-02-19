@@ -25,7 +25,6 @@ contract CellarWithOracleWithAaveFlashLoans is CellarWithOracle {
         uint32 _holdingPosition,
         bytes memory _holdingPositionConfig,
         uint256 _initialDeposit,
-        uint64 _strategistPlatformCut,
         uint192 _shareSupplyCap,
         address _aavePool
     )
@@ -38,7 +37,6 @@ contract CellarWithOracleWithAaveFlashLoans is CellarWithOracle {
             _holdingPosition,
             _holdingPositionConfig,
             _initialDeposit,
-            _strategistPlatformCut,
             _shareSupplyCap
         )
     {

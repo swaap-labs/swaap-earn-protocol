@@ -55,9 +55,8 @@ contract LegacyCellarAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         string memory cellarName = "Cellar V0.0";
         uint256 initialDeposit = 1e6;
-        uint64 platformCut = 0.75e18;
 
-        cellar = _createCellar(cellarName, USDC, usdcPosition, abi.encode(true), initialDeposit, platformCut);
+        cellar = _createCellar(cellarName, USDC, usdcPosition, abi.encode(true), initialDeposit);
 
         // Setup Share Price Oracle.
         ERC4626 _target = ERC4626(address(cellar));
@@ -105,9 +104,8 @@ contract LegacyCellarAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         cellarName = "Meta Cellar V0.0";
         initialDeposit = 1e6;
-        platformCut = 0.75e18;
 
-        metaCellar = _createCellar(cellarName, USDC, usdcPosition, abi.encode(true), initialDeposit, platformCut);
+        metaCellar = _createCellar(cellarName, USDC, usdcPosition, abi.encode(true), initialDeposit);
 
         metaCellar.addAdaptorToCatalogue(address(cellarAdaptor));
         metaCellar.addPositionToCatalogue(cellarPosition);

@@ -113,16 +113,8 @@ contract AuraERC4626AdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         string memory cellarName = "rETH-wETH BPT Aura Pool Cellar V0.0";
         uint256 initialDeposit = 1e18;
-        uint64 platformCut = 0.75e18;
 
-        cellar = _createCellar(
-            cellarName,
-            rETH_wETH_BPT,
-            rETH_wETH_BPT_Position,
-            abi.encode(0),
-            initialDeposit,
-            platformCut
-        );
+        cellar = _createCellar(cellarName, rETH_wETH_BPT, rETH_wETH_BPT_Position, abi.encode(0), initialDeposit);
 
         cellar.setRebalanceDeviation(0.01e18);
 
@@ -241,7 +233,7 @@ contract AuraERC4626AdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
         }
 
         // Perform callOnAdaptor.
-        cellar.callOnAdaptor(data); 
+        cellar.callOnAdaptor(data);
 
         assertGt(BAL.balanceOf(address(cellar)), oldBALRewards);
         assertGt(AURA.balanceOf(address(cellar)), oldAURARewards);

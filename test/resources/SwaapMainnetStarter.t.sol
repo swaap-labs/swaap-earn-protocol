@@ -91,7 +91,6 @@ contract SwaapMainnetStarterTest is Test, SwaapMainnetAddresses {
         uint32 holdingPosition,
         bytes memory holdingPositionConfig,
         uint256 initialDeposit,
-        uint64 platformCut,
         address vault // flashloan vault
     ) internal returns (CellarWithShareLockFlashLoansWhitelisting) {
         // Approve new cellar to spend assets.
@@ -111,7 +110,6 @@ contract SwaapMainnetStarterTest is Test, SwaapMainnetAddresses {
             holdingPosition,
             holdingPositionConfig,
             initialDeposit,
-            platformCut,
             type(uint192).max,
             vault
         );

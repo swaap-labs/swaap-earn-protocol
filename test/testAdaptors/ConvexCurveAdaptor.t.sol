@@ -480,7 +480,6 @@ contract ConvexCurveAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         string memory cellarName = "Convex Cellar V0.0";
         uint256 initialDeposit = 1e6;
-        uint64 platformCut = 0.75e18;
 
         // Approve new cellar to spend assets.
         address cellarAddress = deployer.getAddress(cellarName);
@@ -497,7 +496,6 @@ contract ConvexCurveAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
             usdcPosition,
             abi.encode(0),
             initialDeposit,
-            platformCut,
             type(uint192).max
         );
         cellar = Cellar(deployer.deployContract(cellarName, creationCode, constructorArgs, 0));
@@ -1263,7 +1261,6 @@ contract ConvexCurveAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
     ) internal returns (Cellar newCellar) {
         string memory cellarName = "Test Convex Cellar V0.0";
         uint256 initialDeposit = 1e18;
-        uint64 platformCut = 0.75e18;
 
         ERC20 erc20LpToken = ERC20(lpToken);
 
@@ -1282,7 +1279,6 @@ contract ConvexCurveAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
             position,
             abi.encode(true),
             initialDeposit,
-            platformCut,
             type(uint192).max
         );
         newCellar = Cellar(deployer.deployContract(cellarName, creationCode, constructorArgs, 0));

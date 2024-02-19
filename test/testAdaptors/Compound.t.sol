@@ -71,9 +71,8 @@ contract CellarCompoundTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         string memory cellarName = "Compound Cellar V0.0";
         uint256 initialDeposit = 1e18;
-        uint64 platformCut = 0.75e18;
 
-        cellar = _createCellar(cellarName, DAI, cDAIPosition, abi.encode(0), initialDeposit, platformCut);
+        cellar = _createCellar(cellarName, DAI, cDAIPosition, abi.encode(0), initialDeposit);
 
         cellar.setRebalanceDeviation(0.003e18);
         cellar.addAdaptorToCatalogue(address(cTokenAdaptor));

@@ -57,9 +57,8 @@ contract CellarDSRTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         string memory cellarName = "DSR Cellar V0.0";
         uint256 initialDeposit = 1e18;
-        uint64 platformCut = 0.75e18;
 
-        cellar = _createCellar(cellarName, DAI, daiPosition, abi.encode(0), initialDeposit, platformCut);
+        cellar = _createCellar(cellarName, DAI, daiPosition, abi.encode(0), initialDeposit);
 
         cellar.addAdaptorToCatalogue(address(dsrAdaptor));
         cellar.addPositionToCatalogue(dsrPosition);

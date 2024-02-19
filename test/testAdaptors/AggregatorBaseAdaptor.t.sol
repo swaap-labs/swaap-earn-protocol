@@ -62,9 +62,8 @@ contract CellarAggregatorBaseAdaptorTest is MainnetStarterTest, AdaptorHelperFun
 
         string memory cellarName = "Aggregator Cellar V0.0";
         uint256 initialDeposit = 1e6;
-        uint64 platformCut = 0.75e18;
 
-        cellar = _createCellar(cellarName, USDC, usdcPosition, abi.encode(0), initialDeposit, platformCut);
+        cellar = _createCellar(cellarName, USDC, usdcPosition, abi.encode(0), initialDeposit);
 
         cellar.addAdaptorToCatalogue(address(mockAggregatorAdaptor));
 
@@ -103,8 +102,10 @@ contract CellarAggregatorBaseAdaptorTest is MainnetStarterTest, AdaptorHelperFun
         adaptorCalls[0] = _createBytesDataToSwap(from, to, assets, maxSlippage, slippageSwapData);
 
         data[0] = Cellar.AdaptorCall({ adaptor: address(mockAggregatorAdaptor), callData: adaptorCalls });
-        
-        vm.expectRevert(abi.encodeWithSelector(Registry.Registry__CellarTradingVolumeExceeded.selector, address(cellar)));
+
+        vm.expectRevert(
+            abi.encodeWithSelector(Registry.Registry__CellarTradingVolumeExceeded.selector, address(cellar))
+        );
         cellar.callOnAdaptor(data);
     }
 
@@ -145,15 +146,16 @@ contract CellarAggregatorBaseAdaptorTest is MainnetStarterTest, AdaptorHelperFun
 
         uint48 initLastUpdate;
 
-        (
-            uint48 newLastUpdate,
-            uint48 newPeriodLength,
-            uint80 newVolumeInUSD,
-            uint80 newMaxVolumeInUSD
-        ) = registry.cellarsAdaptorVolumeData(address(cellar));
+        (uint48 newLastUpdate, uint48 newPeriodLength, uint80 newVolumeInUSD, uint80 newMaxVolumeInUSD) = registry
+            .cellarsAdaptorVolumeData(address(cellar));
 
         // checking that the variables are set correctly after setting the volume parameters
-        assertApproxEqAbs(newLastUpdate, block.timestamp, 1, "lastUpdate should be the current block timestamp after resetting cellar volume data");
+        assertApproxEqAbs(
+            newLastUpdate,
+            block.timestamp,
+            1,
+            "lastUpdate should be the current block timestamp after resetting cellar volume data"
+        );
         assertEq(newPeriodLength, periodLength, "periodLength should be equal to the initial period");
         assertEq(newVolumeInUSD, 0, "volumeInUSD should be 0 after resetting cellar volume data");
         assertEq(newMaxVolumeInUSD, type(uint80).max, "maxVolumeInUSD should be equal to type(uint80).max");
@@ -165,12 +167,9 @@ contract CellarAggregatorBaseAdaptorTest is MainnetStarterTest, AdaptorHelperFun
         data[0] = Cellar.AdaptorCall({ adaptor: address(mockAggregatorAdaptor), callData: adaptorCalls });
         cellar.callOnAdaptor(data);
 
-        (
-            newLastUpdate,
-            newPeriodLength,
-            newVolumeInUSD,
-            newMaxVolumeInUSD
-        ) = registry.cellarsAdaptorVolumeData(address(cellar));
+        (newLastUpdate, newPeriodLength, newVolumeInUSD, newMaxVolumeInUSD) = registry.cellarsAdaptorVolumeData(
+            address(cellar)
+        );
 
         // checking that the variables are set correctly after swapping
         // when the max volume is set to type(uint80).max
@@ -178,7 +177,7 @@ contract CellarAggregatorBaseAdaptorTest is MainnetStarterTest, AdaptorHelperFun
         assertEq(newPeriodLength, periodLength, "periodLength should be equal to the initial period");
         assertEq(newVolumeInUSD, 0, "Cellar volume should remain the same when max volume is set to type(uint80).max");
         assertEq(newMaxVolumeInUSD, type(uint80).max, "maxVolumeInUSD should remain the same after a trade");
-    
+
         registry.setMaxAllowedAdaptorVolumeParams(
             address(cellar),
             uint48(periodLength), // period length
@@ -186,20 +185,17 @@ contract CellarAggregatorBaseAdaptorTest is MainnetStarterTest, AdaptorHelperFun
             false // reset volume
         );
 
-        // checking that the variables are set correctly after swapping 
+        // checking that the variables are set correctly after swapping
         // when the max volume is set to less than type(uint80).max
         cellar.callOnAdaptor(data);
 
-        (
-            newLastUpdate,
-            newPeriodLength,
-            newVolumeInUSD,
-            newMaxVolumeInUSD
-        ) = registry.cellarsAdaptorVolumeData(address(cellar));
+        (newLastUpdate, newPeriodLength, newVolumeInUSD, newMaxVolumeInUSD) = registry.cellarsAdaptorVolumeData(
+            address(cellar)
+        );
 
         assertEq(newLastUpdate, initLastUpdate, "lastUpdate should be equal to the initial lastUpdate");
         assertEq(newPeriodLength, periodLength, "periodLength should be equal to the initial period");
-        assertApproxEqRel(newVolumeInUSD, fromAmount * 1e8 / 1e6, 0.01e18, "Cellar volume should be updated");
+        assertApproxEqRel(newVolumeInUSD, (fromAmount * 1e8) / 1e6, 0.01e18, "Cellar volume should be updated");
         assertEq(newMaxVolumeInUSD, type(uint80).max / 2, "maxVolumeInUSD should remain the same after a trade");
 
         // advance time by 5 minutes
@@ -207,18 +203,20 @@ contract CellarAggregatorBaseAdaptorTest is MainnetStarterTest, AdaptorHelperFun
 
         cellar.callOnAdaptor(data);
 
-        (
-            newLastUpdate,
-            newPeriodLength,
-            newVolumeInUSD,
-            newMaxVolumeInUSD
-        ) = registry.cellarsAdaptorVolumeData(address(cellar));
+        (newLastUpdate, newPeriodLength, newVolumeInUSD, newMaxVolumeInUSD) = registry.cellarsAdaptorVolumeData(
+            address(cellar)
+        );
 
         // checking that the variables are set correctly after swapping twice
         // when the max volume is set to less than type(uint80).max
         assertEq(newLastUpdate, initLastUpdate, "lastUpdate should be equal to the initial lastUpdate");
         assertEq(newPeriodLength, periodLength, "periodLength should be equal to the initial period");
-        assertApproxEqRel(newVolumeInUSD, fromAmount * 2 * 1e8 / 1e6, 0.01e18, "Cellar volume should be updated after a trade");
+        assertApproxEqRel(
+            newVolumeInUSD,
+            (fromAmount * 2 * 1e8) / 1e6,
+            0.01e18,
+            "Cellar volume should be updated after a trade"
+        );
         assertEq(newMaxVolumeInUSD, type(uint80).max / 2, "maxVolumeInUSD should remain the same after a trade");
 
         skip(periodLength);
@@ -226,18 +224,20 @@ contract CellarAggregatorBaseAdaptorTest is MainnetStarterTest, AdaptorHelperFun
         // Make the swap again.
         cellar.callOnAdaptor(data);
 
-        (
-            newLastUpdate,
-            newPeriodLength,
-            newVolumeInUSD,
-            newMaxVolumeInUSD
-        ) = registry.cellarsAdaptorVolumeData(address(cellar));
+        (newLastUpdate, newPeriodLength, newVolumeInUSD, newMaxVolumeInUSD) = registry.cellarsAdaptorVolumeData(
+            address(cellar)
+        );
 
         // checking that the variables are set correctly after swapping several
         // when the max volume is set to less than type(uint80).max and the period has passed
         assertApproxEqAbs(newLastUpdate, block.timestamp, 1, "lastUpdate should be updated");
         assertEq(newPeriodLength, periodLength, "periodLength should be equal to the initial period after a trade");
-        assertApproxEqRel(newVolumeInUSD, fromAmount * 1e8 / 1e6, 0.01e18, "Cellar volume should be reset and then updated");
+        assertApproxEqRel(
+            newVolumeInUSD,
+            (fromAmount * 1e8) / 1e6,
+            0.01e18,
+            "Cellar volume should be reset and then updated"
+        );
         assertEq(newMaxVolumeInUSD, type(uint80).max / 2, "maxVolumeInUSD should remain the same after a trade");
 
         initLastUpdate = newLastUpdate;
@@ -252,17 +252,14 @@ contract CellarAggregatorBaseAdaptorTest is MainnetStarterTest, AdaptorHelperFun
             false // reset volume
         );
 
-        (
-            newLastUpdate,
-            newPeriodLength,
-            newVolumeInUSD,
-            newMaxVolumeInUSD
-        ) = registry.cellarsAdaptorVolumeData(address(cellar));
+        (newLastUpdate, newPeriodLength, newVolumeInUSD, newMaxVolumeInUSD) = registry.cellarsAdaptorVolumeData(
+            address(cellar)
+        );
 
         // checking that the variables are after setting max volume and period length only
         assertEq(newLastUpdate, initLastUpdate, "lastUpdate should remain the same");
         assertEq(newPeriodLength, periodLength * 2, "periodLength should be equal to the initial period after a trade");
-        assertApproxEqRel(newVolumeInUSD, fromAmount * 1e8 / 1e6, 0.01e18, "Cellar volume should not be reset");
+        assertApproxEqRel(newVolumeInUSD, (fromAmount * 1e8) / 1e6, 0.01e18, "Cellar volume should not be reset");
         assertEq(newMaxVolumeInUSD, type(uint80).max, "maxVolumeInUSD should be updated");
 
         registry.setMaxAllowedAdaptorVolumeParams(
@@ -272,12 +269,9 @@ contract CellarAggregatorBaseAdaptorTest is MainnetStarterTest, AdaptorHelperFun
             true // reset volume
         );
 
-        (
-            newLastUpdate,
-            newPeriodLength,
-            newVolumeInUSD,
-            newMaxVolumeInUSD
-        ) = registry.cellarsAdaptorVolumeData(address(cellar));
+        (newLastUpdate, newPeriodLength, newVolumeInUSD, newMaxVolumeInUSD) = registry.cellarsAdaptorVolumeData(
+            address(cellar)
+        );
 
         // checking that the variables are after setting max volume and period length and resetting volume
         assertApproxEqAbs(newLastUpdate, block.timestamp, 1, "lastUpdate should be updated after a reset");
@@ -370,7 +364,8 @@ contract CellarAggregatorBaseAdaptorTest is MainnetStarterTest, AdaptorHelperFun
         );
 
         adaptorCalls = new bytes[](10);
-        for (uint256 i; i < 10; ++i) adaptorCalls[i] = _createBytesDataToSwap(from, to, fromAmount, maxSlippage, slippageSwapData);
+        for (uint256 i; i < 10; ++i)
+            adaptorCalls[i] = _createBytesDataToSwap(from, to, fromAmount, maxSlippage, slippageSwapData);
         data[0] = Cellar.AdaptorCall({ adaptor: address(mockAggregatorAdaptor), callData: adaptorCalls });
         cellar.callOnAdaptor(data);
 
@@ -385,7 +380,7 @@ contract CellarAggregatorBaseAdaptorTest is MainnetStarterTest, AdaptorHelperFun
             type(uint80).max, // max volume traded
             true // reset volume
         );
-        
+
         ERC20 from;
         ERC20 to;
         uint256 fromAmount;
@@ -408,7 +403,9 @@ contract CellarAggregatorBaseAdaptorTest is MainnetStarterTest, AdaptorHelperFun
         adaptorCalls[0] = _createBytesDataToSwap(from, to, fromAmount, maxSlippage, slippageSwapData);
         data[0] = Cellar.AdaptorCall({ adaptor: address(mockAggregatorAdaptor), callData: adaptorCalls });
 
-        vm.expectRevert(abi.encodeWithSelector(BaseAdaptor.BaseAdaptor__PositionNotUsed.selector, abi.encode(address(1))));
+        vm.expectRevert(
+            abi.encodeWithSelector(BaseAdaptor.BaseAdaptor__PositionNotUsed.selector, abi.encode(address(1)))
+        );
         cellar.callOnAdaptor(data);
 
         // Make a swap where the `from` asset is not supported by the price router.
@@ -425,7 +422,7 @@ contract CellarAggregatorBaseAdaptorTest is MainnetStarterTest, AdaptorHelperFun
         );
         adaptorCalls[0] = _createBytesDataToSwap(from, to, fromAmount, maxSlippage, slippageSwapData);
         data[0] = Cellar.AdaptorCall({ adaptor: address(mockAggregatorAdaptor), callData: adaptorCalls });
-        
+
         vm.expectRevert(abi.encodeWithSelector(PriceRouter.PriceRouter__UnknownDerivative.selector, 0));
         cellar.callOnAdaptor(data);
     }
@@ -455,8 +452,15 @@ contract CellarAggregatorBaseAdaptorTest is MainnetStarterTest, AdaptorHelperFun
         uint256 amount,
         uint32 slippage,
         bytes memory _swapCallData
-    ) internal virtual pure returns (bytes memory) {
+    ) internal pure virtual returns (bytes memory) {
         return
-            abi.encodeWithSelector(MockAggregatorBaseAdaptor.swapWithAggregator.selector, tokenIn, tokenOut, amount, slippage, _swapCallData);
+            abi.encodeWithSelector(
+                MockAggregatorBaseAdaptor.swapWithAggregator.selector,
+                tokenIn,
+                tokenOut,
+                amount,
+                slippage,
+                _swapCallData
+            );
     }
 }

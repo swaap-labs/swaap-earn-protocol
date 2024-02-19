@@ -49,9 +49,8 @@ contract ERC20AdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         string memory cellarName = "ERC20 Cellar V0.0";
         uint256 initialDeposit = 1e6;
-        uint64 platformCut = 0.75e18;
 
-        cellar = _createCellar(cellarName, USDC, usdcPosition, abi.encode(true), initialDeposit, platformCut);
+        cellar = _createCellar(cellarName, USDC, usdcPosition, abi.encode(true), initialDeposit);
 
         cellar.addPositionToCatalogue(wethPosition);
 

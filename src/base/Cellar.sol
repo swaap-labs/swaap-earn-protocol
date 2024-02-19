@@ -463,76 +463,6 @@ contract Cellar is ERC4626, Ownable {
         emit PositionSwapped(newPosition1, newPosition2, index1, index2);
     }
 
-    // =============================================== FEES CONFIG ===============================================
-
-    /**
-     * @notice Emitted when strategist platform fee cut is changed.
-     * @param oldPlatformCut value strategist platform fee cut was changed from
-     * @param newPlatformCut value strategist platform fee cut was changed to
-     */
-    event StrategistPlatformCutChanged(uint64 oldPlatformCut, uint64 newPlatformCut);
-
-    /**
-     * @notice Emitted when strategists payout address is changed.
-     * @param oldPayoutAddress value strategists payout address was changed from
-     * @param newPayoutAddress value strategists payout address was changed to
-     */
-    event StrategistPayoutAddressChanged(address oldPayoutAddress, address newPayoutAddress);
-
-    /**
-     * @notice Attempted to change strategist fee cut with invalid value.
-     */
-    error Cellar__InvalidFeeCut();
-
-    /**
-     * @notice Attempted to change platform fee with invalid value.
-     */
-    error Cellar__InvalidFee();
-
-    /**
-     * @notice Data related to fees.
-     * @param strategistPlatformCut Determines how much platform fees go to strategist.
-     *                              This should be a value out of 1e18 (ie. 1e18 represents 100%, 0 represents 0%).
-     * @param strategistPayoutAddress Address to send the strategists fee shares.
-     */
-    struct FeeData {
-        uint64 strategistPlatformCut;
-        address strategistPayoutAddress;
-    }
-
-    /**
-     * @notice Stores all fee data for cellar.
-     */
-    FeeData public feeData;
-
-    /**
-     * @notice Sets the max possible fee cut for this cellar.
-     */
-    uint256 internal constant MAX_FEE_CUT = 1e18;
-
-    /**
-     * @notice Sets the Strategists cut of platform fees
-     * @param cut the platform cut for the strategist
-     * @dev Callable by Sommelier Governance.
-     */
-    function setStrategistPlatformCut(uint64 cut) public onlyOwner {
-        if (cut > MAX_FEE_CUT) revert Cellar__InvalidFeeCut();
-        emit StrategistPlatformCutChanged(feeData.strategistPlatformCut, cut);
-
-        feeData.strategistPlatformCut = cut;
-    }
-
-    /**
-     * @notice Sets the Strategists payout address
-     * @param payout the new strategist payout address
-     * @dev Callable by Sommelier Strategist.
-     */
-    function setStrategistPayoutAddress(address payout) external onlyOwner {
-        emit StrategistPayoutAddressChanged(feeData.strategistPayoutAddress, payout);
-
-        feeData.strategistPayoutAddress = payout;
-    }
-
     // =========================================== EMERGENCY LOGIC ===========================================
 
     /**
@@ -560,10 +490,10 @@ contract Cellar is ERC4626, Ownable {
      * @notice View function external contracts can use to see if the cellar is paused.
      */
     function isPaused() external view returns (bool) {
-        if (block.timestamp < endPauseTimestamp){
+        if (block.timestamp < endPauseTimestamp) {
             return registry.isCallerPaused(address(this));
         }
-        return false;        
+        return false;
     }
 
     /**
@@ -644,7 +574,6 @@ contract Cellar is ERC4626, Ownable {
      *        must use a position that does NOT call back to cellar on use(Like ERC20 positions).
      * @param _holdingPositionConfig configuration data for holding position
      * @param _initialDeposit initial amount of assets to deposit into the Cellar
-     * @param _strategistPlatformCut platform cut to use
      * @param _shareSupplyCap starting share supply cap
      */
     constructor(
@@ -656,7 +585,6 @@ contract Cellar is ERC4626, Ownable {
         uint32 _holdingPosition,
         bytes memory _holdingPositionConfig,
         uint256 _initialDeposit,
-        uint64 _strategistPlatformCut,
         uint192 _shareSupplyCap
     ) ERC4626(_asset, _name, _symbol) Ownable() {
         endPauseTimestamp = block.timestamp + DELAY_UNTIL_END_PAUSE;
@@ -679,8 +607,6 @@ contract Cellar is ERC4626, Ownable {
         _mint(msg.sender, _initialDeposit);
         // Deposit _initialDeposit into holding position.
         _depositTo(_holdingPosition, _initialDeposit);
-
-        setStrategistPlatformCut(_strategistPlatformCut);
 
         transferOwnership(_owner);
     }

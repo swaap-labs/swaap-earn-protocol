@@ -64,9 +64,8 @@ contract CellarZeroXTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         string memory cellarName = "0x Cellar V0.0";
         uint256 initialDeposit = 1e6;
-        uint64 platformCut = 0.75e18;
 
-        cellar = _createCellar(cellarName, USDC, usdcPosition, abi.encode(0), initialDeposit, platformCut);
+        cellar = _createCellar(cellarName, USDC, usdcPosition, abi.encode(0), initialDeposit);
 
         cellar.addAdaptorToCatalogue(address(zeroXAdaptor));
         cellar.addAdaptorToCatalogue(address(mockZeroXAdaptor));

@@ -161,7 +161,6 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         string memory cellarName = "Balancer Cellar V0.0";
         uint256 initialDeposit = 1e6;
-        uint64 platformCut = 0.75e18;
 
         // Approve new cellar to spend assets.
         address cellarAddress = deployer.getAddress(cellarName);
@@ -178,7 +177,6 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
             usdcPosition,
             abi.encode(0),
             initialDeposit,
-            platformCut,
             type(uint192).max,
             vault
         );
@@ -205,7 +203,6 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
         // Deploy WETH cellar.
         cellarName = "WETH Balancer Cellar V0.0";
         initialDeposit = 1e6;
-        platformCut = 0.75e18;
 
         // Approve new cellar to spend assets.
         cellarAddress = deployer.getAddress(cellarName);
@@ -222,7 +219,6 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
             wethPosition,
             abi.encode(0),
             initialDeposit,
-            platformCut,
             type(uint192).max,
             vault
         );
@@ -533,16 +529,8 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
     function testDepositToHoldingPosition() external {
         string memory cellarName = "Balancer LP Cellar V0.0";
         uint256 initialDeposit = 1e12;
-        uint64 platformCut = 0.75e18;
 
-        Cellar balancerCellar = _createCellar(
-            cellarName,
-            BB_A_USD,
-            bbaUSDPosition,
-            abi.encode(0),
-            initialDeposit,
-            platformCut
-        );
+        Cellar balancerCellar = _createCellar(cellarName, BB_A_USD, bbaUSDPosition, abi.encode(0), initialDeposit);
 
         uint256 totalAssetsBefore = balancerCellar.totalAssets();
 

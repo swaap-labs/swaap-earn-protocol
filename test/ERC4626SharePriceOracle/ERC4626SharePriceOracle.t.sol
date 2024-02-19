@@ -69,16 +69,8 @@ contract ERC4626SharePriceOracleTest is MainnetStarterTest, AdaptorHelperFunctio
 
         string memory cellarName = "Simple Aave Cellar V0.0";
         uint256 initialDeposit = 1e6;
-        uint64 platformCut = 0.75e18;
 
-        cellar = _createCellar(
-            cellarName,
-            USDC,
-            aV2USDCPosition,
-            abi.encode(minHealthFactor),
-            initialDeposit,
-            platformCut
-        );
+        cellar = _createCellar(cellarName, USDC, aV2USDCPosition, abi.encode(minHealthFactor), initialDeposit);
 
         cellar.addAdaptorToCatalogue(address(aaveATokenAdaptor));
 
@@ -1012,9 +1004,8 @@ contract ERC4626SharePriceOracleTest is MainnetStarterTest, AdaptorHelperFunctio
 
         // Create a new cellar that has WETH as accounting asset.
         string memory cellarName = "WETH Cellar V0.0";
-        uint64 platformCut = 0.75e18;
 
-        cellar = _createCellar(cellarName, WETH, wethPosition, abi.encode(true), assets, platformCut);
+        cellar = _createCellar(cellarName, WETH, wethPosition, abi.encode(true), assets);
 
         // Create new share price oracle for it.
         {

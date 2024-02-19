@@ -546,7 +546,6 @@ contract CurveAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         string memory cellarName = "Curve Cellar V0.0";
         uint256 initialDeposit = 1e6;
-        uint64 platformCut = 0.75e18;
 
         // Approve new cellar to spend assets.
         address cellarAddress = deployer.getAddress(cellarName);
@@ -563,7 +562,6 @@ contract CurveAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
             usdcPosition,
             abi.encode(true),
             initialDeposit,
-            platformCut,
             type(uint192).max
         );
         cellar = Cellar(deployer.deployContract(cellarName, creationCode, constructorArgs, 0));
@@ -1639,7 +1637,6 @@ contract CurveAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
         // Deploy new Cellar.
         string memory cellarName = "Curve Cellar V0.1";
         uint256 initialDeposit = 1e6;
-        uint64 platformCut = 0.75e18;
 
         // Approve new cellar to spend assets.
         address cellarAddress = deployer.getAddress(cellarName);
@@ -1656,7 +1653,6 @@ contract CurveAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
             usdcPosition,
             abi.encode(true),
             initialDeposit,
-            platformCut,
             type(uint192).max
         );
         cellar = Cellar(deployer.deployContract(cellarName, creationCode, constructorArgs, 0));
@@ -1841,7 +1837,6 @@ contract CurveAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
     function _createCellarWithCurveLPAsAsset(uint32 position, address lpToken) internal returns (Cellar newCellar) {
         string memory cellarName = "Test Curve Cellar V0.0";
         uint256 initialDeposit = 1e6;
-        uint64 platformCut = 0.75e18;
 
         ERC20 erc20LpToken = ERC20(lpToken);
 
@@ -1860,7 +1855,6 @@ contract CurveAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
             position,
             abi.encode(true),
             initialDeposit,
-            platformCut,
             type(uint192).max
         );
         newCellar = Cellar(deployer.deployContract(cellarName, creationCode, constructorArgs, 0));
@@ -1886,7 +1880,6 @@ contract CurveAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
             positionId,
             abi.encode(true),
             initialAssets,
-            0.75e18,
             type(uint192).max
         );
         cellar = Cellar(deployer.deployContract(cellarName, creationCode, constructorArgs, 0));

@@ -64,7 +64,6 @@ contract UsingCellarAdaptorForSFraxTest is MainnetStarterTest, AdaptorHelperFunc
             fraxPosition,
             abi.encode(0),
             1e18,
-            0.8e18,
             type(uint192).max
         );
         cellar = Cellar(deployer.getAddress("Test Cellar"));

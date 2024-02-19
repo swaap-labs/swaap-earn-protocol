@@ -130,7 +130,6 @@ contract CellarFraxLendCollateralAndDebtTestV2 is MainnetStarterTest, AdaptorHel
 
         string memory cellarName = "Fraxlend Collateral & Debt Cellar V0.0";
         uint256 initialDeposit = 1e18;
-        uint64 platformCut = 0.75e18;
 
         // Approve new cellar to spend assets.
         address cellarAddress = deployer.getAddress(cellarName);
@@ -147,7 +146,6 @@ contract CellarFraxLendCollateralAndDebtTestV2 is MainnetStarterTest, AdaptorHel
             mkrPosition,
             abi.encode(true),
             initialDeposit,
-            platformCut,
             type(uint192).max
         );
 

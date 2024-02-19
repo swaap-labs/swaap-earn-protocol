@@ -97,21 +97,18 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
         // Create Dummy Cellars.
         string memory cellarName = "Dummy Cellar V0.0";
         uint256 initialDeposit = 1e6;
-        uint64 platformCut = 0.75e18;
 
-        usdcCLR = _createCellar(cellarName, USDC, usdcPosition, abi.encode(true), initialDeposit, platformCut);
+        usdcCLR = _createCellar(cellarName, USDC, usdcPosition, abi.encode(true), initialDeposit);
         vm.label(address(usdcCLR), "usdcCLR");
 
         cellarName = "Dummy Cellar V0.1";
         initialDeposit = 1e12;
-        platformCut = 0.75e18;
-        wethCLR = _createCellar(cellarName, WETH, wethPosition, abi.encode(true), initialDeposit, platformCut);
+        wethCLR = _createCellar(cellarName, WETH, wethPosition, abi.encode(true), initialDeposit);
         vm.label(address(wethCLR), "wethCLR");
 
         cellarName = "Dummy Cellar V0.2";
         initialDeposit = 1e4;
-        platformCut = 0.75e18;
-        wbtcCLR = _createCellar(cellarName, WBTC, wbtcPosition, abi.encode(true), initialDeposit, platformCut);
+        wbtcCLR = _createCellar(cellarName, WBTC, wbtcPosition, abi.encode(true), initialDeposit);
         vm.label(address(wbtcCLR), "wbtcCLR");
 
         // Add Cellar Positions to the registry.
@@ -121,8 +118,7 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         cellarName = "Cellar V0.0";
         initialDeposit = 1e6;
-        platformCut = 0.75e18;
-        cellar = _createCellar(cellarName, USDC, usdcPosition, abi.encode(true), initialDeposit, platformCut);
+        cellar = _createCellar(cellarName, USDC, usdcPosition, abi.encode(true), initialDeposit);
 
         // Set up remaining cellar positions.
         cellar.addPositionToCatalogue(usdcCLRPosition);
@@ -137,8 +133,6 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
         cellar.addPosition(5, wbtcPosition, abi.encode(true), false);
         cellar.addAdaptorToCatalogue(address(cellarAdaptor));
         cellar.addPositionToCatalogue(usdtPosition);
-
-        cellar.setStrategistPayoutAddress(strategist);
 
         vm.label(address(cellar), "cellar");
         vm.label(strategist, "strategist");
@@ -155,14 +149,12 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
         ERC20 holdingAsset,
         string memory mockCellarName,
         uint32 holdingPosition,
-        uint256 initialDeposit,
-        uint64 platformCut
-    ) internal returns(MockCellar) {
+        uint256 initialDeposit
+    ) internal returns (MockCellar) {
         // Approve new cellar to spend assets.
         address mockCellarAddress = deployer.getAddress(mockCellarName);
         deal(address(holdingAsset), address(this), initialDeposit);
         holdingAsset.approve(mockCellarAddress, initialDeposit);
-
 
         bytes memory creationCode;
         bytes memory constructorArgs;
@@ -177,7 +169,6 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
             holdingPosition,
             abi.encode(true),
             initialDeposit,
-            platformCut,
             type(uint192).max
         );
 
@@ -227,12 +218,6 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
         }
 
         assertEq(address(cellar.asset()), address(USDC), "Should initialize asset to be USDC.");
-
-        // (, , uint64 lastAccrual, ) = cellar.feeData();
-
-        (uint64 strategistPlatformCut, address strategistPayoutAddress) = cellar.feeData();
-        assertEq(strategistPlatformCut, 0.75e18, "Platform cut should be set to 0.75e18.");
-        assertEq(strategistPayoutAddress, strategist, "Strategist payout address should be equal to strategist.");
 
         assertEq(cellar.owner(), address(this), "Should initialize owner to this contract.");
     }
@@ -345,8 +330,7 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
     function testWithdrawWithDuplicateReceivedAssets() external {
         string memory cellarName = "Dummy Cellar V0.3";
         uint256 initialDeposit = 1e12;
-        uint64 platformCut = 0.75e18;
-        Cellar wethVault = _createCellar(cellarName, WETH, wethPosition, abi.encode(true), initialDeposit, platformCut);
+        Cellar wethVault = _createCellar(cellarName, WETH, wethPosition, abi.encode(true), initialDeposit);
 
         uint32 newWETHPosition = 10;
         registry.trustPosition(newWETHPosition, address(cellarAdaptor), abi.encode(wethVault));
@@ -752,14 +736,7 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
 
     function testRegistryPauseButEndDurationReached() external {
         // Deploy mockCellar to access internal variable
-        mockCellar = deployMockCellar(
-            registry,
-            USDC,
-            "Mock Cellar",
-            usdcPosition,
-            100e6,
-            0.75e18
-        );
+        mockCellar = deployMockCellar(registry, USDC, "Mock Cellar", usdcPosition, 100e6);
 
         // Empty call on adaptor argument.
         bytes[] memory emptyCall;
@@ -827,14 +804,7 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
 
     function testEndPauseDurationButCellarIsShutDownThenLiftShutdown() external {
         // Deploy mockCellar to access internal variable
-        mockCellar = deployMockCellar(
-            registry,
-            USDC,
-            "Mock Cellar",
-            usdcPosition,
-            100e6,
-            0.75e18
-        );
+        mockCellar = deployMockCellar(registry, USDC, "Mock Cellar", usdcPosition, 100e6);
 
         // Empty call on adaptor argument.
         bytes[] memory emptyCall;
@@ -1034,25 +1004,6 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
 
     // ====================================== PLATFORM FEE TEST ======================================
 
-    function testChangingFeeData() external {
-        address newStrategistAddress = vm.addr(777);
-        cellar.setStrategistPlatformCut(0.8e18);
-        cellar.setStrategistPayoutAddress(newStrategistAddress);
-        (uint64 strategistPlatformCut, address strategistPayoutAddress) = cellar.feeData();
-        assertEq(strategistPlatformCut, 0.8e18, "Platform cut should be set to 0.8e18.");
-        assertEq(
-            strategistPayoutAddress,
-            newStrategistAddress,
-            "Strategist payout address should be set to `newStrategistAddress`."
-        );
-
-        // vm.expectRevert(bytes(abi.encodeWithSelector(Cellar.Cellar__InvalidFee.selector)));
-        // cellar.setPlatformFee(0.21e18);
-
-        vm.expectRevert(bytes(abi.encodeWithSelector(Cellar.Cellar__InvalidFeeCut.selector)));
-        cellar.setStrategistPlatformCut(1.1e18);
-    }
-
     function testDebtTokensInCellars() external {
         ERC20DebtAdaptor debtAdaptor = new ERC20DebtAdaptor();
         registry.trustAdaptor(address(debtAdaptor));
@@ -1064,16 +1015,8 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
         // Setup Cellar with debt positions:
         string memory cellarName = "Debt Cellar V0.0";
         uint256 initialDeposit = 1e6;
-        uint64 platformCut = 0.75e18;
 
-        Cellar debtCellar = _createCellar(
-            cellarName,
-            USDC,
-            usdcPosition,
-            abi.encode(true),
-            initialDeposit,
-            platformCut
-        );
+        Cellar debtCellar = _createCellar(cellarName, USDC, usdcPosition, abi.encode(true), initialDeposit);
 
         debtCellar.addPositionToCatalogue(debtWethPosition);
         debtCellar.addPositionToCatalogue(debtWbtcPosition);
@@ -1121,8 +1064,7 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
         // Create Cellar B
         string memory cellarName = "Cellar B V0.0";
         uint256 initialDeposit = 1e6;
-        uint64 platformCut = 0.75e18;
-        Cellar cellarB = _createCellar(cellarName, USDC, usdcPosition, abi.encode(true), initialDeposit, platformCut);
+        Cellar cellarB = _createCellar(cellarName, USDC, usdcPosition, abi.encode(true), initialDeposit);
 
         uint32 cellarBPosition = 10;
         registry.trustPosition(cellarBPosition, address(cellarAdaptor), abi.encode(cellarB));
@@ -1130,8 +1072,7 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
         // Create Cellar A
         cellarName = "Cellar A V0.0";
         initialDeposit = 1e6;
-        platformCut = 0.75e18;
-        Cellar cellarA = _createCellar(cellarName, USDC, usdcPosition, abi.encode(true), initialDeposit, platformCut);
+        Cellar cellarA = _createCellar(cellarName, USDC, usdcPosition, abi.encode(true), initialDeposit);
 
         cellarA.addPositionToCatalogue(cellarBPosition);
         cellarA.addPosition(0, cellarBPosition, abi.encode(true), false);

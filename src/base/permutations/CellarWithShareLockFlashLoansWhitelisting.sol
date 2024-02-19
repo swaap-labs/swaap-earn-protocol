@@ -29,7 +29,6 @@ contract CellarWithShareLockFlashLoansWhitelisting is CellarWithShareLockPeriod,
         uint32 _holdingPosition,
         bytes memory _holdingPositionConfig,
         uint256 _initialDeposit,
-        uint64 _strategistPlatformCut,
         uint192 _shareSupplyCap,
         address _balancerVault
     )
@@ -42,7 +41,6 @@ contract CellarWithShareLockFlashLoansWhitelisting is CellarWithShareLockPeriod,
             _holdingPosition,
             _holdingPositionConfig,
             _initialDeposit,
-            _strategistPlatformCut,
             _shareSupplyCap
         )
         EIP712("CellarWithShareLockFlashLoansWhitelisting", "1.0")

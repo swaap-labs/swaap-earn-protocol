@@ -83,9 +83,8 @@ contract SushiswapV3AdaptorTest is MainnetStarterTest, AdaptorHelperFunctions, E
 
         string memory cellarName = "UniswapV3 Cellar V0.0";
         uint256 initialDeposit = 1e6;
-        uint64 platformCut = 0.75e18;
 
-        cellar = _createCellar(cellarName, USDC, usdcPosition, abi.encode(0), initialDeposit, platformCut);
+        cellar = _createCellar(cellarName, USDC, usdcPosition, abi.encode(0), initialDeposit);
 
         vm.label(address(cellar), "cellar");
         vm.label(strategist, "strategist");

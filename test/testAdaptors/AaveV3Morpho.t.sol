@@ -88,9 +88,8 @@ contract CellarAaveV3MorphoTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         string memory cellarName = "Morpho Aave V3 Cellar V0.0";
         uint256 initialDeposit = 1e12;
-        uint64 platformCut = 0.75e18;
 
-        cellar = _createCellar(cellarName, WETH, morphoAWethPosition, abi.encode(4), initialDeposit, platformCut);
+        cellar = _createCellar(cellarName, WETH, morphoAWethPosition, abi.encode(4), initialDeposit);
 
         cellar.addAdaptorToCatalogue(address(p2pATokenAdaptor));
         cellar.addAdaptorToCatalogue(address(collateralATokenAdaptor));
