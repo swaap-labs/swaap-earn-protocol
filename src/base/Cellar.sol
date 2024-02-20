@@ -13,6 +13,7 @@ import { BaseAdaptor } from "src/modules/adaptors/BaseAdaptor.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { Owned } from "@solmate/auth/Owned.sol";
+import { FeesManager } from "src/modules/fees/FeesManager.sol";
 
 /**
  * @title Sommelier Cellar
@@ -562,6 +563,11 @@ contract Cellar is ERC4626, Ownable {
     Registry public immutable registry;
 
     /**
+     * @notice Address of the fees manager contract.
+     */
+    FeesManager public immutable FEES_MANAGER;
+
+    /**
      * @dev Owner should be set to the Gravity Bridge, which relays instructions from the Steward
      *      module to the cellars.
      *      https://github.com/PeggyJV/steward
@@ -607,6 +613,8 @@ contract Cellar is ERC4626, Ownable {
         _mint(msg.sender, _initialDeposit);
         // Deposit _initialDeposit into holding position.
         _depositTo(_holdingPosition, _initialDeposit);
+
+        FEES_MANAGER = _registry.FEES_MANAGER();
 
         transferOwnership(_owner);
     }
@@ -684,8 +692,11 @@ contract Cellar is ERC4626, Ownable {
         // Use `_calculateTotalAssetsOrTotalAssetsWithdrawable` instead of totalAssets bc re-entrancy is already checked in this function.
         (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply(true);
 
+        uint256 assetsAfterFees; // equivalent assets after applying enter fees
+        (assetsAfterFees, _totalSupply) = _beforeEnterExitFeesHook(assets, _totalAssets, _totalSupply, true);
+
         // Check for rounding error since we round down in previewDeposit.
-        if ((shares = _convertToShares(assets, _totalAssets, _totalSupply)) == 0) revert Cellar__ZeroShares();
+        if ((shares = _convertToShares(assetsAfterFees, _totalAssets, _totalSupply)) == 0) revert Cellar__ZeroShares();
 
         if ((_totalSupply + shares) > shareSupplyCap) revert Cellar__ShareSupplyCapExceeded();
 
@@ -701,8 +712,12 @@ contract Cellar is ERC4626, Ownable {
     function mint(uint256 shares, address receiver) public virtual override nonReentrant returns (uint256 assets) {
         (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply(true);
 
+        // equivalent shares after applying enter fees
+        uint256 sharesAfterFees;
+        (sharesAfterFees, _totalSupply) = _beforeEnterExitFeesHook(shares, _totalAssets, _totalSupply, true);
+
         // previewMint rounds up, but initial mint could return zero assets, so check for rounding error.
-        if ((assets = _previewMint(shares, _totalAssets, _totalSupply)) == 0) revert Cellar__ZeroAssets();
+        if ((assets = _previewMint(sharesAfterFees, _totalAssets, _totalSupply)) == 0) revert Cellar__ZeroAssets();
 
         if ((_totalSupply + shares) > shareSupplyCap) revert Cellar__ShareSupplyCapExceeded();
 
@@ -750,8 +765,11 @@ contract Cellar is ERC4626, Ownable {
     ) public override nonReentrant returns (uint256 shares) {
         (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply(false);
 
+        uint256 assetsAfterFees;
+        (assetsAfterFees, _totalSupply) = _beforeEnterExitFeesHook(assets, _totalAssets, _totalSupply, false);
+
         // No need to check for rounding error, `previewWithdraw` rounds up.
-        shares = _previewWithdraw(assets, _totalAssets, _totalSupply);
+        shares = _previewWithdraw(assetsAfterFees, _totalAssets, _totalSupply);
 
         _exit(assets, shares, receiver, owner);
     }
@@ -776,10 +794,39 @@ contract Cellar is ERC4626, Ownable {
     ) public override nonReentrant returns (uint256 assets) {
         (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply(false);
 
+        uint256 sharesAfterFees;
+        (sharesAfterFees, _totalSupply) = _beforeEnterExitFeesHook(shares, _totalAssets, _totalSupply, false);
+
         // Check for rounding error since we round down in previewRedeem.
-        if ((assets = _convertToAssets(shares, _totalAssets, _totalSupply)) == 0) revert Cellar__ZeroAssets();
+        if ((assets = _convertToAssets(sharesAfterFees, _totalAssets, _totalSupply)) == 0) revert Cellar__ZeroAssets();
 
         _exit(assets, shares, receiver, owner);
+    }
+
+    function _beforeEnterExitFeesHook(
+        uint256 _assetsOrShares,
+        uint256 _totalAssets,
+        uint256 _totalSupply,
+        bool isEntering
+    ) internal virtual returns (uint256, uint256) {
+        if (isShutdown) {
+            return (_assetsOrShares, _totalSupply);
+        }
+
+        uint256 _sharesAsFees;
+        (_assetsOrShares, _sharesAsFees) = FEES_MANAGER.applyFeesBeforeJoinExit(
+            _assetsOrShares,
+            _totalAssets,
+            _totalSupply,
+            isEntering
+        );
+
+        if (_sharesAsFees > 0) {
+            _mint(address(FEES_MANAGER), _sharesAsFees);
+            _totalSupply += _sharesAsFees;
+        }
+
+        return (_assetsOrShares, _totalSupply);
     }
 
     /**
