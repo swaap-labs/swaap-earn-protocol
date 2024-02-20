@@ -6,6 +6,7 @@ import { Cellar } from "src/base/Cellar.sol";
 import { ERC20 } from "@solmate/tokens/ERC20.sol";
 import { BaseAdaptor } from "src/modules/adaptors/BaseAdaptor.sol";
 import { PriceRouter } from "src/modules/price-router/PriceRouter.sol";
+import { FeesManager } from "src/modules/fees/FeesManager.sol";
 
 contract Registry is Ownable {
     // ============================================= ADDRESS CONFIG =============================================
@@ -46,6 +47,8 @@ contract Registry is Ownable {
      */
     mapping(address => bool) public approvedForDepositOnBehalf;
 
+    FeesManager public immutable FEES_MANAGER;
+
     /**
      * @notice toggles a depositors  ability to deposit into cellars on behalf of users.
      */
@@ -81,6 +84,7 @@ contract Registry is Ownable {
         _register(gravityBridge);
         _register(swapRouter);
         _register(priceRouter);
+        FEES_MANAGER = new FeesManager();
         transferOwnership(newOwner);
     }
 
@@ -509,13 +513,12 @@ contract Registry is Ownable {
     }
 
     mapping(address => CellarVolumeData) public cellarsAdaptorVolumeData;
-    
+
     /**
      * @notice View the amount of assets in each Cellar Position.
      * @dev If the cellar volume parameters were not set, the cellar won't be able to trade.
      */
     function checkAndUpdateCellarTradeVolume(uint256 volumeInUSD) external {
-        
         // caller should be the cellar through the swap adapters
         CellarVolumeData storage cellarVolumeData = cellarsAdaptorVolumeData[msg.sender];
 
@@ -536,7 +539,7 @@ contract Registry is Ownable {
             cellarVolumeData.volumeInUSD += uint80(volumeInUSD);
         }
 
-        if (cellarVolumeData.volumeInUSD > cellarVolumeData.maxVolumeInUSD) 
+        if (cellarVolumeData.volumeInUSD > cellarVolumeData.maxVolumeInUSD)
             revert Registry__CellarTradingVolumeExceeded(msg.sender);
 
         emit CellarTradeVolumeDataUpdated(
@@ -560,7 +563,7 @@ contract Registry is Ownable {
         uint48 periodLength,
         uint80 maxVolumeInUSD,
         bool resetVolume
-    ) external onlyOwner{
+    ) external onlyOwner {
         // there is no explicit limit on volume since it can depend on the size of the cellar,
         // as well as the strategies involved
         CellarVolumeData storage cellarVolumeData = cellarsAdaptorVolumeData[cellar];
@@ -578,6 +581,6 @@ contract Registry is Ownable {
             cellarVolumeData.periodLength,
             cellarVolumeData.volumeInUSD,
             cellarVolumeData.maxVolumeInUSD
-        );    
+        );
     }
 }
