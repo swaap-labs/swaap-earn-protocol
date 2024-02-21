@@ -48,7 +48,7 @@ library PerformanceFeesLib {
             return (0, currentSharePrice);
         }
 
-        // share price = totalAssets / totalSupply in 18 decimals
+        // Calculate the high watermark total assets (in asset decimals)
         uint256 highWatermarkTotalAssets = totalSupply.mulDivDown(highWatermarkPrice, Math.WAD);
 
         if (totalAssets <= highWatermarkTotalAssets) {
@@ -56,7 +56,7 @@ library PerformanceFeesLib {
             return (0, highWatermarkPrice);
         }
 
-        // Calculate the increase in share price (in 18 decimals)
+        // Calculate the increase in totalAssets (in asset decimals)
         uint256 assetsIncrease;
         unchecked {
             assetsIncrease = totalAssets - highWatermarkTotalAssets;
