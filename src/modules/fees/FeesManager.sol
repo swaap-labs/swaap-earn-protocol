@@ -17,16 +17,64 @@ pragma solidity ^0.8.0;
 import { ManagementFeesLib } from "src/modules/fees/ManagementFeesLib.sol";
 import { PerformanceFeesLib } from "src/modules/fees/PerformanceFeesLib.sol";
 import { Cellar } from "src/base/Cellar.sol";
+import { Registry } from "src/Registry.sol";
+import { Math } from "src/utils/Math.sol";
+import { SafeTransferLib, ERC20 } from "@solmate/utils/SafeTransferLib.sol";
 
 contract FeesManager {
+    using Math for uint256;
+    using SafeTransferLib for ERC20;
+
+    // =============================================== EVENTS ===============================================
+    /**
+     * @notice Emitted when strategist platform fee cut is changed.
+     * @param newPlatformCut value strategist platform fee cut was changed to
+     */
+    event StrategistPlatformCutChanged(uint64 newPlatformCut);
+
+    /**
+     * @notice Emitted when strategists payout address is changed.
+     * @param newPayoutAddress value strategists payout address was changed to
+     */
+    event StrategistPayoutAddressChanged(address newPayoutAddress);
+
+    /**
+     * @notice Emitted when protocol payout address is changed.
+     * @param newPayoutAddress value protocol payout address was changed to
+     */
+    event ProtocolPayoutAddressChanged(address newPayoutAddress);
+
+    /**
+     * @notice Emitted when a cellar's fees are paid out.
+     * @param cellar the cellar that had fees paid out
+     * @param strategistPayoutAddress the address that the strategist's fees were paid to
+     * @param protocolPayoutAddress the address that the protocol's fees were paid to
+     * @param strategistPayout the amount of fees paid to the strategist
+     * @param protocolPayout the amount of fees paid to the protocol
+     */
+    event Payout(
+        address indexed cellar,
+        address indexed strategistPayoutAddress,
+        uint256 strategistPayout,
+        address indexed protocolPayoutAddress,
+        uint256 protocolPayout
+    );
+
+    // =============================================== ERRORS ===============================================
+
     /// @notice Throws when the caller is not the cellar owner.
     error FeesManager__OnlyCellarOwner();
 
+    /// @notice Throws when the caller is not the registry owner.
+    error FeesManager__OnlyRegistryOwner();
+
     /// @notice Throws when the fee cut is above the authorized limit.
-    error FeesManager__InvalidFeeCut();
+    error FeesManager__InvalidFeesCut();
 
     /// @notice Throws when the fees are above authorized limit.
     error FeesManager__InvalidFeesRate();
+
+    // =============================================== CONSTANTS ===============================================
 
     /// @notice Sets the max possible fee cut for cellars.
     uint256 public constant MAX_FEE_CUT = 1e18;
@@ -49,6 +97,8 @@ contract FeesManager {
     /// @notice Sets the high watermark reset interval for cellars.
     uint256 public constant HIGH_WATERMARK_RESET_INTERVAL = 3 * 30 days; // 3 months
 
+    // =============================================== MODIFIERS ===============================================
+
     modifier onlyCellarOwner(address cellar) {
         if (msg.sender != Cellar(cellar).owner()) {
             revert FeesManager__OnlyCellarOwner();
@@ -56,7 +106,29 @@ contract FeesManager {
         _;
     }
 
+    modifier onlyRegistryOwner() {
+        if (msg.sender != registry.owner()) {
+            revert FeesManager__OnlyRegistryOwner();
+        }
+        _;
+    }
+
+    // =============================================== STATE VARIABLES ===============================================
+
+    /**
+     * @notice Address of the platform's protocol payout address. Used to send protocol fees.
+     */
     address public protocolPayoutAddress;
+
+    /**
+     * @notice Address of the platform's registry contract. Used to get the latest address of modules.
+     */
+    Registry public immutable registry;
+
+    constructor(address _registry, address _protocolPayoutAddress) {
+        registry = Registry(_registry);
+        protocolPayoutAddress = _protocolPayoutAddress;
+    }
 
     struct FeesData {
         uint16 enterFeesRate; // in bps (max value = 10000)
@@ -66,7 +138,7 @@ contract FeesManager {
         uint64 performanceFeesRate;
         uint72 highWaterMarkPrice;
         uint40 highWaterMarkResetTime; // the owner can choose to reset the high watermark (at most every HIGH_WATERMARK_RESET_INTERVAL)
-        uint64 strategistPlatformCut;
+        uint64 strategistPlatformCut; // the platform cut for the strategist in 18 decimals
         address strategistPayoutAddress;
     }
 
@@ -75,16 +147,6 @@ contract FeesManager {
     function getCellarFeesData(address cellar) external view returns (FeesData memory) {
         return cellarFeesData[cellar];
     }
-
-    event CellarFeesDataUpdated(
-        address indexed cellar,
-        address protocolPayoutAddress,
-        uint256 highWaterMarkPrice,
-        uint256 highWaterMarkResetTime,
-        uint256 performanceFeesRate,
-        uint256 highWaterMarkVariationTrigger,
-        uint256 managementFeesRate
-    );
 
     /**
      * @notice Called by cellars to compute the fees to apply before depositing assets (or minting shares).
@@ -160,21 +222,61 @@ contract FeesManager {
         return (managementFees, performanceFees, highWaterMarkPrice);
     }
 
+    // =============================================== PAYOUT FUNCTIONS ===============================================
+
+    /**
+     * @notice Payout the fees to the protocol and the strategist (permissionless, anyone can call it)
+     * @param cellar the cellar to payout the fees for
+     */
+    function payoutFees(address cellar) public {
+        uint256 totalFees = ERC20(cellar).balanceOf(address(this));
+
+        if (totalFees == 0) {
+            return;
+        }
+
+        FeesData storage feeData = cellarFeesData[cellar];
+
+        // if the strategist payout address is not set, the strategist doesn't get any fees
+        address strategistPayoutAddress = feeData.strategistPayoutAddress;
+        uint256 strategistPlatformCut = strategistPayoutAddress == address(0)
+            ? 0
+            : (totalFees * feeData.strategistPlatformCut) / 1e18;
+
+        // Send the strategist's cut
+        uint256 strategistPayout = totalFees.mulDivUp(strategistPlatformCut, Math.WAD);
+        if (strategistPayout > 0) {
+            ERC20(cellar).safeTransfer(strategistPayoutAddress, strategistPayout);
+        }
+
+        // Send the protocol's cut
+        uint256 protocolPayout = strategistPayout > totalFees ? 0 : totalFees - strategistPayout;
+        if (protocolPayout > 0) {
+            ERC20(cellar).safeTransfer(protocolPayoutAddress, protocolPayout);
+        }
+
+        emit Payout(cellar, strategistPayoutAddress, strategistPayout, protocolPayoutAddress, protocolPayout);
+    }
+
+    function setProtocolPayoutAddress(address newPayoutAddress) external onlyRegistryOwner {
+        emit ProtocolPayoutAddressChanged(newPayoutAddress);
+        // no need to check if the address is not valid, the owner can set it to any address
+        protocolPayoutAddress = newPayoutAddress;
+    }
+
+    /**
+     * @notice Sets the Strategists payout address
+     * @param newPayoutAddress the new strategist payout address
+     * @dev Callable by Sommelier Strategist.
+     */
+    function setStrategistPayoutAddress(address cellar, address newPayoutAddress) external onlyCellarOwner(cellar) {
+        emit StrategistPayoutAddressChanged(newPayoutAddress);
+        FeesData storage feeData = cellarFeesData[cellar];
+        // no need to check if the address is not valid, the owner can set it to any address
+        feeData.strategistPayoutAddress = newPayoutAddress;
+    }
+
     // =============================================== FEES CONFIG ===============================================
-
-    /**
-     * @notice Emitted when strategist platform fee cut is changed.
-     * @param oldPlatformCut value strategist platform fee cut was changed from
-     * @param newPlatformCut value strategist platform fee cut was changed to
-     */
-    event StrategistPlatformCutChanged(uint64 oldPlatformCut, uint64 newPlatformCut);
-
-    /**
-     * @notice Emitted when strategists payout address is changed.
-     * @param oldPayoutAddress value strategists payout address was changed from
-     * @param newPayoutAddress value strategists payout address was changed to
-     */
-    event StrategistPayoutAddressChanged(address oldPayoutAddress, address newPayoutAddress);
 
     /**
      * @notice Sets the Strategists cut of platform fees
@@ -182,25 +284,14 @@ contract FeesManager {
      * @dev Callable by Sommelier Governance.
      */
     function setStrategistPlatformCut(address cellar, uint64 cut) external onlyCellarOwner(cellar) {
-        if (cut > MAX_FEE_CUT) revert FeesManager__InvalidFeeCut();
+        if (cut > MAX_FEE_CUT) revert FeesManager__InvalidFeesCut();
+
+        payoutFees(cellar);
 
         FeesData storage feeData = cellarFeesData[cellar];
-        // TODO - send pending protocol fees before changing the cut
 
-        emit StrategistPlatformCutChanged(feeData.strategistPlatformCut, cut);
+        emit StrategistPlatformCutChanged(cut);
         feeData.strategistPlatformCut = cut;
-    }
-
-    /**
-     * @notice Sets the Strategists payout address
-     * @param payout the new strategist payout address
-     * @dev Callable by Sommelier Strategist.
-     */
-    function setStrategistPayoutAddress(address cellar, address payout) external onlyCellarOwner(cellar) {
-        FeesData storage feeData = cellarFeesData[cellar];
-        emit StrategistPayoutAddressChanged(feeData.strategistPayoutAddress, payout);
-
-        feeData.strategistPayoutAddress = payout;
     }
 
     /**

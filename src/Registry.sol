@@ -84,7 +84,7 @@ contract Registry is Ownable {
         _register(gravityBridge);
         _register(swapRouter);
         _register(priceRouter);
-        FEES_MANAGER = new FeesManager();
+        FEES_MANAGER = new FeesManager(address(this), newOwner);
         transferOwnership(newOwner);
     }
 
