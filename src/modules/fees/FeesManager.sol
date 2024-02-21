@@ -19,10 +19,35 @@ import { PerformanceFeesLib } from "src/modules/fees/PerformanceFeesLib.sol";
 import { Cellar } from "src/base/Cellar.sol";
 
 contract FeesManager {
-    /**
-     * @notice Throws if the caller is not the cellar owner.
-     */
+    /// @notice Throws when the caller is not the cellar owner.
     error Fees__OnlyCellarOwner();
+
+    /// @notice Throws when the fee cut is above the authorized limit.
+    error Cellar__InvalidFeeCut();
+
+    /// @notice Throws when the fees are above authorized limit.
+    error Cellar__InvalidFees();
+
+    /// @notice Sets the max possible fee cut for cellars.
+    uint256 public constant MAX_FEE_CUT = 1e18;
+
+    /// @notice Sets the max possible management fees for cellars.
+    uint256 public constant MAX_MANAGEMENT_FEES = 50e16; // 50%
+
+    /// @notice Sets the max possible performance fees for cellars.
+    uint256 public constant MAX_PERFORMANCE_FEES = 50e16; // 50%
+
+    // Enter and exit fees are expressed in basis points (1e4 = 100%)
+    uint256 internal constant _BPS_ONE_HUNDRED_PER_CENT = 1e4;
+
+    /// @notice Sets the max possible enter fees for cellars.
+    uint256 public constant MAX_ENTER_FEES = _BPS_ONE_HUNDRED_PER_CENT / 10; // 10%
+
+    /// @notice Sets the max possible exit fees for cellars.
+    uint256 public constant MAX_EXIT_FEES = _BPS_ONE_HUNDRED_PER_CENT / 10; // 10%
+
+    /// @notice Sets the high watermark reset interval for cellars.
+    uint256 public constant HIGH_WATERMARK_RESET_INTERVAL = 3 * 30 days; // 3 months
 
     modifier onlyCellarOwner(address cellar) {
         if (msg.sender != Cellar(cellar).owner()) {
@@ -33,10 +58,8 @@ contract FeesManager {
 
     address public protocolPayoutAddress;
 
-    uint256 public constant HIGH_WATERMARK_RESET_INTERVAL = 3 * 30 days; // 3 months
-
     struct FeesData {
-        uint16 joinFeesRate; // in bps (max value = 10000)
+        uint16 enterFeesRate; // in bps (max value = 10000)
         uint16 exitFeesRate; // in bps (max value = 10000)
         uint40 previousManagementFeesClaimTime; // last management fees claim time
         uint48 managementFeesRate;
@@ -65,22 +88,17 @@ contract FeesManager {
 
     /**
      * @notice Called by cellars to compute the fees to apply before depositing assets (or minting shares).
-     * @param joinAssetsOrShares assets deposited or shares minted
      * @param totalAssets total assets in the cellar
      * @param totalSupply total shares in the cellar
-     * @return assetsOrSharesAfterFees deposited assets or minted shares after fees
-     * @return supplyAsFees minted shares to be used as fees
+     * @return enterOrExitFeesRate enter or exit fees rate
+     * @return mintSharesAsFees minted shares to be used as fees
      */
     function applyFeesBeforeJoinExit(
-        uint256 joinAssetsOrShares,
         uint256 totalAssets,
         uint256 totalSupply,
-        bool isJoining
-    ) external returns (uint256, uint256) {
+        bool isEntering
+    ) external returns (uint16, uint256) {
         FeesData storage feeData = cellarFeesData[msg.sender];
-
-        uint16 joinExitFeeRate = isJoining ? feeData.joinFeesRate : feeData.exitFeesRate;
-        uint256 joinAssetsOrSharesAfterFees = _applyJoinExitFees(joinExitFeeRate, joinAssetsOrShares);
 
         (uint256 managementFees, uint256 performanceFees, uint256 highWaterMarkPrice) = _getUnclaimedFees(
             feeData,
@@ -96,17 +114,11 @@ contract FeesManager {
             feeData.highWaterMarkPrice = uint72(highWaterMarkPrice);
         }
 
+        uint16 enterOrExitFeesRate = isEntering ? feeData.enterFeesRate : feeData.exitFeesRate;
+
         uint256 mintSharesAsFees = performanceFees + managementFees;
 
-        return (joinAssetsOrSharesAfterFees, mintSharesAsFees);
-    }
-
-    function _applyJoinExitFees(uint16 joinExitFeeRate, uint256 joinAssetsOrShares) internal pure returns (uint256) {
-        if (joinExitFeeRate == 0) {
-            return joinAssetsOrShares;
-        }
-
-        return (joinAssetsOrShares * 10000) / (joinExitFeeRate + 10000);
+        return (enterOrExitFeesRate, mintSharesAsFees);
     }
 
     /**
@@ -165,21 +177,6 @@ contract FeesManager {
     event StrategistPayoutAddressChanged(address oldPayoutAddress, address newPayoutAddress);
 
     /**
-     * @notice Attempted to change strategist fee cut with invalid value.
-     */
-    error Cellar__InvalidFeeCut();
-
-    /**
-     * @notice Attempted to change platform fee with invalid value.
-     */
-    error Cellar__InvalidFee();
-
-    /**
-     * @notice Sets the max possible fee cut for cellars.
-     */
-    uint256 public constant MAX_FEE_CUT = 1e18;
-
-    /**
      * @notice Sets the Strategists cut of platform fees
      * @param cut the platform cut for the strategist
      * @dev Callable by Sommelier Governance.
@@ -207,17 +204,12 @@ contract FeesManager {
     }
 
     /**
-     * @notice Sets the max possible management fee for cellars.
-     */
-    uint256 public constant MAX_MANAGEMENT_FEES = 50e16;
-
-    /**
      * @notice Sets the management fees per year for this cellar.
      * @param cellar the cellar to set the management fees for
      * @param managementFeesPerYear the management fees per year (1e18 = 100% per year)
      */
     function setManagementFeesPerYear(address cellar, uint256 managementFeesPerYear) external onlyCellarOwner(cellar) {
-        if (managementFeesPerYear > MAX_MANAGEMENT_FEES) revert Cellar__InvalidFee();
+        if (managementFeesPerYear > MAX_MANAGEMENT_FEES) revert Cellar__InvalidFees();
 
         // TODO claim pending fees before changing the rate
         FeesData storage feeData = cellarFeesData[cellar];
@@ -226,17 +218,12 @@ contract FeesManager {
     }
 
     /**
-     * @notice Sets the max possible performance fee for cellars.
-     */
-    uint256 public constant MAX_PERFORMANCE_FEES = 50e16;
-
-    /**
      * @notice Sets the performance fees for this cellar.
      * @param cellar the cellar to set the performance fees for
      * @param performanceFeesRate the performance fees (1e18 = 100%)
      */
     function setPerformanceFees(address cellar, uint256 performanceFeesRate) external onlyCellarOwner(cellar) {
-        if (performanceFeesRate > MAX_PERFORMANCE_FEES) revert Cellar__InvalidFee();
+        if (performanceFeesRate > MAX_PERFORMANCE_FEES) revert Cellar__InvalidFees();
 
         FeesData storage feeData = cellarFeesData[cellar];
 
@@ -249,5 +236,31 @@ contract FeesManager {
                 PerformanceFeesLib._calcSharePrice(Cellar(cellar).totalAssets(), Cellar(cellar).totalSupply())
             );
         }
+    }
+
+    /**
+     * @notice Sets the enter fees for this cellar.
+     * @param cellar the cellar to set the performance fees for
+     * @param enterFeesRate the enter fees (10000 = 100%)
+     */
+    function setEnterFees(address cellar, uint16 enterFeesRate) external onlyCellarOwner(cellar) {
+        if (enterFeesRate > MAX_ENTER_FEES) {
+            revert Cellar__InvalidFees();
+        }
+
+        cellarFeesData[cellar].enterFeesRate = enterFeesRate;
+    }
+
+    /**
+     * @notice Sets the exit fees for this cellar.
+     * @param cellar the cellar to set the performance fees for
+     * @param exitFeesRate the exit fees (10000 = 100%)
+     */
+    function setExitFees(address cellar, uint16 exitFeesRate) external onlyCellarOwner(cellar) {
+        if (exitFeesRate > MAX_EXIT_FEES) {
+            revert Cellar__InvalidFees();
+        }
+
+        cellarFeesData[cellar].exitFeesRate = exitFeesRate;
     }
 }

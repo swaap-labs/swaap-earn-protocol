@@ -692,11 +692,14 @@ contract Cellar is ERC4626, Ownable {
         // Use `_calculateTotalAssetsOrTotalAssetsWithdrawable` instead of totalAssets bc re-entrancy is already checked in this function.
         (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply(true);
 
-        uint256 assetsAfterFees; // equivalent assets after applying enter fees
-        (assetsAfterFees, _totalSupply) = _beforeEnterExitFeesHook(assets, _totalAssets, _totalSupply, true);
+        uint16 enterFeesRate; // equivalent assets after applying enter fees
+        (enterFeesRate, _totalSupply) = _beforeEnterOrExitFeesHook(_totalAssets, _totalSupply, true);
 
         // Check for rounding error since we round down in previewDeposit.
-        if ((shares = _convertToShares(assetsAfterFees, _totalAssets, _totalSupply)) == 0) revert Cellar__ZeroShares();
+        if ((shares = _convertToShares(assets, _totalAssets, _totalSupply)) == 0) revert Cellar__ZeroShares();
+
+        // apply enter fees
+        shares = _applyEnterOrExitFees(enterFeesRate, shares, false);
 
         if ((_totalSupply + shares) > shareSupplyCap) revert Cellar__ShareSupplyCapExceeded();
 
@@ -713,11 +716,14 @@ contract Cellar is ERC4626, Ownable {
         (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply(true);
 
         // equivalent shares after applying enter fees
-        uint256 sharesAfterFees;
-        (sharesAfterFees, _totalSupply) = _beforeEnterExitFeesHook(shares, _totalAssets, _totalSupply, true);
+        uint16 enterFeesRate;
+        (enterFeesRate, _totalSupply) = _beforeEnterOrExitFeesHook(_totalAssets, _totalSupply, true);
 
         // previewMint rounds up, but initial mint could return zero assets, so check for rounding error.
-        if ((assets = _previewMint(sharesAfterFees, _totalAssets, _totalSupply)) == 0) revert Cellar__ZeroAssets();
+        if ((assets = _previewMint(shares, _totalAssets, _totalSupply)) == 0) revert Cellar__ZeroAssets();
+
+        // apply enter fees
+        assets = _applyEnterOrExitFees(enterFeesRate, assets, true);
 
         if ((_totalSupply + shares) > shareSupplyCap) revert Cellar__ShareSupplyCapExceeded();
 
@@ -765,11 +771,14 @@ contract Cellar is ERC4626, Ownable {
     ) public override nonReentrant returns (uint256 shares) {
         (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply(false);
 
-        uint256 assetsAfterFees;
-        (assetsAfterFees, _totalSupply) = _beforeEnterExitFeesHook(assets, _totalAssets, _totalSupply, false);
+        uint16 exitFeesRate;
+        (exitFeesRate, _totalSupply) = _beforeEnterOrExitFeesHook(_totalAssets, _totalSupply, false);
 
         // No need to check for rounding error, `previewWithdraw` rounds up.
-        shares = _previewWithdraw(assetsAfterFees, _totalAssets, _totalSupply);
+        shares = _previewWithdraw(assets, _totalAssets, _totalSupply);
+
+        // apply exit fees
+        shares = _applyEnterOrExitFees(exitFeesRate, shares, true);
 
         _exit(assets, shares, receiver, owner);
     }
@@ -794,31 +803,31 @@ contract Cellar is ERC4626, Ownable {
     ) public override nonReentrant returns (uint256 assets) {
         (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply(false);
 
-        uint256 sharesAfterFees;
-        (sharesAfterFees, _totalSupply) = _beforeEnterExitFeesHook(shares, _totalAssets, _totalSupply, false);
+        uint16 exitFeesRate;
+        (exitFeesRate, _totalSupply) = _beforeEnterOrExitFeesHook(_totalAssets, _totalSupply, false);
 
         // Check for rounding error since we round down in previewRedeem.
-        if ((assets = _convertToAssets(sharesAfterFees, _totalAssets, _totalSupply)) == 0) revert Cellar__ZeroAssets();
+        if ((assets = _convertToAssets(shares, _totalAssets, _totalSupply)) == 0) revert Cellar__ZeroAssets();
+
+        // apply exit fees
+        assets = _applyEnterOrExitFees(exitFeesRate, assets, false);
 
         _exit(assets, shares, receiver, owner);
     }
 
-    function _beforeEnterExitFeesHook(
-        uint256 _assetsOrShares,
+    function _beforeEnterOrExitFeesHook(
         uint256 _totalAssets,
         uint256 _totalSupply,
-        bool isEntering
-    ) internal virtual returns (uint256, uint256) {
+        bool _isEntering
+    ) internal virtual returns (uint16, uint256) {
         if (isShutdown) {
-            return (_assetsOrShares, _totalSupply);
+            return (0, _totalSupply);
         }
 
-        uint256 _sharesAsFees;
-        (_assetsOrShares, _sharesAsFees) = FEES_MANAGER.applyFeesBeforeJoinExit(
-            _assetsOrShares,
+        (uint16 _enterOrExitFeesRate, uint256 _sharesAsFees) = FEES_MANAGER.applyFeesBeforeJoinExit(
             _totalAssets,
             _totalSupply,
-            isEntering
+            _isEntering
         );
 
         if (_sharesAsFees > 0) {
@@ -826,7 +835,25 @@ contract Cellar is ERC4626, Ownable {
             _totalSupply += _sharesAsFees;
         }
 
-        return (_assetsOrShares, _totalSupply);
+        return (_enterOrExitFeesRate, _totalSupply);
+    }
+
+    uint16 internal constant _BPS_ONE_HUNDRED_PER_CENT = 1e4;
+
+    function _applyEnterOrExitFees(
+        uint16 enterOrExitFeeRate,
+        uint256 assetsOrShares,
+        bool increase
+    ) internal pure returns (uint256) {
+        if (enterOrExitFeeRate == 0) {
+            return assetsOrShares;
+        }
+
+        uint256 factor = increase
+            ? _BPS_ONE_HUNDRED_PER_CENT + enterOrExitFeeRate
+            : _BPS_ONE_HUNDRED_PER_CENT - enterOrExitFeeRate;
+
+        return assetsOrShares.mulDivDown(factor, _BPS_ONE_HUNDRED_PER_CENT);
     }
 
     /**
