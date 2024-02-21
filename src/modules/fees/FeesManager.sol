@@ -20,13 +20,13 @@ import { Cellar } from "src/base/Cellar.sol";
 
 contract FeesManager {
     /// @notice Throws when the caller is not the cellar owner.
-    error Fees__OnlyCellarOwner();
+    error FeesManager__OnlyCellarOwner();
 
     /// @notice Throws when the fee cut is above the authorized limit.
-    error Cellar__InvalidFeeCut();
+    error FeesManager__InvalidFeeCut();
 
     /// @notice Throws when the fees are above authorized limit.
-    error Cellar__InvalidFees();
+    error FeesManager__InvalidFeesRate();
 
     /// @notice Sets the max possible fee cut for cellars.
     uint256 public constant MAX_FEE_CUT = 1e18;
@@ -51,7 +51,7 @@ contract FeesManager {
 
     modifier onlyCellarOwner(address cellar) {
         if (msg.sender != Cellar(cellar).owner()) {
-            revert Fees__OnlyCellarOwner();
+            revert FeesManager__OnlyCellarOwner();
         }
         _;
     }
@@ -182,7 +182,7 @@ contract FeesManager {
      * @dev Callable by Sommelier Governance.
      */
     function setStrategistPlatformCut(address cellar, uint64 cut) external onlyCellarOwner(cellar) {
-        if (cut > MAX_FEE_CUT) revert Cellar__InvalidFeeCut();
+        if (cut > MAX_FEE_CUT) revert FeesManager__InvalidFeeCut();
 
         FeesData storage feeData = cellarFeesData[cellar];
         // TODO - send pending protocol fees before changing the cut
@@ -209,7 +209,7 @@ contract FeesManager {
      * @param managementFeesPerYear the management fees per year (1e18 = 100% per year)
      */
     function setManagementFeesPerYear(address cellar, uint256 managementFeesPerYear) external onlyCellarOwner(cellar) {
-        if (managementFeesPerYear > MAX_MANAGEMENT_FEES) revert Cellar__InvalidFees();
+        if (managementFeesPerYear > MAX_MANAGEMENT_FEES) revert FeesManager__InvalidFeesRate();
 
         // TODO claim pending fees before changing the rate
         FeesData storage feeData = cellarFeesData[cellar];
@@ -223,7 +223,7 @@ contract FeesManager {
      * @param performanceFeesRate the performance fees (1e18 = 100%)
      */
     function setPerformanceFees(address cellar, uint256 performanceFeesRate) external onlyCellarOwner(cellar) {
-        if (performanceFeesRate > MAX_PERFORMANCE_FEES) revert Cellar__InvalidFees();
+        if (performanceFeesRate > MAX_PERFORMANCE_FEES) revert FeesManager__InvalidFeesRate();
 
         FeesData storage feeData = cellarFeesData[cellar];
 
@@ -245,7 +245,7 @@ contract FeesManager {
      */
     function setEnterFees(address cellar, uint16 enterFeesRate) external onlyCellarOwner(cellar) {
         if (enterFeesRate > MAX_ENTER_FEES) {
-            revert Cellar__InvalidFees();
+            revert FeesManager__InvalidFeesRate();
         }
 
         cellarFeesData[cellar].enterFeesRate = enterFeesRate;
@@ -258,7 +258,7 @@ contract FeesManager {
      */
     function setExitFees(address cellar, uint16 exitFeesRate) external onlyCellarOwner(cellar) {
         if (exitFeesRate > MAX_EXIT_FEES) {
-            revert Cellar__InvalidFees();
+            revert FeesManager__InvalidFeesRate();
         }
 
         cellarFeesData[cellar].exitFeesRate = exitFeesRate;
