@@ -5,17 +5,12 @@ import { ERC20 } from "@solmate/tokens/ERC20.sol";
 import { CErc20 } from "src/interfaces/external/ICompound.sol";
 
 contract AvalancheAddresses {
-    // Sommelier
-    address public axelarProxyV0_0 = address(0);
-    address public axelarGateway = 0x5029C0EFf6C34351a0CEc334542cDb22c7928f78;
-    string public axelarSommelierSender = "somm1lrneqhq4rq8nz2nk6vn3sanrxva7zuns8aa45g";
-    address public strategist = 0xA9962a5BfBea6918E958DeE0647E99fD7863b95A;
-    address public devStrategist = 0xeeF7b7205CAF2Bcd71437D9acDE3874C3388c138;
-    address public deployerDeployerAddress = 0x61bfcdAFA35999FA93C10Ec746589EB93817a8b9;
-    address public cosmos = address(0xCAAA);
-    address public multisig = address(0);
-    address public deployerAddress = 0x70832E3e9a3268Fe9A5a47803e945fC34280B976;
-    address public priceRouter = address(0);
+    // Swaap
+    address public protocolDAOAddress = address(0);
+    address public strategist = address(1);
+    address public devStrategist = address(2);
+    address public multisig = address(3);
+    address public priceRouter = address(4);
 
     // DeFi Ecosystem
     address public ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
@@ -96,10 +91,6 @@ contract AvalancheAddresses {
 
     // FraxLend Pairs
     address public ARB_FRAX_PAIR = 0x2D0483FefAbA4325c7521539a3DFaCf94A19C472;
-
-    // Curve Pools and Tokens
-
-    // Convex-Curve Platform Specifics
 
     // Uniswap V3
 

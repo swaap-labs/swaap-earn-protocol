@@ -5,7 +5,7 @@ import { Extension, PriceRouter, ERC20, Math } from "src/modules/price-router/Ex
 import { IVault, IERC20 } from "@balancer/interfaces/contracts/vault/IVault.sol";
 
 /**
- * @title Sommelier Price Router Balancer Pool Extension
+ * @title Swaap Price Router Balancer Pool Extension
  * @notice Provides shared logic between Balancer Extensions.
  * @author crispymangoes
  */

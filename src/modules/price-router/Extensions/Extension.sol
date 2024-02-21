@@ -6,7 +6,7 @@ import { PriceRouter } from "src/modules/price-router/PriceRouter.sol";
 import { Math } from "src/utils/Math.sol";
 
 /**
- * @title Sommelier Price Router Extension abstract contract.
+ * @title Swaap Price Router Extension abstract contract.
  * @notice Provides shared logic between Extensions.
  * @author crispymangoes
  */
@@ -25,7 +25,7 @@ abstract contract Extension {
     }
 
     /**
-     * @notice The Sommelier PriceRouter contract.
+     * @notice The Swaap PriceRouter contract.
      */
     PriceRouter public immutable priceRouter;
 

@@ -8,7 +8,7 @@ import { OracleLibrary } from "@uniswapV3P/libraries/OracleLibrary.sol";
 import { ISTETH } from "src/interfaces/external/ISTETH.sol";
 
 /**
- * @title Sommelier Price Router stEth Extension
+ * @title Swaap Price Router stEth Extension
  * @notice Allows the Price Router to price stEth in a less volatile way,
  *         without assuming a 1:1 peg.
  * @author crispymangoes

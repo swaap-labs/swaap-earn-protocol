@@ -15,8 +15,8 @@ import { UniswapV3Pool } from "src/interfaces/external/UniswapV3Pool.sol";
 import { OracleLibrary } from "@uniswapV3P/libraries/OracleLibrary.sol";
 
 /**
- * @title Sommelier Price Router
- * @notice Provides a universal interface allowing Sommelier contracts to retrieve secure pricing
+ * @title Swaap Price Router
+ * @notice Provides a universal interface allowing Swaap contracts to retrieve secure pricing
  *         data from Chainlink.
  * @author crispymangoes
  */

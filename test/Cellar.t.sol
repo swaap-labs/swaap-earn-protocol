@@ -2,7 +2,7 @@
 pragma solidity 0.8.21;
 
 import { ReentrancyERC4626 } from "src/mocks/ReentrancyERC4626.sol";
-import { CellarAdaptor } from "src/modules/adaptors/Sommelier/CellarAdaptor.sol";
+import { CellarAdaptor } from "src/modules/adaptors/Swaap/CellarAdaptor.sol";
 import { ERC20DebtAdaptor } from "src/mocks/ERC20DebtAdaptor.sol";
 import { MockDataFeed } from "src/mocks/MockDataFeed.sol";
 import { MockCellar } from "src/mocks/MockCellar.sol";
@@ -41,6 +41,8 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
 
     uint256 private initialAssets;
     uint256 private initialShares;
+
+    uint256 assetToSharesDecimalsFactor = 10 ** 12;
 
     function setUp() external {
         // Setup forked environment.
@@ -237,7 +239,7 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
         uint256 expectedShares = cellar.previewDeposit(assets);
         uint256 shares = cellar.deposit(assets, address(this));
 
-        assertEq(shares, assets, "Should have 1:1 exchange rate for initial deposit.");
+        assertEq(shares, assets * assetToSharesDecimalsFactor, "Should have 1:1 exchange rate for initial deposit.");
         assertEq(cellar.previewWithdraw(assets), shares, "Withdrawing assets should burn shares given.");
         assertEq(shares, expectedShares, "Depositing assets should mint shares given.");
         assertEq(cellar.totalSupply(), shares + initialShares, "Should have updated total supply with shares minted.");
@@ -267,7 +269,7 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
     function testMintAndRedeem(uint256 assetsToDeposit) external {
         // minimum is set to assetsToShares to avoid Cellar__ZeroAssets() revert
         uint192 assetsToShares = uint192(cellar.totalSupply() / cellar.totalAssets());
-        assetsToDeposit = bound(assetsToDeposit, 1e6, type(uint112).max);
+        assetsToDeposit = bound(assetsToDeposit, 1e6, type(uint80).max);
 
         uint256 shares = assetsToDeposit * assetsToShares;
 
@@ -281,7 +283,7 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
         // Test single mint.
         uint256 assets = cellar.mint(shares, address(this));
 
-        assertEq(shares, assets, "Should have 1:1 exchange rate for initial deposit.");
+        assertEq(shares, assets * assetToSharesDecimalsFactor, "Should have 1:1 exchange rate for initial deposit.");
         assertEq(cellar.previewRedeem(shares), assets, "Redeeming shares should withdraw assets owed.");
         assertEq(cellar.previewMint(shares), assets, "Minting shares should deposit assets owed.");
         assertEq(cellar.totalSupply(), shares + initialShares, "Should have updated total supply with shares minted.");
@@ -359,7 +361,7 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
         uint256 assetsToShares = cellar.totalSupply() / cellar.totalAssets();
         assertEq(
             cellar.totalSupply(),
-            (3_000e6 + initialShares) * assetsToShares,
+            (3_000e6 + initialShares / assetToSharesDecimalsFactor) * assetsToShares,
             "Should have updated total supply with deposit"
         );
 
@@ -703,9 +705,9 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
         address[] memory targets = new address[](1);
         targets[0] = address(cellar);
 
-        registry.batchPause(targets);
-
         uint256 assetsToShares = cellar.totalSupply() / cellar.totalAssets();
+
+        registry.batchPause(targets);
 
         assertEq(cellar.isPaused(), true, "Cellar should be paused.");
 
@@ -781,7 +783,7 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
         cellar.withdraw(1e6, address(this), address(this));
 
         vm.expectRevert(bytes(abi.encodeWithSelector(Cellar.Cellar__Paused.selector)));
-        cellar.redeem(1e6, address(this), address(this));
+        cellar.redeem(1e18, address(this), address(this));
 
         vm.expectRevert(bytes(abi.encodeWithSelector(Cellar.Cellar__Paused.selector)));
         cellar.totalAssets();
@@ -810,9 +812,9 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
         mockWbtcUsd.setMockUpdatedAt(block.timestamp);
 
         cellar.deposit(1e6, address(this));
-        cellar.mint(1e6, address(this));
+        cellar.mint(1e18, address(this));
         cellar.withdraw(1e6, address(this), address(this));
-        cellar.redeem(1e6, address(this), address(this));
+        cellar.redeem(1e18, address(this), address(this));
         cellar.totalAssets();
         cellar.totalAssetsWithdrawable();
         cellar.maxWithdraw(address(this));
@@ -1166,7 +1168,7 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
         mockUsdtUsd.setMockAnswer(0.9e8);
 
         assertEq(cellar.totalAssets(), 100e6 + initialAssets, "Cellar total assets should remain unchanged.");
-        assertEq(cellar.deposit(100e6, address(this)), 100e6, "Cellar share price should not change.");
+        assertEq(cellar.deposit(100e6, address(this)), 100e18, "Cellar share price should not change.");
     }
 
     function testDepeggedAssetUsedByTheCellar() external {
@@ -1319,14 +1321,6 @@ contract CellarTest is MainnetStarterTest, AdaptorHelperFunctions {
     //      * the fund protector contract, and trade their shares (from the depegged
     //      * cellar) for assets in the fund protector.
     //      */
-
-    // ========================================= GRAVITY FUNCTIONS =========================================
-
-    // Since this contract is set as the Gravity Bridge, this will be called by
-    // the Cellar's `sendFees` function to send funds Cosmos.
-    function sendToCosmos(address asset, bytes32, uint256 assets) external {
-        ERC20(asset).transferFrom(msg.sender, cosmos, assets);
-    }
 
     // ========================================= MACRO FINDINGS =========================================
 

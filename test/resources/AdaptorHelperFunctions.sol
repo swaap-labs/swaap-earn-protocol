@@ -31,19 +31,14 @@ import { ComptrollerG7 as Comptroller, CErc20 } from "src/interfaces/external/IC
 // FraxLend
 import { FTokenAdaptor, IFToken } from "src/modules/adaptors/Frax/FTokenAdaptor.sol";
 
-// Sommelier
-import { CellarAdaptor } from "src/modules/adaptors/Sommelier/CellarAdaptor.sol";
-import { LegacyCellarAdaptor } from "src/modules/adaptors/Sommelier/LegacyCellarAdaptor.sol";
+// Swaap
+import { CellarAdaptor } from "src/modules/adaptors/Swaap/CellarAdaptor.sol";
+import { SwaapPoolAdaptor } from "src/modules/adaptors/Swaap/SwaapPoolAdaptor.sol";
 
 // Maker
 import { DSRAdaptor } from "src/modules/adaptors/Maker/DSRAdaptor.sol";
 
-// Curve
-import { CurvePool } from "src/interfaces/external/Curve/CurvePool.sol";
-
 import { SwapWithUniswapAdaptor } from "src/modules/adaptors/Uniswap/SwapWithUniswapAdaptor.sol";
-
-import { AuraERC4626Adaptor } from "src/modules/adaptors/Aura/AuraERC4626Adaptor.sol";
 
 import { ERC4626Adaptor } from "src/modules/adaptors/ERC4626Adaptor.sol";
 import { CollateralFTokenAdaptor } from "src/modules/adaptors/Frax/CollateralFTokenAdaptor.sol";
@@ -53,10 +48,6 @@ import { DebtFTokenAdaptor } from "src/modules/adaptors/Frax/DebtFTokenAdaptor.s
 import { CollateralFTokenAdaptorV1 } from "src/modules/adaptors/Frax/CollateralFTokenAdaptorV1.sol";
 
 import { DebtFTokenAdaptorV1 } from "src/modules/adaptors/Frax/DebtFTokenAdaptorV1.sol";
-
-import { CurvePool } from "src/interfaces/external/Curve/CurvePool.sol";
-
-import { SwaapPoolAdaptor } from "src/modules/adaptors/Swaap/SwaapPoolAdaptor.sol";
 
 import { AaveV3ATokenManagerAdaptor } from "src/modules/adaptors/Aave/V3/AaveV3ATokenManagerAdaptor.sol";
 import { AaveV3DebtManagerAdaptor } from "src/modules/adaptors/Aave/V3/AaveV3DebtManagerAdaptor.sol";
@@ -491,16 +482,7 @@ contract AdaptorHelperFunctions {
         return abi.encodeWithSelector(FTokenAdaptor.callAddInterest.selector, fToken);
     }
 
-    // ========================================= AURA FUNCTIONS =========================================
-
-    function _createBytesDataGetRewardsFromAuraPoolERC4626(
-        address _auraPool,
-        bool _claimExtras
-    ) internal pure returns (bytes memory) {
-        return abi.encodeWithSelector(AuraERC4626Adaptor.getRewards.selector, _auraPool, _claimExtras);
-    }
-
-    // ========================================= Sommelier FUNCTIONS =========================================
+    // ========================================= Swaap FUNCTIONS =========================================
 
     function _createBytesDataToDepositToCellar(address cellar, uint256 assets) internal pure returns (bytes memory) {
         return abi.encodeWithSelector(CellarAdaptor.depositToCellar.selector, cellar, assets);
@@ -508,22 +490,6 @@ contract AdaptorHelperFunctions {
 
     function _createBytesDataToWithdrawFromCellar(address cellar, uint256 assets) internal pure returns (bytes memory) {
         return abi.encodeWithSelector(CellarAdaptor.withdrawFromCellar.selector, cellar, assets);
-    }
-
-    function _createBytesDataToDepositToLegacyCellar(
-        address cellar,
-        uint256 assets,
-        address oracle
-    ) internal pure returns (bytes memory) {
-        return abi.encodeWithSelector(LegacyCellarAdaptor.depositToCellar.selector, cellar, assets, oracle);
-    }
-
-    function _createBytesDataToWithdrawFromLegacyCellar(
-        address cellar,
-        uint256 assets,
-        address oracle
-    ) internal pure returns (bytes memory) {
-        return abi.encodeWithSelector(LegacyCellarAdaptor.withdrawFromCellar.selector, cellar, assets, oracle);
     }
 
     function _createBytesDataToDepositToERC4626Vault(

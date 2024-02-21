@@ -1307,14 +1307,6 @@ contract UniswapV3AdaptorTest is MainnetStarterTest, AdaptorHelperFunctions, ERC
         );
     }
 
-    // ========================================= GRAVITY FUNCTIONS =========================================
-
-    // Since this contract is set as the Gravity Bridge, this will be called by
-    // the Cellar's `sendFees` function to send funds Cosmos.
-    function sendToCosmos(address asset, bytes32, uint256 assets) external {
-        ERC20(asset).transferFrom(msg.sender, cosmos, assets);
-    }
-
     // ========================================= HELPER FUNCTIONS =========================================
 
     function swapWithUniV3(

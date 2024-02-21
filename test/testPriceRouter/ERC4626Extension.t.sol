@@ -70,37 +70,6 @@ contract ERC4626ExtensionTest is MainnetStarterTest, AdaptorHelperFunctions {
         );
     }
 
-    function testERC4626ExtensionRYUSD() external {
-        _addDaiToPriceRouter();
-        // Add sDAI to price router.
-        PriceRouter.AssetSettings memory settings;
-        ERC4626 ryusdCellar = ERC4626(ryusdAddress);
-        ERC20 ryusd = ERC20(ryusdAddress);
-        uint256 oneRYUSDShare = 10 ** ryusdCellar.decimals();
-        uint256 ryusdShareInUsdc = ryusdCellar.previewRedeem(oneRYUSDShare);
-        uint256 price = priceRouter.getPriceInUSD(USDC).mulDivDown(ryusdShareInUsdc, 10 ** USDC.decimals());
-        settings = PriceRouter.AssetSettings(EXTENSION_DERIVATIVE, address(erc4626Extension));
-        priceRouter.addAsset(ryusd, settings, abi.encode(0), price);
-
-        uint256 ryusdPrice = priceRouter.getPriceInUSD(ryusd);
-
-        uint256 expectedRYUSDPrice = ryusdShareInUsdc.mulDivDown(
-            priceRouter.getPriceInUSD(USDC),
-            10 ** USDC.decimals()
-        );
-
-        assertApproxEqRel(expectedRYUSDPrice, ryusdPrice, 0.00001e18, "Expected RYUSD price does not equal actual.");
-
-        // RYUSD price in USDC should equal the preview redeem amount for one share.
-        uint256 ryusdPriceInUsdc = priceRouter.getValue(ryusd, oneRYUSDShare, USDC);
-        assertApproxEqRel(
-            ryusdShareInUsdc,
-            ryusdPriceInUsdc,
-            0.00001e18,
-            "RYUSD value in terms of USDC should equal preview redeem amount."
-        );
-    }
-
     // TODO once we have a data source for frxEth, try using this extension to price frxEth.
 
     // ======================================= REVERTS =======================================

@@ -3,8 +3,8 @@
   "license": "Apache-2.0",
   "version": "1.0.0",
   "author": {
-    "name": "Sommelier Finance",
-    "url": "https://www.sommelier.finance/"
+    "name": "Swaap Finance",
+    "url": "https://www.swaap.finance/"
   },
   "scripts": {
     "setup": "forge install && npm install && npm run build",

@@ -10,12 +10,7 @@ import { MockDataFeed } from "src/mocks/MockDataFeed.sol";
 import "test/resources/MainnetStarter.t.sol";
 
 import { AdaptorHelperFunctions } from "test/resources/AdaptorHelperFunctions.sol";
-import { CellarAdaptor } from "src/modules/adaptors/Sommelier/CellarAdaptor.sol";
-import { IRYUSDRegistry } from "src/interfaces/IRYUSDRegistry.sol";
-
-interface IRYUSDCellar {
-    function setupAdaptor(address adaptor) external;
-}
+import { CellarAdaptor } from "src/modules/adaptors/Swaap/CellarAdaptor.sol";
 
 contract CellarDSRTest is MainnetStarterTest, AdaptorHelperFunctions {
     using SafeTransferLib for ERC20;
@@ -248,96 +243,5 @@ contract CellarDSRTest is MainnetStarterTest, AdaptorHelperFunctions {
         uint256 assetsAfter = cellar.totalAssets();
 
         assertGt(assetsAfter, assetsBefore, "Total Assets should have increased.");
-    }
-
-    /**
-     * @notice Test RYUSD (w/ its older cellar architecture can work w/ sDAI)
-     * @dev Risk assessments shouldn't matter
-     */
-    function testRYUSDIntegration() external {
-        // assets = bound(assets, 0.1e18, 1_000_000_000e18);
-        uint256 assets = 1e18;
-        ERC4626 sDai = ERC4626(savingsDaiAddress);
-        uint32 sDaiPosition = 29; // Take current position count and add 1.
-
-        CellarAdaptor cellarAdaptor = new CellarAdaptor();
-        IRYUSDRegistry ryusdRegistryInterface = IRYUSDRegistry(ryusdRegistry);
-        Cellar RYUSDCellar = Cellar(ryusdCellar);
-        initialAssets = RYUSDCellar.totalAssets();
-
-        vm.startPrank(ryusdRegistryOwner);
-        // go to RYUSD registry & trust cellar adaptor & trust position
-        ryusdRegistryInterface.trustAdaptor(address(cellarAdaptor), 0, 0);
-        ryusdRegistryInterface.trustPosition(address(cellarAdaptor), abi.encode(sDai), 0, 0);
-        vm.stopPrank();
-
-        // addPosition on RYUSD cellar
-        vm.startPrank(gravityBridgeAddress);
-        RYUSDCellar.removePosition(15, false);
-        RYUSDCellar.addPosition(0, sDaiPosition, abi.encode(true), false);
-        IRYUSDCellar(address(ryusdCellar)).setupAdaptor(address(cellarAdaptor));
-        vm.stopPrank();
-
-        // At this point you can deal RYUSD some DAI, and make sure it can enter/exit sDAI
-        deal(address(DAI), ryusdCellar, assets);
-
-        vm.startPrank(gravityBridgeAddress);
-        // Deposit half of RYUSD's DAI into DSR
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
-        {
-            bytes[] memory adaptorCalls = new bytes[](1);
-            adaptorCalls[0] = _createBytesDataToDepositToCellar(savingsDaiAddress, assets / 2);
-            data[0] = Cellar.AdaptorCall({ adaptor: address(cellarAdaptor), callData: adaptorCalls });
-        }
-
-        RYUSDCellar.callOnAdaptor(data);
-
-        uint256 assetsInSDai = sDai.maxWithdraw(ryusdCellar);
-        assertApproxEqAbs(assetsInSDai, assets / 2, 2, "Should have deposited half the assets into the DSR.");
-
-        // Deposit remaining assets into DSR.
-        {
-            bytes[] memory adaptorCalls = new bytes[](1);
-            adaptorCalls[0] = _createBytesDataToDepositToCellar(savingsDaiAddress, type(uint256).max);
-            data[0] = Cellar.AdaptorCall({ adaptor: address(cellarAdaptor), callData: adaptorCalls });
-        }
-        RYUSDCellar.callOnAdaptor(data);
-
-        assetsInSDai = sDai.maxWithdraw(ryusdCellar);
-        assertApproxEqAbs(assetsInSDai, assets, 10, "Should have deposited all the assets into the DSR.");
-
-        // Withdraw half the assets.
-        {
-            bytes[] memory adaptorCalls = new bytes[](1);
-            adaptorCalls[0] = _createBytesDataToWithdrawFromCellar(address(sDai), assets / 2);
-            data[0] = Cellar.AdaptorCall({ adaptor: address(cellarAdaptor), callData: adaptorCalls });
-        }
-        RYUSDCellar.callOnAdaptor(data);
-
-        assertApproxEqAbs(
-            DAI.balanceOf(address(ryusdCellar)),
-            assets / 2,
-            1,
-            "Should have withdrawn half the assets from the DSR."
-        );
-
-        // Withdraw remaining  assets.
-        {
-            bytes[] memory adaptorCalls = new bytes[](1);
-            adaptorCalls[0] = _createBytesDataToWithdrawFromCellar(address(sDai), type(uint256).max);
-            data[0] = Cellar.AdaptorCall({ adaptor: address(cellarAdaptor), callData: adaptorCalls });
-        }
-        RYUSDCellar.callOnAdaptor(data);
-
-        assertApproxEqAbs(
-            DAI.balanceOf(address(ryusdCellar)),
-            assets,
-            10,
-            "Should have withdrawn all the assets from the DSR."
-        );
-
-        assetsInSDai = sDai.maxWithdraw(address(cellar));
-        assertEq(assetsInSDai, 0, "No assets should be left in DSR.");
-        vm.stopPrank();
     }
 }

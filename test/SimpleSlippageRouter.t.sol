@@ -2,7 +2,7 @@
 pragma solidity 0.8.21;
 
 import { ReentrancyERC4626 } from "src/mocks/ReentrancyERC4626.sol";
-import { CellarAdaptor } from "src/modules/adaptors/Sommelier/CellarAdaptor.sol";
+import { CellarAdaptor } from "src/modules/adaptors/Swaap/CellarAdaptor.sol";
 import { ERC20DebtAdaptor } from "src/mocks/ERC20DebtAdaptor.sol";
 import { MockDataFeed } from "src/mocks/MockDataFeed.sol";
 import { SimpleSlippageRouter } from "src/modules/SimpleSlippageRouter.sol";
@@ -36,6 +36,8 @@ contract SimpleSlippageRouterTest is MainnetStarterTest, AdaptorHelperFunctions 
     uint256 minShares2;
     uint64 deadline2;
     uint256 shareBalance2;
+
+    uint256 assetToSharesDecimalsFactor = 10 ** 12;
 
     function setUp() external {
         // Setup forked environment.
@@ -89,17 +91,11 @@ contract SimpleSlippageRouterTest is MainnetStarterTest, AdaptorHelperFunctions 
 
         deal(address(USDC), address(this), assets);
         deposit1 = assets / 2;
-        minShares1 = deposit1;
+        minShares1 = deposit1 * assetToSharesDecimalsFactor;
         deadline1 = uint64(block.timestamp + 1 days);
-
-        console.log("BEFORE: Total Cellar Shares: %s", cellar.totalSupply());
-
-        console.log("BEFORE: Cellar Shares Belonging to Test Contract: %s", cellar.balanceOf(address(this)));
 
         // deposit half using the SSR
         simpleSlippageRouter.deposit(cellar, deposit1, minShares1, deadline1);
-        console.log("AFTER: Cellar Shares Belonging to Test Contract: %s", cellar.balanceOf(address(this)));
-        console.log("AFTER: Total Cellar Shares: %s", cellar.totalSupply());
 
         shareBalance1 = cellar.balanceOf(address(this));
 
@@ -111,7 +107,12 @@ contract SimpleSlippageRouterTest is MainnetStarterTest, AdaptorHelperFunctions 
 
         shareBalance2 = cellar.balanceOf(address(this));
 
-        assertApproxEqAbs(shareBalance2, assets, 2, "deposit(): Test contract USDC should be all shares");
+        assertApproxEqAbs(
+            shareBalance2 / assetToSharesDecimalsFactor,
+            assets,
+            2,
+            "deposit(): Test contract USDC should be all shares"
+        );
         assertApproxEqAbs(USDC.balanceOf(address(this)), 0, 2, "deposit(): All USDC deposited to Cellar");
 
         // check allowance SSR given to cellar is zeroed out
@@ -124,26 +125,26 @@ contract SimpleSlippageRouterTest is MainnetStarterTest, AdaptorHelperFunctions 
     }
 
     function testWithdraw(uint256 assets) external {
-        assets = bound(assets, 1e6, 100_000e6);
+        assets = bound(assets, 1e6, type(uint80).max);
 
         // deal USDC assets to test contract
         deal(address(USDC), address(this), assets);
         deposit1 = assets / 2;
-        minShares1 = deposit1;
+        minShares1 = deposit1 * assetToSharesDecimalsFactor;
         deadline1 = uint64(block.timestamp + 1 days);
         // deposit half using the SSR
         simpleSlippageRouter.deposit(cellar, deposit1, minShares1, deadline1);
 
         // withdraw a quarter using the SSR
         uint256 withdraw1 = assets / 4;
-        uint256 maxShares1 = withdraw1; // assume 1:1 USDC:Shares shareprice
-        cellar.approve(address(simpleSlippageRouter), withdraw1);
+        uint256 maxShares1 = withdraw1 * assetToSharesDecimalsFactor; // assume 1:1 USDC:Shares shareprice (modulo the decimals diff)
+        cellar.approve(address(simpleSlippageRouter), maxShares1);
         simpleSlippageRouter.withdraw(cellar, withdraw1, maxShares1, deadline1);
 
         shareBalance1 = cellar.balanceOf(address(this));
 
         assertApproxEqAbs(
-            shareBalance1,
+            shareBalance1 / assetToSharesDecimalsFactor,
             (assets / 2) - withdraw1,
             2,
             "withdraw(): Test contract should have redeemed half of its shares"
@@ -156,10 +157,11 @@ contract SimpleSlippageRouterTest is MainnetStarterTest, AdaptorHelperFunctions 
         );
 
         // withdraw the rest using the SSR
-        uint256 withdraw2 = cellar.balanceOf(address(this));
-        cellar.approve(address(simpleSlippageRouter), withdraw2);
+        uint256 maxShares2 = cellar.balanceOf(address(this));
+        uint256 withdraw2 = maxShares2 / assetToSharesDecimalsFactor; // assume 1:1 USDC:Shares shareprice (modulo the decimals diff)
+        cellar.approve(address(simpleSlippageRouter), type(uint256).max);
 
-        simpleSlippageRouter.withdraw(cellar, withdraw2, withdraw2, deadline1);
+        simpleSlippageRouter.withdraw(cellar, withdraw2, maxShares2, deadline1);
 
         shareBalance2 = cellar.balanceOf(address(this));
 
@@ -178,17 +180,11 @@ contract SimpleSlippageRouterTest is MainnetStarterTest, AdaptorHelperFunctions 
         // deal USDC assets to test contract
         deal(address(USDC), address(this), assets);
         deposit1 = assets / 2;
-        minShares1 = deposit1;
+        minShares1 = deposit1 * assetToSharesDecimalsFactor;
         deadline1 = uint64(block.timestamp + 1 days);
-
-        console.log("BEFORE: Total Cellar Shares: %s", cellar.totalSupply());
-
-        console.log("BEFORE: Cellar Shares Belonging to Test Contract: %s", cellar.balanceOf(address(this)));
 
         // mint with half of the assets using the SSR
         simpleSlippageRouter.mint(cellar, minShares1, deposit1, deadline1);
-        console.log("AFTER: Cellar Shares Belonging to Test Contract: %s", cellar.balanceOf(address(this)));
-        console.log("AFTER: Total Cellar Shares: %s", cellar.totalSupply());
 
         shareBalance1 = cellar.balanceOf(address(this));
 
@@ -200,7 +196,12 @@ contract SimpleSlippageRouterTest is MainnetStarterTest, AdaptorHelperFunctions 
 
         shareBalance2 = cellar.balanceOf(address(this));
 
-        assertApproxEqAbs(shareBalance2, assets, 2, "mint(): Test contract USDC should be all shares");
+        assertApproxEqAbs(
+            shareBalance2 / assetToSharesDecimalsFactor,
+            assets,
+            2,
+            "mint(): Test contract USDC should be all shares"
+        );
         assertApproxEqAbs(USDC.balanceOf(address(this)), 0, 2, "mint(): All USDC deposited to Cellar");
 
         // check allowance SSR given to cellar is zeroed out
@@ -218,38 +219,39 @@ contract SimpleSlippageRouterTest is MainnetStarterTest, AdaptorHelperFunctions 
         // deal USDC assets to test contract
         deal(address(USDC), address(this), assets);
         deposit1 = assets / 2;
-        minShares1 = deposit1;
+        minShares1 = deposit1 * assetToSharesDecimalsFactor;
         deadline1 = uint64(block.timestamp + 1 days);
         // deposit half using the SSR
         simpleSlippageRouter.deposit(cellar, deposit1, minShares1, deadline1);
 
         // redeem half of the shares test contract has using the SSR
-        uint256 withdraw1 = deposit1 / 2;
-        uint256 maxShares1 = withdraw1; // assume 1:1 USDC:Shares shareprice
-        cellar.approve(address(simpleSlippageRouter), withdraw1);
+        uint256 minAssets1 = deposit1 / 2;
+        uint256 redeem1 = minAssets1 * assetToSharesDecimalsFactor; // assume 1:1 USDC:Shares shareprice (modulo the decimals diff)
+        cellar.approve(address(simpleSlippageRouter), redeem1);
 
-        simpleSlippageRouter.redeem(cellar, maxShares1, withdraw1, deadline1);
+        simpleSlippageRouter.redeem(cellar, redeem1, minAssets1, deadline1);
 
         shareBalance1 = cellar.balanceOf(address(this));
 
         assertApproxEqAbs(
-            shareBalance1,
-            (assets / 2) - withdraw1,
+            shareBalance1 / assetToSharesDecimalsFactor,
+            (assets / 2) - minAssets1,
             2,
             "redeem(): Test contract should have redeemed half of its shares"
         );
         assertApproxEqAbs(
             USDC.balanceOf(address(this)),
-            (assets / 2) + withdraw1,
+            (assets / 2) + minAssets1,
             2,
             "redeem(): Should have withdrawn expected partial amount"
         );
 
         // redeem the rest using the SSR
-        uint256 withdraw2 = cellar.balanceOf(address(this));
-        cellar.approve(address(simpleSlippageRouter), withdraw2);
+        uint256 redeem2 = cellar.balanceOf(address(this));
+        uint256 minAsets2 = redeem2 / assetToSharesDecimalsFactor; // assume 1:1 USDC:Shares shareprice (modulo the decimals diff)
+        cellar.approve(address(simpleSlippageRouter), redeem2);
 
-        simpleSlippageRouter.redeem(cellar, withdraw2, withdraw2, deadline1);
+        simpleSlippageRouter.redeem(cellar, redeem2, minAsets2, deadline1);
 
         shareBalance2 = cellar.balanceOf(address(this));
 
@@ -311,7 +313,7 @@ contract SimpleSlippageRouterTest is MainnetStarterTest, AdaptorHelperFunctions 
         // deal USDC assets to test contract
         deal(address(USDC), address(this), assets);
         deposit1 = assets;
-        minShares1 = assets + 1; // input param so it will revert
+        minShares1 = (assets + 1) * assetToSharesDecimalsFactor; // input param so it will revert
         deadline1 = uint64(block.timestamp + 1 days);
 
         uint256 quoteShares = cellar.previewDeposit(assets);
@@ -338,15 +340,15 @@ contract SimpleSlippageRouterTest is MainnetStarterTest, AdaptorHelperFunctions 
         // deal USDC assets to test contract
         deal(address(USDC), address(this), assets);
         deposit1 = assets / 2;
-        minShares1 = deposit1;
+        minShares1 = deposit1 * assetToSharesDecimalsFactor;
         deadline1 = uint64(block.timestamp + 1 days);
         // deposit half using the SSR
         simpleSlippageRouter.deposit(cellar, deposit1, minShares1, deadline1);
 
         // withdraw a quarter using the SSR
         uint256 withdraw1 = deposit1 / 2;
-        uint256 maxShares1 = withdraw1; // assume 1:1 USDC:Shares shareprice
-        cellar.approve(address(simpleSlippageRouter), withdraw1);
+        uint256 maxShares1 = withdraw1 * assetToSharesDecimalsFactor; // assume 1:1 USDC:Shares shareprice (modulo the decimals diff)
+        cellar.approve(address(simpleSlippageRouter), maxShares1);
 
         uint256 quoteShares = cellar.previewWithdraw(withdraw1);
         vm.expectRevert(
@@ -371,7 +373,7 @@ contract SimpleSlippageRouterTest is MainnetStarterTest, AdaptorHelperFunctions 
         // deal USDC assets to test contract
         deal(address(USDC), address(this), assets);
         deposit1 = assets / 2;
-        minShares1 = deposit1;
+        minShares1 = deposit1 * assetToSharesDecimalsFactor;
         deadline1 = uint64(block.timestamp + 1 days);
 
         // manipulate cellar to have lots of USDC and thus not a 1:1 ratio anymore for shares

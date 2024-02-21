@@ -5,7 +5,7 @@ import { Extension, PriceRouter, ERC20, Math } from "src/modules/price-router/Ex
 import { ERC4626 } from "src/base/ERC4626.sol";
 
 /**
- * @title Sommelier Price Router ERC4626 Extension
+ * @title Swaap Price Router ERC4626 Extension
  * @notice Allows the Price Router to price ERC4626 shares.
  * @author crispymangoes
  */

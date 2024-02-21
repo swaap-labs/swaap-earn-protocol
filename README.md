@@ -1,6 +1,13 @@
-# Sommelier Cellar Contracts • [![tests](https://github.com/PeggyJV/cellar-contracts/actions/workflows/tests.yml/badge.svg)](https://github.com/PeggyJV/cellar-contracts/actions/workflows/tests.yml) [![lints](https://github.com/PeggyJV/cellar-contracts/actions/workflows/lints.yml/badge.svg)](https://github.com/PeggyJV/cellar-contracts/actions/workflows/lints.yml) ![license](https://img.shields.io/github/license/PeggyJV/cellar-contracts)
+<img src="https://docs.swaap.finance/img/brand.png" alt="drawing" width="300"/>
 
-Cellar contracts for the Sommelier Network.
+# Swaap Cellar Contracts
+[![Docs](https://img.shields.io/badge/docs-%F0%9F%93%84-blue)](https://docs.swaap.finance/)
+[![tests](https://github.com/swaap-labs/swaap-earn-protocol/actions/workflows/tests.yml/badge.svg)](https://github.com/swaap-labs/swaap-earn-protocol/actions/workflows/tests.yml) 
+[![lints](https://github.com/swaap-labs/swaap-earn-protocol/actions/workflows/lints.yml/badge.svg)](https://github.com/swaap-labs/swaap-earn-protocol/actions/workflows/lints.yml) 
+![license](https://img.shields.io/github/license/swaap-labs/swaap-earn-protocol)
+
+
+Cellar contracts.
 
 ### Development
 

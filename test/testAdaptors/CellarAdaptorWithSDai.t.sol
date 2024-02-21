@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.21;
 
-import { CellarAdaptor } from "src/modules/adaptors/Sommelier/CellarAdaptor.sol";
+import { CellarAdaptor } from "src/modules/adaptors/Swaap/CellarAdaptor.sol";
 import { MockDataFeed } from "src/mocks/MockDataFeed.sol";
 
 // Import Everything from Starter file.

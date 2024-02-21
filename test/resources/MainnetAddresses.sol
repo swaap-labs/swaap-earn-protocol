@@ -5,18 +5,11 @@ import { ERC20 } from "@solmate/tokens/ERC20.sol";
 import { CErc20 } from "src/interfaces/external/ICompound.sol";
 
 contract MainnetAddresses {
-    // Sommelier
-    address public gravityBridgeAddress = 0x69592e6f9d21989a043646fE8225da2600e5A0f7;
-    address public strategist = 0xA9962a5BfBea6918E958DeE0647E99fD7863b95A;
-    address public devStrategist = 0xeeF7b7205CAF2Bcd71437D9acDE3874C3388c138;
-    address public cosmos = address(0xCAAA);
-    address public multisig = 0x7340D1FeCD4B64A4ac34f826B21c945d44d7407F;
-    address public ryusdRegistry = 0x2Cbd27E034FEE53f79b607430dA7771B22050741;
-    address public ryusdRegistryOwner = 0xaDa78a5E01325B91Bc7879a63c309F7D54d42950;
-    address public deployerAddress = 0x70832E3e9a3268Fe9A5a47803e945fC34280B976;
-    address public priceRouterV1 = 0x138a6d8c49428D4c71dD7596571fbd4699C7D3DA;
-    address public priceRouterV2 = 0xA1A0bc3D59e4ee5840c9530e49Bdc2d1f88AaF92;
-    address public ryusdAddress = 0x97e6E0a40a3D02F12d1cEC30ebfbAE04e37C119E;
+    // Swaap
+    address public protocolDAOAddress = address(0);
+    address public strategist = address(1);
+    address public devStrategist = address(2);
+    address public multisig = address(3);
 
     // DeFi Ecosystem
     address public ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
@@ -66,7 +59,6 @@ contract MainnetAddresses {
     address public DAI_USD_FEED = 0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee9;
     address public USDT_USD_FEED = 0x3E7d1eAB13ad0104d2750B8863b489D65364e32D;
     address public COMP_USD_FEED = 0xdbd020CAeF83eFd542f4De03e3cF0C28A4428bd5;
-    address public fastGasFeed = 0x169E633A2D1E6c10dD91238Ba11c4A708dfEF37C;
     address public FRAX_USD_FEED = 0xB9E1E3A9feFf48998E45Fa90847ed4D467E8BcfD;
     address public RETH_ETH_FEED = 0x536218f9E9Eb48863970252233c8F271f554C2d0;
     address public BOND_ETH_FEED = 0xdd22A54e05410D8d1007c38b5c7A3eD74b855281;
@@ -241,17 +233,6 @@ contract MainnetAddresses {
 
     address public WethMkUsdPool = 0xc89570207c5BA1B0E3cD372172cCaEFB173DB270;
 
-    // Convex-Curve Platform Specifics
-    address public convexCurveMainnetBooster = 0xF403C135812408BFbE8713b5A23a04b3D48AAE31;
-
-    address public ethFrxethBaseRewardPool = 0xbD5445402B0a287cbC77cb67B2a52e2FC635dce4;
-    address public ethStethNgBaseRewardPool = 0x6B27D7BC63F1999D14fF9bA900069ee516669ee8;
-    address public fraxCrvUsdBaseRewardPool = 0x3CfB4B26dc96B124D15A6f360503d028cF2a3c00;
-    address public mkUsdFraxUsdcBaseRewardPool = 0x35FbE5520E70768DCD6E3215Ed54E14CBccA10D2;
-    address public wethYethBaseRewardPool = 0xB0867ADE998641Ab1Ff04cF5cA5e5773fA92AaE3;
-    address public ethEthxBaseRewardPool = 0x399e111c7209a741B06F8F86Ef0Fdd88fC198D20;
-    address public crvUsdSFraxBaseRewardPool = 0x73eA73C3a191bd05F3266eB2414609dC5Fe777a2;
-
     // Uniswap V3
     address public WSTETH_WETH_100 = 0x109830a1AAaD605BbF02a9dFA7B0B92EC2FB7dAa;
     address public WSTETH_WETH_500 = 0xD340B57AAcDD10F96FC1CF10e15921936F41E29c;
@@ -264,13 +245,15 @@ contract MainnetAddresses {
     // Maker
     address public dsrManager = 0x373238337Bfe1146fb49989fc222523f83081dDb;
 
-    // Current Active Cellars
-    address public ryusdCellar = 0x97e6E0a40a3D02F12d1cEC30ebfbAE04e37C119E;
-
     // Maker
     address public savingsDaiAddress = 0x83F20F44975D03b1b09e64809B757c47f942BEeA;
     address public sDAI = 0x83F20F44975D03b1b09e64809B757c47f942BEeA;
 
     // Frax
     address public sFRAX = 0xA663B02CF0a4b149d2aD41910CB81e23e1c41c32;
+
+    // Swaap
+    address public swaapVault = 0xd315a9C38eC871068FEC378E4Ce78AF528C76293;
+    ERC20 public USDC_WETH_SPT = ERC20(0x5EE945D9Bfa5AD48c64fC7ACfed497d3546c0d03);
+    ERC20 public USDC_USDT_SPT = ERC20(0xA441CF75BCFb5833cB1ba7c93A0721ae9B292789);
 }

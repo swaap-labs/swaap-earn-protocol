@@ -14,11 +14,11 @@ import { WstEthExtension } from "src/modules/price-router/Extensions/Lido/WstEth
 import { IVault, IAsset, IERC20 } from "@balancer/interfaces/contracts/vault/IVault.sol";
 
 // Import Everything from Starter file.
-import "test/resources/SwaapMainnetStarter.t.sol";
+import "test/resources/MainnetStarter.t.sol";
 
 import { AdaptorHelperFunctions } from "test/resources/AdaptorHelperFunctions.sol";
 
-contract SwaapSafeguarPoolTest is SwaapMainnetStarterTest, AdaptorHelperFunctions {
+contract SwaapSafeguarPoolTest is MainnetStarterTest, AdaptorHelperFunctions {
     using Math for uint256;
     // using stdStorage for StdStorage;
     using Address for address;

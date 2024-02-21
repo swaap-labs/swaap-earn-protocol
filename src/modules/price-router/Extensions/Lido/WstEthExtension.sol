@@ -5,7 +5,7 @@ import { Extension, PriceRouter, ERC20, Math } from "src/modules/price-router/Ex
 import { ISTETH } from "src/interfaces/external/ISTETH.sol";
 
 /**
- * @title Sommelier Price Router wstEth Extension
+ * @title Swaap Price Router wstEth Extension
  * @notice Allows the Price Router to price wstEth.
  * @author crispymangoes
  */

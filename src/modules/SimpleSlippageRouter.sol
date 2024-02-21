@@ -6,7 +6,7 @@ import { SafeTransferLib } from "@solmate/utils/SafeTransferLib.sol";
 import { ERC20 } from "@solmate/tokens/ERC20.sol";
 
 /**
- * @title Sommelier Simple Slippage Router
+ * @title Swaap Simple Slippage Router
  * @notice A Simple Utility Contract to allow Users to call functions: deposit, withdraw, mint, and redeem with ERC4626 Vault contracts w/ respective specified slippage params.
  * @author crispymangoes, 0xEinCodes
  */

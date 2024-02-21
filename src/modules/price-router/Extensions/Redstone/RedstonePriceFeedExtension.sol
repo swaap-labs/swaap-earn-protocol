@@ -5,7 +5,7 @@ import { Extension, PriceRouter, ERC20 } from "src/modules/price-router/Extensio
 import { IRedstoneAdapter } from "src/interfaces/external/Redstone/IRedstoneAdapter.sol";
 
 /**
- * @title Sommelier Price Router Redstone Classic Extension
+ * @title Swaap Price Router Redstone Classic Extension
  * @notice Allows the Price Router to price assets using Redstone Classic oracles.
  * @author crispymangoes
  */

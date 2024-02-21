@@ -3,7 +3,7 @@ pragma solidity 0.8.21;
 
 import { Cellar, ERC4626 } from "src/base/Cellar.sol";
 import { MockDataFeed } from "src/mocks/MockDataFeed.sol";
-import { CellarAdaptor } from "src/modules/adaptors/Sommelier/CellarAdaptor.sol";
+import { CellarAdaptor } from "src/modules/adaptors/Swaap/CellarAdaptor.sol";
 
 // Import Everything from Starter file.
 import "test/resources/MainnetStarter.t.sol";

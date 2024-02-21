@@ -4,8 +4,6 @@ pragma solidity 0.8.21;
 import { Cellar, Registry, ERC20, Math, SafeTransferLib } from "src/base/Cellar.sol";
 import { IFlashLoanRecipient, IERC20 } from "@balancer/interfaces/contracts/vault/IFlashLoanRecipient.sol";
 
-import { ERC4626SharePriceOracle } from "src/base/ERC4626SharePriceOracle.sol";
-
 contract CellarWithBalancerFlashLoans is Cellar, IFlashLoanRecipient {
     using Math for uint256;
     using SafeTransferLib for ERC20;

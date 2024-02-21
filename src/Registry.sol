@@ -76,12 +76,12 @@ contract Registry is Ownable {
     // ============================================= INITIALIZATION =============================================
 
     /**
-     * @param gravityBridge address of GravityBridge contract
+     * @param protocolDAO address of ProtocolDAO contract
      * @param swapRouter address of SwapRouter contract
      * @param priceRouter address of PriceRouter contract
      */
-    constructor(address newOwner, address gravityBridge, address swapRouter, address priceRouter) Ownable() {
-        _register(gravityBridge);
+    constructor(address newOwner, address protocolDAO, address swapRouter, address priceRouter) Ownable() {
+        _register(protocolDAO);
         _register(swapRouter);
         _register(priceRouter);
         FEES_MANAGER = new FeesManager(address(this), newOwner);
@@ -115,7 +115,7 @@ contract Registry is Ownable {
 
     // ============================================= ADDRESS 0 LOGIC =============================================
     /**
-     * Address 0 is the address of the gravity bridge, and special abilities that the owner does not have.
+     * Address 0 is the address of the ProtocolDAO, and special abilities that the owner does not have.
      * - It can change what address is stored at address 0.
      * - It can change the owner of this contract.
      */

@@ -3,8 +3,6 @@ pragma solidity 0.8.21;
 
 import { Cellar, Registry, ERC20, Math, SafeTransferLib } from "src/base/Cellar.sol";
 
-import { ERC4626SharePriceOracle } from "src/base/ERC4626SharePriceOracle.sol";
-
 contract CellarWithAaveFlashLoans is Cellar {
     using Math for uint256;
     using SafeTransferLib for ERC20;

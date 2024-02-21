@@ -8,8 +8,8 @@ import { ERC4626 } from "src/base/ERC4626.sol";
  * @title Generic ERC4626 Vault Adaptor (basically a copy of Cellar Adaptor w/ virtual function sigs to enable inheritance and overriding).
  * @notice Allows Cellars to interact with other ERC4626 contracts.
  * @author crispymangoes, 0xEinCodes
- * NOTE: `CellarAdaptor.sol` was used, and is still used for nested Cellar positions for Sommelier Cellars (ERC4626 Vaults). Integrations into Aura, among other ERC4626 contracts outside of Sommelier have led to using a separate ERC4626Vault.sol file that allows more flexibility via inheritance.
- * NOTE: `Cellar` is still used throughout this contract at times because it is a contract made for the Sommelier protocol (has extra pricing and accounting mechanics, etc.)
+ * NOTE: `CellarAdaptor.sol` was used, and is still used for nested Cellar positions for Swaap Cellars (ERC4626 Vaults). Integrations into Aura, among other ERC4626 contracts outside of Swaap have led to using a separate ERC4626Vault.sol file that allows more flexibility via inheritance.
+ * NOTE: `Cellar` is still used throughout this contract at times because it is a contract made for the Swaap protocol (has extra pricing and accounting mechanics, etc.)
  */
 contract ERC4626Adaptor is BaseAdaptor {
     using SafeTransferLib for ERC20;
@@ -42,7 +42,7 @@ contract ERC4626Adaptor is BaseAdaptor {
      * of the adaptor is more difficult.
      */
     function identifier() public pure virtual override returns (bytes32) {
-        return keccak256(abi.encode("Sommelier General ERC4626 Adaptor V 0.0"));
+        return keccak256(abi.encode("Swaap General ERC4626 Adaptor V 0.0"));
     }
 
     //============================================ Implement Base Functions ===========================================

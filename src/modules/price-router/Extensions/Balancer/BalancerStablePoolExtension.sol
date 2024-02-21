@@ -6,7 +6,7 @@ import { IRateProvider } from "src/interfaces/external/IRateProvider.sol";
 import { BalancerPoolExtension, PriceRouter, ERC20, Math, IVault, IERC20 } from "./BalancerPoolExtension.sol";
 
 /**
- * @title Sommelier Price Router Balancer Stable Pool Extension
+ * @title Swaap Price Router Balancer Stable Pool Extension
  * @notice Allows the Price Router to price Balancer Stable pool BPTs.
  * @author crispymangoes
  */

@@ -307,7 +307,7 @@ contract CellarWithShareLockPeriodTest is MainnetStarterTest, AdaptorHelperFunct
 
         // Make sure user's who join with mint or deposit can not transfer, withdraw, or redeem for the shareLockPeriod.
         uint256 assets = 100e6;
-        uint256 shares = 100e6;
+        uint256 shares = 100e18;
         address depositUser = vm.addr(7777);
         address mintUser = vm.addr(77777);
         vm.startPrank(depositUser);

@@ -4,7 +4,7 @@ pragma solidity 0.8.21;
 import { ERC20 } from "@solmate/tokens/ERC20.sol";
 
 /**
- * @title Sommelier Staking Interface
+ * @title Swaap Staking Interface
  * @author Kevin Kennis
  *
  * @notice Full documentation in implementation contract.

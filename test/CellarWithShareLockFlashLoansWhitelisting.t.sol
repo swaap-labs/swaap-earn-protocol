@@ -3,7 +3,7 @@ pragma solidity 0.8.21;
 
 import { MockDataFeed } from "src/mocks/MockDataFeed.sol";
 import { MockCellarWithShareLockFlashLoansWhitelisting } from "src/mocks/MockCellarWithShareLockFlashLoansWhitelisting.sol";
-import { CellarAdaptor } from "src/modules/adaptors/Sommelier/CellarAdaptor.sol";
+import { CellarAdaptor } from "src/modules/adaptors/Swaap/CellarAdaptor.sol";
 import { EIP712 } from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import { CellarWithShareLockFlashLoansWhitelisting } from "src/base/permutations/CellarWithShareLockFlashLoansWhitelisting.sol";
 import { IVault, IERC20, IFlashLoanRecipient } from "@balancer/interfaces/contracts/vault/IVault.sol";
@@ -42,6 +42,8 @@ contract MockCellarWithShareLockFlashLoansWhitelistingTest is MainnetStarterTest
 
     address bob;
     address alice;
+
+    uint256 assetToSharesDecimalsFactor = 10 ** 12;
 
     function setUp() external {
         // Setup forked environment.
@@ -134,8 +136,8 @@ contract MockCellarWithShareLockFlashLoansWhitelistingTest is MainnetStarterTest
         initialShares = cellar.totalSupply();
 
         assets = 1e6;
-        shares = 1e6;
-        deal(address(USDC), address(this), assets + shares);
+        shares = 1e18;
+        deal(address(USDC), address(this), assets + shares / assetToSharesDecimalsFactor);
 
         // Define private keys and their corresponding addresses
         bobPrivateKey = 0xB0B;

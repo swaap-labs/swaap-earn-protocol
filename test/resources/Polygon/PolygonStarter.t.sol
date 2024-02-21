@@ -6,7 +6,6 @@ import { Deployer } from "src/Deployer.sol";
 import { Cellar } from "src/base/Cellar.sol";
 import { Registry } from "src/Registry.sol";
 import { PriceRouter } from "src/modules/price-router/PriceRouter.sol";
-import { IGravity } from "src/interfaces/external/IGravity.sol";
 
 // Import Helpers
 import { Math } from "src/utils/Math.sol";
@@ -37,15 +36,12 @@ contract MainnetStarterTest is Test, MainnetAddresses {
     PriceRouter public priceRouter;
     ERC20Adaptor public erc20Adaptor;
     SwapWithUniswapAdaptor public swapWithUniswapAdaptor;
-    IGravity public gravityBridge;
 
     uint8 public constant CHAINLINK_DERIVATIVE = 1;
     uint8 public constant TWAP_DERIVATIVE = 2;
     uint8 public constant EXTENSION_DERIVATIVE = 3;
 
     function _setUp() internal {
-        gravityBridge = IGravity(gravityBridgeAddress);
-
         address[] memory deployers = new address[](1);
         deployers[0] = address(this);
         deployer = new Deployer(address(this), deployers);

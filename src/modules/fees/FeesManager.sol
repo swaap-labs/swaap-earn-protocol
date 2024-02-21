@@ -286,7 +286,7 @@ contract FeesManager {
     /**
      * @notice Sets the Strategists payout address
      * @param newPayoutAddress the new strategist payout address
-     * @dev Callable by Sommelier Strategist.
+     * @dev Callable by Swaap Strategist.
      */
     function setStrategistPayoutAddress(address cellar, address newPayoutAddress) external onlyCellarOwner(cellar) {
         emit StrategistPayoutAddressChanged(newPayoutAddress);
@@ -300,7 +300,7 @@ contract FeesManager {
     /**
      * @notice Sets the Strategists cut of platform fees
      * @param cut the platform cut for the strategist
-     * @dev Callable by Sommelier Governance.
+     * @dev Callable by Swaap Governance.
      */
     function setStrategistPlatformCut(address cellar, uint64 cut) external onlyCellarOwner(cellar) {
         if (cut > MAX_FEE_CUT) revert FeesManager__InvalidFeesCut();

@@ -258,14 +258,6 @@ contract SushiswapV3AdaptorTest is MainnetStarterTest, AdaptorHelperFunctions, E
         assertEq(USDC.balanceOf(address(cellar)), 0, "Cellar should have put all USDC in a UniV3 range order.");
     }
 
-    // ========================================= GRAVITY FUNCTIONS =========================================
-
-    // Since this contract is set as the Gravity Bridge, this will be called by
-    // the Cellar's `sendFees` function to send funds Cosmos.
-    function sendToCosmos(address asset, bytes32, uint256 assets) external {
-        ERC20(asset).transferFrom(msg.sender, cosmos, assets);
-    }
-
     // ========================================= HELPER FUNCTIONS =========================================
 
     function swapWithUniV3(

@@ -9,10 +9,10 @@ import { ICellarStaking } from "src/interfaces/ICellarStaking.sol";
 import "./Errors.sol";
 
 /**
- * @title Sommelier Staking
+ * @title Swaap Staking
  * @author Kevin Kennis
  *
- * Staking for Sommelier Cellars.
+ * Staking for Swaap Cellars.
  *
  * This contract is inspired by the Synthetix staking rewards contract, Ampleforth's
  * token geyser, and Treasure DAO's MAGIC mine. However, there are unique improvements

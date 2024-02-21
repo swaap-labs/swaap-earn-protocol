@@ -22,7 +22,8 @@ contract ChangingSwethPricingTest is MainnetStarterTest, AdaptorHelperFunctions 
         uint256 blockNumber = 18092686;
         _startFork(rpcKey, blockNumber);
 
-        priceRouter = PriceRouter(0xA1A0bc3D59e4ee5840c9530e49Bdc2d1f88AaF92);
+        // TODO: replace with the actual price router
+        // priceRouter = PriceRouter(address(0)); // here
     }
 
     function testChangingSwethPricing() external {

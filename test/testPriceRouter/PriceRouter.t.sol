@@ -31,8 +31,8 @@ contract PriceRouterTest is MainnetStarterTest, AdaptorHelperFunctions {
         // Run Starter setUp code.
         _setUp();
 
-        // Set Registry 0 id to be the real gravity bridge.
-        registry.setAddress(0, gravityBridgeAddress);
+        // Set Registry 0 id to be a fake protocolDAO.
+        registry.setAddress(0, protocolDAOAddress);
 
         PriceRouter.ChainlinkDerivativeStorage memory stor;
 
@@ -365,13 +365,13 @@ contract PriceRouterTest is MainnetStarterTest, AdaptorHelperFunctions {
         // Current owner has been misbehaving, so governance wants to kick them out.
 
         // Governance accidentally passes in zero address for new owner.
-        vm.startPrank(gravityBridgeAddress);
+        vm.startPrank(protocolDAOAddress);
         vm.expectRevert(bytes(abi.encodeWithSelector(PriceRouter.PriceRouter__NewOwnerCanNotBeZero.selector)));
         priceRouter.transitionOwner(address(0));
         vm.stopPrank();
 
         // Governance actually uses the right address.
-        vm.prank(gravityBridgeAddress);
+        vm.prank(protocolDAOAddress);
         priceRouter.transitionOwner(newOwner);
 
         // Old owner tries to call onlyOwner functions.
@@ -399,12 +399,12 @@ contract PriceRouterTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         address doug = vm.addr(13);
         // Governance decides to recover ownership and transfer it to doug.
-        vm.prank(gravityBridgeAddress);
+        vm.prank(protocolDAOAddress);
         priceRouter.transitionOwner(doug);
 
         // Half way through transition governance learns doug is evil, so they cancel the transition.
         vm.warp(block.timestamp + priceRouter.TRANSITION_PERIOD() / 2);
-        vm.prank(gravityBridgeAddress);
+        vm.prank(protocolDAOAddress);
         priceRouter.cancelTransition();
 
         // doug still tries to claim ownership.
@@ -415,14 +415,14 @@ contract PriceRouterTest is MainnetStarterTest, AdaptorHelperFunctions {
         vm.stopPrank();
 
         // Governance accidentally calls cancel transition again, but call reverts.
-        vm.startPrank(gravityBridgeAddress);
+        vm.startPrank(protocolDAOAddress);
         vm.expectRevert(bytes(abi.encodeWithSelector(PriceRouter.PriceRouter__TransitionNotPending.selector)));
         priceRouter.cancelTransition();
         vm.stopPrank();
 
         // Governance finds the best owner and starts the process.
         address bestOwner = vm.addr(7777);
-        vm.prank(gravityBridgeAddress);
+        vm.prank(protocolDAOAddress);
         priceRouter.transitionOwner(bestOwner);
 
         // New owner waits an extra week.
@@ -434,13 +434,13 @@ contract PriceRouterTest is MainnetStarterTest, AdaptorHelperFunctions {
         assertEq(priceRouter.owner(), bestOwner, "PriceRouter should be owned by best owner.");
 
         // Governance starts another ownership transfer back to doug.
-        vm.prank(gravityBridgeAddress);
+        vm.prank(protocolDAOAddress);
         priceRouter.transitionOwner(doug);
 
         vm.warp(block.timestamp + 2 * priceRouter.TRANSITION_PERIOD());
 
         // Doug still has not completed the transfer, so Governance decides to cancel it.
-        vm.prank(gravityBridgeAddress);
+        vm.prank(protocolDAOAddress);
         priceRouter.cancelTransition();
 
         // Doug tries completing it.

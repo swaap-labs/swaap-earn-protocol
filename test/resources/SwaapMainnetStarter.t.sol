@@ -13,7 +13,7 @@ import { ERC4626 } from "src/base/ERC4626.sol";
 import { SafeTransferLib } from "@solmate/utils/SafeTransferLib.sol";
 import { ERC20 } from "@solmate/tokens/ERC20.sol";
 import { MainnetAddresses } from "test/resources/MainnetAddresses.sol";
-import { SwaapMainnetAddresses } from "test/resources/SwaapMainnetAddresses.sol";
+import { MainnetAddresses } from "test/resources/MainnetAddresses.sol";
 import { IChainlinkAggregator } from "src/interfaces/external/IChainlinkAggregator.sol";
 
 // Import Frequently Used Adaptors
@@ -27,7 +27,7 @@ import { Test, stdStorage, StdStorage, stdError, console } from "@forge-std/Test
 /**
  * @notice This base contract should hold the most often repeated test code.
  */
-contract SwaapMainnetStarterTest is Test, SwaapMainnetAddresses {
+contract MainnetStarterTest is Test, MainnetAddresses {
     using SafeTransferLib for ERC20;
     using Math for uint256;
     using stdStorage for StdStorage;

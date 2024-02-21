@@ -14,7 +14,7 @@ import { Owned } from "@solmate/auth/Owned.sol";
 import { FeesManager } from "src/modules/fees/FeesManager.sol";
 
 /**
- * @title Sommelier Cellar
+ * @title Swaap Cellar
  * @notice A composable ERC4626 that can use arbitrary DeFi assets/positions using adaptors.
  * @author crispymangoes
  */
@@ -31,7 +31,7 @@ contract Cellar is ERC4626, Ownable {
     /**
      * @notice The maximum amount of shares that can be in circulation.
      * @dev Can be decreased by the strategist.
-     * @dev Can be increased by Sommelier Governance.
+     * @dev Can be increased by Swaap Governance.
      */
     uint192 public shareSupplyCap;
 
@@ -112,7 +112,7 @@ contract Cellar is ERC4626, Ownable {
      * @param expectedPriceRouter The registry price router differed from the expected price router.
      * @dev `allowableRange` reverts from arithmetic underflow if it is greater than 10_000, this is
      *      desired behavior.
-     * @dev Callable by Sommelier Governance.
+     * @dev Callable by Swaap Governance.
      */
     function cachePriceRouter(
         bool checkTotalAssets,
@@ -276,7 +276,7 @@ contract Cellar is ERC4626, Ownable {
 
     /**
      * @notice Allows owner to change the holding position.
-     * @dev Callable by Sommelier Strategist.
+     * @dev Callable by Swaap Strategist.
      */
     function setHoldingPosition(uint32 positionId) public onlyOwner {
         if (!isPositionUsed[positionId]) revert Cellar__PositionNotUsed(positionId);
@@ -297,7 +297,7 @@ contract Cellar is ERC4626, Ownable {
 
     /**
      * @notice Allows Governance to add positions to this cellar's catalogue.
-     * @dev Callable by Sommelier Governance.
+     * @dev Callable by Swaap Governance.
      */
     function addPositionToCatalogue(uint32 positionId) public onlyOwner {
         // Make sure position is not paused and is trusted.
@@ -308,7 +308,7 @@ contract Cellar is ERC4626, Ownable {
 
     /**
      * @notice Allows Governance to remove positions from this cellar's catalogue.
-     * @dev Callable by Sommelier Strategist.
+     * @dev Callable by Swaap Strategist.
      */
     function removePositionFromCatalogue(uint32 positionId) external onlyOwner {
         positionCatalogue[positionId] = false;
@@ -317,7 +317,7 @@ contract Cellar is ERC4626, Ownable {
 
     /**
      * @notice Allows Governance to add adaptors to this cellar's catalogue.
-     * @dev Callable by Sommelier Governance.
+     * @dev Callable by Swaap Governance.
      */
     function addAdaptorToCatalogue(address adaptor) external onlyOwner {
         // Make sure adaptor is not paused and is trusted.
@@ -328,7 +328,7 @@ contract Cellar is ERC4626, Ownable {
 
     /**
      * @notice Allows Governance to remove adaptors from this cellar's catalogue.
-     * @dev Callable by Sommelier Strategist.
+     * @dev Callable by Swaap Strategist.
      */
     function removeAdaptorFromCatalogue(address adaptor) external onlyOwner {
         adaptorCatalogue[adaptor] = false;
@@ -340,7 +340,7 @@ contract Cellar is ERC4626, Ownable {
      * @param index index at which to insert the position
      * @param positionId id of position to add
      * @param configurationData data used to configure how the position behaves
-     * @dev Callable by Sommelier Strategist.
+     * @dev Callable by Swaap Strategist.
      */
     function addPosition(
         uint32 index,
@@ -389,7 +389,7 @@ contract Cellar is ERC4626, Ownable {
      * @notice Remove the position at a given index from the list of positions used by the cellar.
      * @dev Called by strategist.
      * @param index index at which to remove the position
-     * @dev Callable by Sommelier Strategist.
+     * @dev Callable by Swaap Strategist.
      */
     function removePosition(uint32 index, bool inDebtArray) external onlyOwner {
         // Get position being removed.
@@ -403,8 +403,8 @@ contract Cellar is ERC4626, Ownable {
     }
 
     /**
-     * @notice Allows Sommelier Governance to forceably remove a position from the Cellar without checking its balance is zero.
-     * @dev Callable by Sommelier Governance.
+     * @notice Allows Swaap Governance to forceably remove a position from the Cellar without checking its balance is zero.
+     * @dev Callable by Swaap Governance.
      */
     function forcePositionOut(uint32 index, uint32 positionId, bool inDebtArray) external onlyOwner {
         // Get position being removed.
@@ -440,7 +440,7 @@ contract Cellar is ERC4626, Ownable {
      * @param index1 index of first position to swap
      * @param index2 index of second position to swap
      * @param inDebtArray bool indicating to switch positions in the debt array, or the credit array.
-     * @dev Callable by Sommelier Strategist.
+     * @dev Callable by Swaap Strategist.
      */
     function swapPositions(uint32 index1, uint32 index2, bool inDebtArray) external onlyOwner {
         // Get the new positions that will be at each index.
@@ -513,7 +513,7 @@ contract Cellar is ERC4626, Ownable {
 
     /**
      * @notice Shutdown the cellar. Used in an emergency or if the cellar has been deprecated.
-     * @dev Callable by Sommelier Strategist.
+     * @dev Callable by Swaap Strategist.
      */
     function initiateShutdown() external onlyOwner {
         _whenNotShutdown();
@@ -524,7 +524,7 @@ contract Cellar is ERC4626, Ownable {
 
     /**
      * @notice Restart the cellar.
-     * @dev Callable by Sommelier Strategist.
+     * @dev Callable by Swaap Strategist.
      */
     function liftShutdown() external onlyOwner {
         if (!isShutdown) revert Cellar__ContractNotShutdown();
@@ -568,10 +568,7 @@ contract Cellar is ERC4626, Ownable {
     FeesManager public immutable FEES_MANAGER;
 
     /**
-     * @dev Owner should be set to the Gravity Bridge, which relays instructions from the Steward
-     *      module to the cellars.
-     *      https://github.com/PeggyJV/steward
-     *      https://github.com/cosmos/gravity-bridge/blob/main/solidity/contracts/Gravity.sol
+     * @dev Owner should be set to the ProtocolDAO
      * @param _registry address of the platform's registry contract
      * @param _asset address of underlying token used for the for accounting, depositing, and withdrawing
      * @param _name name of this cellar's share token
@@ -593,6 +590,7 @@ contract Cellar is ERC4626, Ownable {
         uint256 _initialDeposit,
         uint192 _shareSupplyCap
     ) ERC4626(_asset) ERC20(_name, _symbol, 18) Ownable() {
+        // TODO: 18 should be a const
         endPauseTimestamp = block.timestamp + DELAY_UNTIL_END_PAUSE;
         registry = _registry;
         priceRouter = PriceRouter(_registry.getAddress(PRICE_ROUTER_REGISTRY_SLOT));
@@ -610,7 +608,7 @@ contract Cellar is ERC4626, Ownable {
         // Deposit into Cellar, and mint shares to Deployer address.
         _asset.safeTransferFrom(_owner, address(this), _initialDeposit);
         // Set the share price as 1:1 * 10**(18- asset decimals) with underlying asset.
-        _ASSET_DECIMALS = uint8(_asset.decimals());
+        _ASSET_DECIMALS = uint8(_asset.decimals()); // TODO: handle when asset decimals > 18
         _mint(msg.sender, _initialDeposit * (10 ** (18 - _ASSET_DECIMALS)));
         // Deposit _initialDeposit into holding position.
         _depositTo(_holdingPosition, _initialDeposit);
@@ -1187,7 +1185,7 @@ contract Cellar is ERC4626, Ownable {
      * @notice Set the Automation Actions contract.
      * @param _registryId Registry Id to get the automation action.
      * @param _expectedAutomationActions The registry automation actions differed from the expected automation actions.
-     * @dev Callable by Sommelier Governance.
+     * @dev Callable by Swaap Governance.
      */
     function setAutomationActions(uint256 _registryId, address _expectedAutomationActions) external onlyOwner {
         _checkRegistryAddressAgainstExpected(_registryId, _expectedAutomationActions);
@@ -1245,7 +1243,7 @@ contract Cellar is ERC4626, Ownable {
     /**
      * @notice Allows governance to change this cellars rebalance deviation.
      * @param newDeviation the new rebalance deviation value.
-     * @dev Callable by Sommelier Governance.
+     * @dev Callable by Swaap Governance.
      */
     function setRebalanceDeviation(uint256 newDeviation) external onlyOwner {
         if (newDeviation > MAX_REBALANCE_DEVIATION)
@@ -1296,8 +1294,8 @@ contract Cellar is ERC4626, Ownable {
      *      - adaptors must be set up to be used with this cellar
      * @dev Since `totalAssets` is allowed to deviate slightly, strategists could abuse this by sending
      *      multiple `callOnAdaptor` calls rapidly, to gradually change the share price.
-     *      To mitigate this, rate limiting will be put in place on the Sommelier side.
-     * @dev Callable by Sommelier Strategist, and Automation Actions contract.
+     *      To mitigate this, rate limiting will be put in place on the Swaap side.
+     * @dev Callable by Swaap Strategist, and Automation Actions contract.
      */
     function callOnAdaptor(AdaptorCall[] calldata data) external virtual nonReentrant {
         if (msg.sender != owner() && msg.sender != automationActions) revert Cellar__CallerNotApprovedToRebalance();
@@ -1340,7 +1338,7 @@ contract Cellar is ERC4626, Ownable {
 
     /**
      * @notice Increases the share supply cap.
-     * @dev Callable by Sommelier Governance.
+     * @dev Callable by Swaap Governance.
      */
     function setShareSupplyCap(uint192 _newShareSupplyCap) public onlyOwner {
         shareSupplyCap = _newShareSupplyCap;

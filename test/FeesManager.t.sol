@@ -2,7 +2,7 @@
 pragma solidity 0.8.21;
 
 import { ReentrancyERC4626 } from "src/mocks/ReentrancyERC4626.sol";
-import { CellarAdaptor } from "src/modules/adaptors/Sommelier/CellarAdaptor.sol";
+import { CellarAdaptor } from "src/modules/adaptors/Swaap/CellarAdaptor.sol";
 import { ERC20DebtAdaptor } from "src/mocks/ERC20DebtAdaptor.sol";
 import { MockDataFeed } from "src/mocks/MockDataFeed.sol";
 import { MockCellar } from "src/mocks/MockCellar.sol";
@@ -42,6 +42,8 @@ contract FeesManagerTest is MainnetStarterTest, AdaptorHelperFunctions {
 
     uint256 private initialAssets;
     uint256 private initialShares;
+
+    uint256 assetToSharesDecimalsFactor = 10 ** 12;
 
     function setUp() external {
         // Setup forked environment.
@@ -559,10 +561,10 @@ contract FeesManagerTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         assertEq(cellar.balanceOf(address(feesManager)), 0, "Fees manager should not receive the exit fees.");
 
-        assertApproxEqAbs(
+        assertApproxEqRel(
             initialShares - cellar.balanceOf(address(this)),
             (burnedSharesWithNoFees * (_ONE_HUNDRED_PERCENT + exitFees)) / _ONE_HUNDRED_PERCENT,
-            1,
+            1e12,
             "Withdraw should burn the correct amount of shares to the user when exit fees are on."
         );
     }

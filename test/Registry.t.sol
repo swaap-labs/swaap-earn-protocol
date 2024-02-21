@@ -20,7 +20,7 @@ contract RegistryTest is MainnetStarterTest, AdaptorHelperFunctions {
         // Run Starter setUp code.
         _setUp();
 
-        registry.setAddress(0, gravityBridgeAddress);
+        registry.setAddress(0, protocolDAOAddress);
         registry.setAddress(1, swapRouter);
         registry.setAddress(2, address(priceRouter));
 
@@ -36,7 +36,7 @@ contract RegistryTest is MainnetStarterTest, AdaptorHelperFunctions {
     // ========================================= INITIALIZATION TEST =========================================
 
     function testInitialization() external {
-        assertEq(registry.getAddress(0), gravityBridgeAddress, "Should initialize gravity bridge");
+        assertEq(registry.getAddress(0), protocolDAOAddress, "Should initialize protocolDAO");
         assertEq(registry.getAddress(1), swapRouter, "Should initialize swap router");
         assertEq(registry.getAddress(2), address(priceRouter), "Should initialize price router");
         assertEq(registry.nextId(), 3, "Should have incremented ID");
@@ -68,7 +68,7 @@ contract RegistryTest is MainnetStarterTest, AdaptorHelperFunctions {
         registry.setAddress(0, address(this));
 
         // But it can be set by the current Zero Id.
-        vm.prank(gravityBridgeAddress);
+        vm.prank(protocolDAOAddress);
         registry.setAddress(0, address(this));
     }
 
@@ -135,13 +135,13 @@ contract RegistryTest is MainnetStarterTest, AdaptorHelperFunctions {
         // Current owner has been misbehaving, so governance wants to kick them out.
 
         // Governance accidentally passes in zero address for new owner.
-        vm.startPrank(gravityBridgeAddress);
+        vm.startPrank(protocolDAOAddress);
         vm.expectRevert(bytes(abi.encodeWithSelector(Registry.Registry__NewOwnerCanNotBeZero.selector)));
         registry.transitionOwner(address(0));
         vm.stopPrank();
 
         // Governance actually uses the right address.
-        vm.prank(gravityBridgeAddress);
+        vm.prank(protocolDAOAddress);
         registry.transitionOwner(newOwner);
 
         // Old owner tries to call onlyOwner functions.
@@ -170,12 +170,12 @@ contract RegistryTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         address doug = vm.addr(13);
         // Governance decides to recover ownership and transfer it to doug.
-        vm.prank(gravityBridgeAddress);
+        vm.prank(protocolDAOAddress);
         registry.transitionOwner(doug);
 
         // Half way through transition governance learns doug is evil, so they cancel the transition.
         vm.warp(block.timestamp + registry.TRANSITION_PERIOD() / 2);
-        vm.prank(gravityBridgeAddress);
+        vm.prank(protocolDAOAddress);
         registry.cancelTransition();
 
         // doug still tries to claim ownership.
@@ -186,14 +186,14 @@ contract RegistryTest is MainnetStarterTest, AdaptorHelperFunctions {
         vm.stopPrank();
 
         // Governance accidentally calls cancel transition again, but call reverts.
-        vm.startPrank(gravityBridgeAddress);
+        vm.startPrank(protocolDAOAddress);
         vm.expectRevert(bytes(abi.encodeWithSelector(Registry.Registry__TransitionNotPending.selector)));
         registry.cancelTransition();
         vm.stopPrank();
 
         // Governance finds the best owner and starts the process.
         address bestOwner = vm.addr(7777);
-        vm.prank(gravityBridgeAddress);
+        vm.prank(protocolDAOAddress);
         registry.transitionOwner(bestOwner);
 
         // New owner waits an extra week.
@@ -205,13 +205,13 @@ contract RegistryTest is MainnetStarterTest, AdaptorHelperFunctions {
         assertEq(registry.owner(), bestOwner, "Registry should be owned by best owner.");
 
         // Governance starts another ownership transfer back to doug.
-        vm.prank(gravityBridgeAddress);
+        vm.prank(protocolDAOAddress);
         registry.transitionOwner(doug);
 
         vm.warp(block.timestamp + 2 * registry.TRANSITION_PERIOD());
 
         // Doug still has not completed the transfer, so Governance decides to cancel it.
-        vm.prank(gravityBridgeAddress);
+        vm.prank(protocolDAOAddress);
         registry.cancelTransition();
 
         // Doug tries completing it.
