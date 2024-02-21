@@ -60,6 +60,22 @@ contract FeesManager {
         uint256 protocolPayout
     );
 
+    /**
+     * @notice Emitted when management fees are claimed.
+     * @param cellar the cellar that had management fees claimed
+     * @param fees the amount of management fees claimed
+     * @param timestamp the time the fees were claimed
+     */
+    event ManagementFeesClaimed(address indexed cellar, uint256 fees, uint256 timestamp);
+
+    /**
+     * @notice Emitted when performance fees are claimed.
+     * @param cellar the cellar that had performance fees claimed
+     * @param fees the amount of performance fees claimed
+     * @param timestamp the time the fees were claimed
+     */
+    event PerformanceFeesClaimed(address indexed cellar, uint256 fees, uint256 highWaterMarkPrice, uint256 timestamp);
+
     // =============================================== ERRORS ===============================================
 
     /// @notice Throws when the caller is not the cellar owner.
@@ -170,10 +186,12 @@ contract FeesManager {
 
         if (managementFees > 0) {
             feeData.previousManagementFeesClaimTime = uint40(block.timestamp);
+            emit ManagementFeesClaimed(msg.sender, managementFees, block.timestamp);
         }
 
         if (performanceFees > 0) {
             feeData.highWaterMarkPrice = uint72(highWaterMarkPrice);
+            emit PerformanceFeesClaimed(msg.sender, performanceFees, highWaterMarkPrice, block.timestamp);
         }
 
         uint16 enterOrExitFeesRate = isEntering ? feeData.enterFeesRate : feeData.exitFeesRate;
