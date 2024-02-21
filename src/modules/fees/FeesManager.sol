@@ -263,12 +263,13 @@ contract FeesManager {
 
         // Send the strategist's cut
         uint256 strategistPayout = totalFees.mulDivUp(strategistPlatformCut, Math.WAD);
+        strategistPayout = strategistPayout > totalFees ? totalFees : strategistPayout;
         if (strategistPayout > 0) {
             ERC20(cellar).safeTransfer(strategistPayoutAddress, strategistPayout);
         }
 
         // Send the protocol's cut
-        uint256 protocolPayout = strategistPayout > totalFees ? 0 : totalFees - strategistPayout;
+        uint256 protocolPayout = totalFees - strategistPayout;
         if (protocolPayout > 0) {
             ERC20(cellar).safeTransfer(protocolPayoutAddress, protocolPayout);
         }
