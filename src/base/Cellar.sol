@@ -849,11 +849,11 @@ contract Cellar is ERC4626, Ownable {
             return assetsOrShares;
         }
 
-        uint256 factor = increase
-            ? _BPS_ONE_HUNDRED_PER_CENT + enterOrExitFeeRate
-            : _BPS_ONE_HUNDRED_PER_CENT - enterOrExitFeeRate;
+        if (increase) {
+            return assetsOrShares.mulDivUp(_BPS_ONE_HUNDRED_PER_CENT + enterOrExitFeeRate, _BPS_ONE_HUNDRED_PER_CENT);
+        }
 
-        return assetsOrShares.mulDivDown(factor, _BPS_ONE_HUNDRED_PER_CENT);
+        return assetsOrShares.mulDivDown(_BPS_ONE_HUNDRED_PER_CENT - enterOrExitFeeRate, _BPS_ONE_HUNDRED_PER_CENT);
     }
 
     /**
