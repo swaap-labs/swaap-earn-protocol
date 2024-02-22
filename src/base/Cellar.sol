@@ -836,15 +836,15 @@ contract Cellar is ERC4626, Ownable {
             return (0, _totalSupply);
         }
 
-        (uint16 _enterOrExitFeesRate, uint256 _sharesAsFees) = FEES_MANAGER.applyFeesBeforeJoinExit(
+        (uint16 _enterOrExitFeesRate, uint256 _feesAsShares) = FEES_MANAGER.applyFeesBeforeJoinExit(
             _totalAssets,
             _totalSupply,
             _isEntering
         );
 
-        if (_sharesAsFees > 0) {
-            _mint(address(FEES_MANAGER), _sharesAsFees);
-            _totalSupply += _sharesAsFees;
+        if (_feesAsShares > 0) {
+            _mint(address(FEES_MANAGER), _feesAsShares);
+            _totalSupply += _feesAsShares;
         }
 
         return (_enterOrExitFeesRate, _totalSupply);
