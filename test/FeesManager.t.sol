@@ -781,7 +781,6 @@ contract FeesManagerTest is MainnetStarterTest, AdaptorHelperFunctions {
         uint16 exitFees = uint16(_ONE_HUNDRED_PERCENT / 100); // 1%
 
         uint256 assetsToWithdraw = initialAssets / 3;
-        uint256 burnedSharesWithNoFees = initialShares / 3;
         // giving shares ownership to the user
         deal(address(cellar), address(this), initialShares);
 
@@ -812,8 +811,9 @@ contract FeesManagerTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         assertApproxEqRel(
             initialShares - cellar.balanceOf(address(this)),
-            (burnedSharesWithNoFees * (_ONE_HUNDRED_PERCENT + exitFees)) / _ONE_HUNDRED_PERCENT,
-            1e12,
+            (((assetsToWithdraw * initialShares) / initialAssets) * (_ONE_HUNDRED_PERCENT + exitFees)) /
+                _ONE_HUNDRED_PERCENT,
+            1e1,
             "Withdraw should burn the correct amount of shares to the user when exit fees are on."
         );
     }
