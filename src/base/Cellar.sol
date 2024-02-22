@@ -550,6 +550,8 @@ contract Cellar is ERC4626, Ownable {
      */
     uint256 internal constant MINIMUM_CONSTRUCTOR_MINT = 1e4;
 
+    uint8 internal constant _CELLAR_DECIMALS = 18;
+
     /**
      * @notice Attempted to deploy contract without minting enough shares.
      */
@@ -589,8 +591,7 @@ contract Cellar is ERC4626, Ownable {
         bytes memory _holdingPositionConfig,
         uint256 _initialDeposit,
         uint192 _shareSupplyCap
-    ) ERC4626(_asset) ERC20(_name, _symbol, 18) Ownable() {
-        // TODO: 18 should be a const
+    ) ERC4626(_asset) ERC20(_name, _symbol, _CELLAR_DECIMALS) Ownable() {
         endPauseTimestamp = block.timestamp + DELAY_UNTIL_END_PAUSE;
         registry = _registry;
         priceRouter = PriceRouter(_registry.getAddress(PRICE_ROUTER_REGISTRY_SLOT));
@@ -607,9 +608,9 @@ contract Cellar is ERC4626, Ownable {
 
         // Deposit into Cellar, and mint shares to Deployer address.
         _asset.safeTransferFrom(_owner, address(this), _initialDeposit);
-        // Set the share price as 1:1 * 10**(18- asset decimals) with underlying asset.
-        _ASSET_DECIMALS = uint8(_asset.decimals()); // TODO: handle when asset decimals > 18
-        _mint(msg.sender, _initialDeposit * (10 ** (18 - _ASSET_DECIMALS)));
+        // Set the share price as 1:1 * 10**(cellar.decimals - asset.decimals) with underlying asset.
+        _ASSET_DECIMALS = _asset.decimals(); // reverts if asset decimals > cellar decimals
+        _mint(msg.sender, _initialDeposit * (10 ** (_CELLAR_DECIMALS - _ASSET_DECIMALS)));
         // Deposit _initialDeposit into holding position.
         _depositTo(_holdingPosition, _initialDeposit);
 
