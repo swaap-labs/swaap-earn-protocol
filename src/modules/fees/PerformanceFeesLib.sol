@@ -15,7 +15,7 @@ library PerformanceFeesLib {
      * @param totalSupply The total supply of shares
      * @param highWatermarkPrice The high watermark share price (in 18 decimals)
      * @param performanceFeesRate The performance fees rate (in 18 decimals)
-     * @return sharesAsFees The shares that should be minted as fees
+     * @return feesAsShares The shares that should be minted as fees
      * @return highWaternarmPrice The updated high watermark price
      */
     function _calcPerformanceFees(
@@ -49,16 +49,11 @@ library PerformanceFeesLib {
             assetsIncrease = totalAssets - highWatermarkTotalAssets;
         }
 
-        // the ownership that the protocol must have to get the fees (in 18 decimals)
-        uint256 ownershipAsFees = assetsIncrease.mulDivDown(Math.WAD, totalAssets).mulDivDown(
-            performanceFeesRate,
-            Math.WAD
-        );
+        // NB: performanceFeesRate * assetsIncrease = feesAsShares / (totalSupply + feesAsShares) * totalAssets
+        uint256 foo = performanceFeesRate * assetsIncrease;
+        uint256 feesAsShares = foo.mulDivDown(totalSupply, totalAssets * Math.WAD - foo);
 
-        // the shares needed to be minted to pay the fees (in cellar token decimals)
-        uint256 sharesAsFees = totalSupply.mulDivDown(ownershipAsFees, Math.WAD - ownershipAsFees);
-
-        // it can return sharesAsFees = 0 if the price increase is too small
-        return (sharesAsFees, currentSharePrice);
+        // it can return feesAsShares = 0 if the price increase is too small
+        return (feesAsShares, currentSharePrice);
     }
 }
