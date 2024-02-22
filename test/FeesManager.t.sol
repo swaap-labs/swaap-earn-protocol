@@ -12,6 +12,7 @@ import "test/resources/MainnetStarter.t.sol";
 
 import { AdaptorHelperFunctions } from "test/resources/AdaptorHelperFunctions.sol";
 import { FeesManager } from "src/modules/fees/FeesManager.sol";
+import { MockManagementFeesLib } from "src/mocks/MockManagementFeesLib.sol";
 
 contract FeesManagerTest is MainnetStarterTest, AdaptorHelperFunctions {
     using SafeTransferLib for ERC20;
@@ -26,6 +27,7 @@ contract FeesManagerTest is MainnetStarterTest, AdaptorHelperFunctions {
     MockCellar private mockCellar;
 
     CellarAdaptor private cellarAdaptor;
+    MockManagementFeesLib private mockManagementFeesLib;
 
     MockDataFeed private mockUsdcUsd;
     MockDataFeed private mockWethUsd;
@@ -145,6 +147,216 @@ contract FeesManagerTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         initialAssets = cellar.totalAssets();
         initialShares = cellar.totalSupply();
+
+        mockManagementFeesLib = new MockManagementFeesLib();
+    }
+
+    // ===================================== FEES SETTERS TEST =====================================
+    function testRevertOnWrongFeesInputs() external {
+        FeesManager feesManager = FeesManager(cellar.FEES_MANAGER());
+
+        vm.expectRevert(FeesManager.FeesManager__InvalidFeesRate.selector);
+        feesManager.setManagementFeesPerYear(address(cellar), Math.WAD);
+
+        vm.expectRevert(FeesManager.FeesManager__InvalidFeesRate.selector);
+        feesManager.setPerformanceFees(address(cellar), Math.WAD);
+
+        vm.expectRevert(FeesManager.FeesManager__InvalidFeesRate.selector);
+        feesManager.setEnterFees(address(cellar), 10000);
+
+        vm.expectRevert(FeesManager.FeesManager__InvalidFeesRate.selector);
+        feesManager.setExitFees(address(cellar), 10000);
+
+        vm.expectRevert(FeesManager.FeesManager__InvalidFeesCut.selector);
+        feesManager.setStrategistPlatformCut(address(cellar), uint64(Math.WAD + 1));
+    }
+
+    function testRevertOnWrongCaller() external {
+        FeesManager feesManager = FeesManager(cellar.FEES_MANAGER());
+
+        // set cellar owner different than address(this)
+        address cellarOwner = address(0xa11ce);
+        cellar.transferOwnership(address(cellarOwner));
+
+        vm.expectRevert(FeesManager.FeesManager__OnlyCellarOwner.selector);
+        feesManager.setManagementFeesPerYear(address(cellar), 0);
+
+        vm.expectRevert(FeesManager.FeesManager__OnlyCellarOwner.selector);
+        feesManager.setPerformanceFees(address(cellar), 0);
+
+        vm.expectRevert(FeesManager.FeesManager__OnlyCellarOwner.selector);
+        feesManager.setEnterFees(address(cellar), 0);
+
+        vm.expectRevert(FeesManager.FeesManager__OnlyCellarOwner.selector);
+        feesManager.setExitFees(address(cellar), 0);
+
+        vm.expectRevert(FeesManager.FeesManager__OnlyCellarOwner.selector);
+        feesManager.setStrategistPlatformCut(address(cellar), 0);
+
+        vm.expectRevert(FeesManager.FeesManager__OnlyCellarOwner.selector);
+        feesManager.setStrategistPayoutAddress(address(cellar), address(this));
+
+        vm.prank(cellarOwner);
+        vm.expectRevert(FeesManager.FeesManager__OnlyRegistryOwner.selector);
+        feesManager.setProtocolPayoutAddress(cellarOwner);
+    }
+
+    function testFeesPayoutWithStrategistAddressAndCutUnset() external {
+        FeesManager feesManager = FeesManager(cellar.FEES_MANAGER());
+
+        uint256 accruedFees = initialShares / 2;
+
+        // send some shares to the fees manager to simulate already collected fees
+        deal(address(cellar), address(feesManager), accruedFees, true);
+
+        // do the payout with strategist payout and strategist cut set to 0
+        vm.prank(address(0x1)); // any address should be able to start the payout
+        feesManager.payoutFees(address(cellar));
+
+        assertEq(
+            cellar.balanceOf(address(feesManager)),
+            0,
+            "Fees manager should own 0% of the cellar after the payout."
+        );
+
+        assertEq(cellar.balanceOf(address(0)), 0, "Address(0) should own 0% of the cellar after the payout.");
+
+        assertEq(
+            cellar.balanceOf(feesManager.protocolPayoutAddress()),
+            accruedFees,
+            "Protocl should own 100% of the cellar fees after the payout."
+        );
+    }
+
+    function testFeesPayoutWithStrategistAddressUnset() external {
+        FeesManager feesManager = FeesManager(cellar.FEES_MANAGER());
+
+        uint64 strategistCut = 30e16; // 30%
+
+        feesManager.setStrategistPlatformCut(address(cellar), strategistCut);
+
+        uint256 accruedFees = initialShares / 2;
+
+        // send some shares to the fees manager to simulate already collected fees
+        deal(address(cellar), address(feesManager), accruedFees, true);
+
+        // do the payout with strategist payout and strategist cut set to 0
+        vm.prank(address(0x1)); // any address should be able to start the payout
+        feesManager.payoutFees(address(cellar));
+
+        assertEq(
+            cellar.balanceOf(address(feesManager)),
+            0,
+            "Fees manager should own 0% of the cellar after the payout."
+        );
+
+        assertEq(cellar.balanceOf(address(0)), 0, "Address(0) should own 0% of the cellar after the payout.");
+
+        assertEq(
+            cellar.balanceOf(feesManager.protocolPayoutAddress()),
+            accruedFees,
+            "Protocl should own 100% of the cellar fees after the payout."
+        );
+    }
+
+    function testFeesPayoutWithStrategistPayoutAndCutSet() external {
+        FeesManager feesManager = FeesManager(cellar.FEES_MANAGER());
+
+        uint64 strategistCut = 30e16; // 30%
+
+        address strategistPayoutAddress = address(0xa11ce);
+
+        feesManager.setStrategistPlatformCut(address(cellar), strategistCut);
+        feesManager.setStrategistPayoutAddress(address(cellar), strategistPayoutAddress);
+
+        uint256 accruedFees = initialShares / 2;
+
+        // send some shares to the fees manager to simulate already collected fees
+        deal(address(cellar), address(feesManager), accruedFees, true);
+
+        // do the payout with strategist payout and strategist cut set to 0
+        vm.prank(address(0x1)); // any address should be able to start the payout
+        feesManager.payoutFees(address(cellar));
+
+        assertEq(
+            cellar.balanceOf(address(feesManager)),
+            0,
+            "Fees manager should own 0% of the cellar after the payout."
+        );
+
+        assertEq(cellar.balanceOf(address(0)), 0, "Address(0) should own 0% of the cellar after the payout.");
+
+        uint256 expectedStrategistPayout = accruedFees.mulDivUp(strategistCut, Math.WAD);
+
+        assertEq(
+            cellar.balanceOf(strategistPayoutAddress),
+            expectedStrategistPayout,
+            "Strategist should own 30% of the cellar fees after the payout."
+        );
+
+        assertEq(
+            cellar.balanceOf(feesManager.protocolPayoutAddress()),
+            accruedFees - expectedStrategistPayout,
+            "Protocl should own 70% of the cellar fees after the payout."
+        );
+    }
+
+    function testUpdateFeesRatesCorrectly() external {
+        FeesManager feesManager = FeesManager(cellar.FEES_MANAGER());
+
+        FeesManager.FeesData memory expectedFeesData = FeesManager.FeesData(
+            {
+                enterFeesRate: 0, // in bps (max value = 10000)
+                exitFeesRate: 0, // in bps (max value = 10000)
+                previousManagementFeesClaimTime: 0, // last management fees claim time
+                managementFeesRate: 0,
+                performanceFeesRate: 0,
+                highWaterMarkPrice: 0,
+                highWaterMarkResetTime: 0, // the owner can choose to reset the high watermark (at most every HIGH_WATERMARK_RESET_INTERVAL)
+                strategistPlatformCut: 0, // the platform cut for the strategist in 18 decimals
+                strategistPayoutAddress: address(0)
+            }
+        );
+        
+        address expectedProtocolPayoutAddress = registry.owner();
+
+        _assertEqFeesData(feesManager.getCellarFeesData(address(cellar)), expectedFeesData, feesManager.protocolPayoutAddress(), expectedProtocolPayoutAddress);
+
+        // setters work well
+        feesManager.setManagementFeesPerYear(address(cellar), 2.5e16);
+        expectedFeesData.managementFeesRate = uint48(mockManagementFeesLib.calcYearlyRate(2.5e16));
+        expectedFeesData.previousManagementFeesClaimTime = uint40(block.timestamp);
+
+        _assertEqFeesData(feesManager.getCellarFeesData(address(cellar)), expectedFeesData, feesManager.protocolPayoutAddress(), expectedProtocolPayoutAddress);
+
+        feesManager.setPerformanceFees(address(cellar), 12e15);
+        expectedFeesData.performanceFeesRate = 12e15;
+        expectedFeesData.highWaterMarkPrice = uint72(cellar.totalAssets().mulDivDown(Math.WAD, cellar.totalSupply()));
+        _assertEqFeesData(feesManager.getCellarFeesData(address(cellar)), expectedFeesData, feesManager.protocolPayoutAddress(), expectedProtocolPayoutAddress);
+
+        feesManager.setEnterFees(address(cellar), 6);
+        expectedFeesData.enterFeesRate = 6;
+        _assertEqFeesData(feesManager.getCellarFeesData(address(cellar)), expectedFeesData, feesManager.protocolPayoutAddress(), expectedProtocolPayoutAddress);
+
+
+        feesManager.setExitFees(address(cellar), 7);
+        expectedFeesData.exitFeesRate = 7;
+        _assertEqFeesData(feesManager.getCellarFeesData(address(cellar)), expectedFeesData, feesManager.protocolPayoutAddress(), expectedProtocolPayoutAddress);
+
+        feesManager.setStrategistPlatformCut(address(cellar), 30e16);
+        expectedFeesData.strategistPlatformCut = 30e16;
+
+        _assertEqFeesData(feesManager.getCellarFeesData(address(cellar)), expectedFeesData, feesManager.protocolPayoutAddress(), expectedProtocolPayoutAddress);
+
+        feesManager.setStrategistPayoutAddress(address(cellar), address(0x0a11ce));
+        expectedFeesData.strategistPayoutAddress = address(0x0a11ce);
+
+        _assertEqFeesData(feesManager.getCellarFeesData(address(cellar)), expectedFeesData, feesManager.protocolPayoutAddress(), expectedProtocolPayoutAddress);
+
+        address newPayoutAddress = address(0xb0b);
+        feesManager.setProtocolPayoutAddress(newPayoutAddress);
+
+        _assertEqFeesData(feesManager.getCellarFeesData(address(cellar)), expectedFeesData, newPayoutAddress, newPayoutAddress);
     }
 
     // ========================================= FEES TEST =========================================
@@ -574,5 +786,19 @@ contract FeesManagerTest is MainnetStarterTest, AdaptorHelperFunctions {
         mockUsdcUsd.setMockUpdatedAt(block.timestamp);
         mockWethUsd.setMockUpdatedAt(block.timestamp);
         mockWbtcUsd.setMockUpdatedAt(block.timestamp);
+    }
+
+    function _assertEqFeesData(FeesManager.FeesData memory data, FeesManager.FeesData memory expectedData, address protocolPayoutAddress, address expectedProtocolPayoutAddress) internal {
+        assertEq(data.enterFeesRate, expectedData.enterFeesRate, "Enter fees does not match with expected.");
+        assertEq(data.exitFeesRate, expectedData.exitFeesRate, "Exit fees does not match with expected.");
+        assertEq(data.previousManagementFeesClaimTime, expectedData.previousManagementFeesClaimTime, "Previous management fees claim time does not match with expected.");
+        assertEq(data.managementFeesRate, expectedData.managementFeesRate, "Management fees does not match with expected.");
+        assertEq(data.highWaterMarkPrice, expectedData.highWaterMarkPrice, "High watermark price does not match with expected.");
+        assertEq(data.performanceFeesRate, expectedData.performanceFeesRate, "Performance fees does not match with expected.");
+        assertEq(data.highWaterMarkResetTime, expectedData.highWaterMarkResetTime, "Watermark reset time does not match with expected.");
+        assertEq(data.strategistPlatformCut, expectedData.strategistPlatformCut, "Strategist platform cut is not set correctly.");
+        assertEq(data.strategistPayoutAddress, expectedData.strategistPayoutAddress, "Strategist payout address is not set correctly.");
+        assertEq(protocolPayoutAddress, expectedProtocolPayoutAddress, "Protocol payout address is not set correctly.");
+
     }
 }
