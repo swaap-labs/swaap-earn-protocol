@@ -51,17 +51,31 @@ contract FeesManager {
      * @notice Emitted when management fees are claimed.
      * @param cellar the cellar that had management fees claimed
      * @param fees the amount of management fees claimed
-     * @param timestamp the time the fees were claimed
      */
-    event ManagementFeesClaimed(address indexed cellar, uint256 fees, uint256 timestamp);
+    event ManagementFeesClaimed(address indexed cellar, uint256 fees);
+
+    /**
+     * @notice Emitted when management fees rate is updated.
+     * @param cellar the cellar that had management fees rate updated
+     * @param managementFeesPerYear the new management fees yearly fees (1e18 = 100% per year)
+     * @param managementFeesRate the new management fees rate
+     */
+    event ManagementFeesRateUpdated(address indexed cellar, uint256 managementFeesPerYear, uint256 managementFeesRate);
 
     /**
      * @notice Emitted when performance fees are claimed.
      * @param cellar the cellar that had performance fees claimed
      * @param fees the amount of performance fees claimed
-     * @param timestamp the time the fees were claimed
      */
-    event PerformanceFeesClaimed(address indexed cellar, uint256 fees, uint256 highWaterMarkPrice, uint256 timestamp);
+    event PerformanceFeesClaimed(address indexed cellar, uint256 fees, uint256 highWaterMarkPrice);
+
+    /**
+     * @notice Emitted when performance fees rate is updated.
+     * @param cellar the cellar that had performance fees rate updated
+     * @param performanceFeesRate the new performance fees rate
+     * @param highWaterMarkPrice the high watermark price at the time of the update
+     */
+    event PerformanceFeesRateUpdated(address indexed cellar, uint256 performanceFeesRate, uint256 highWaterMarkPrice);
 
     // =============================================== ERRORS ===============================================
 
@@ -216,12 +230,12 @@ contract FeesManager {
 
         if (managementFees > 0) {
             feeData.previousManagementFeesClaimTime = uint40(block.timestamp);
-            emit ManagementFeesClaimed(msg.sender, managementFees, block.timestamp);
+            emit ManagementFeesClaimed(msg.sender, managementFees);
         }
 
         if (performanceFees > 0) {
             feeData.highWaterMarkPrice = uint72(highWaterMarkPrice);
-            emit PerformanceFeesClaimed(msg.sender, performanceFees, highWaterMarkPrice, block.timestamp);
+            emit PerformanceFeesClaimed(msg.sender, performanceFees, highWaterMarkPrice);
         }
 
         return (enterOrExitFeesRate, performanceFees + managementFees);
@@ -351,10 +365,17 @@ contract FeesManager {
     function setManagementFeesPerYear(address cellar, uint256 managementFeesPerYear) external onlyCellarOwner(cellar) {
         if (managementFeesPerYear > MAX_MANAGEMENT_FEES) revert FeesManager__InvalidFeesRate();
 
-        // TODO claim pending fees before changing the rate
+        Cellar(cellar).collectFees(); // collectFees is nonReetrant, which makes setManagementFeesPerYear nonReetrant
+
         FeesData storage feeData = cellarFeesData[cellar];
-        feeData.managementFeesRate = uint48(ManagementFeesLib._calcYearlyRate(managementFeesPerYear));
+        uint256 managementFeesRate = ManagementFeesLib._calcYearlyRate(managementFeesPerYear);
+        feeData.managementFeesRate = uint48(managementFeesRate);
+
+        // the management fees time is not guaranteed to be updated when collecting fees if the fees are 0
+        // so we update it here to make sure it's always up to date when changing the rate
         feeData.previousManagementFeesClaimTime = uint40(block.timestamp);
+
+        emit ManagementFeesRateUpdated(cellar, managementFeesPerYear, managementFeesRate);
     }
 
     /**
@@ -367,15 +388,27 @@ contract FeesManager {
 
         FeesData storage feeData = cellarFeesData[cellar];
 
-        // TODO claim pending fees before changing the rate
-        feeData.performanceFeesRate = uint64(performanceFeesRate);
+        // if the high watermark is not set, set it and do not collect fees potential pending management fees
+        // as the function is most likely called during the setup of the cellar.
         if (feeData.highWaterMarkPrice == 0) {
+            feeData.performanceFeesRate = uint64(performanceFeesRate);
             // initialize the high watermark
             // note that the cellar will revert if we are calling totalAssets() when it's locked (nonReentrantView)
-            cellarFeesData[cellar].highWaterMarkPrice = uint72(
-                PerformanceFeesLib._calcSharePrice(Cellar(cellar).totalAssets(), Cellar(cellar).totalSupply())
+            uint256 highWaterMarkPrice = PerformanceFeesLib._calcSharePrice(
+                Cellar(cellar).totalAssets(),
+                Cellar(cellar).totalSupply()
             );
+            cellarFeesData[cellar].highWaterMarkPrice = uint72(highWaterMarkPrice);
+
+            emit PerformanceFeesRateUpdated(cellar, performanceFeesRate, highWaterMarkPrice);
+            return;
         }
+
+        // collect fees before updating the rate
+        Cellar(cellar).collectFees(); // collectFees is nonReetrant, which makes setPerformanceFees nonReetrant
+
+        emit PerformanceFeesRateUpdated(cellar, performanceFeesRate, feeData.highWaterMarkPrice);
+        feeData.performanceFeesRate = uint64(performanceFeesRate);
     }
 
     /**

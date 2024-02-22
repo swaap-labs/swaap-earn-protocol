@@ -396,6 +396,75 @@ contract FeesManagerTest is MainnetStarterTest, AdaptorHelperFunctions {
         );
     }
 
+    function testCollectFeesWhenSettingManagementFees() external {
+        FeesManager feesManager = FeesManager(cellar.FEES_MANAGER());
+
+        uint256 oldManagementFeesPerYear = Math.WAD / 100; // 1%
+
+        feesManager.setManagementFeesPerYear(address(cellar), oldManagementFeesPerYear); // 1%
+
+        assertEq(
+            cellar.balanceOf(address(feesManager)),
+            0,
+            "Fees manager should own 0% of the total supply when setting the management fees initially."
+        );
+
+        _moveForwardAndUpdateOracle(365 days);
+
+        // set management fees differently from old value for the test
+        uint256 newManagementFeesPerYear = oldManagementFeesPerYear * 2;
+        feesManager.setManagementFeesPerYear(address(cellar), newManagementFeesPerYear); // 1%
+
+        uint256 expectedSharesReceived = (initialShares * oldManagementFeesPerYear) /
+            (Math.WAD - oldManagementFeesPerYear);
+
+        assertApproxEqRel(
+            cellar.balanceOf(address(feesManager)),
+            expectedSharesReceived,
+            1e12,
+            "Fees manager should own 1% of the total supply after collecting fees."
+        );
+
+        assertApproxEqRel(
+            (cellar.balanceOf(address(feesManager)) * Math.WAD) / cellar.totalSupply(),
+            oldManagementFeesPerYear,
+            1e12,
+            "Fees manager should own 1% of the total supply after collecting fees."
+        );
+    }
+
+    function testCollectFeesWhenSettingPerformanceFees() external {
+        FeesManager feesManager = FeesManager(cellar.FEES_MANAGER());
+
+        uint256 oldPerformanceFees = Math.WAD / 10; // 10%
+
+        feesManager.setPerformanceFees(address(cellar), oldPerformanceFees); // 1%
+
+        assertEq(
+            cellar.balanceOf(address(feesManager)),
+            0,
+            "Fees manager should own 0% of the total supply when setting the performance fees initially."
+        );
+
+        // set performance to 30%
+        uint256 performance = 30e16;
+        deal(address(cellar.asset()), address(cellar), initialAssets + initialAssets.mulDivDown(performance, Math.WAD));
+
+        // set performanceFees differently from old value for the test
+        uint256 newPerformanceFees = 20e16; // 20%
+
+        feesManager.setPerformanceFees(address(cellar), newPerformanceFees); // 1%
+
+        uint256 expectedAssetsReceived = (initialAssets * performance * oldPerformanceFees) / Math.WAD / Math.WAD;
+
+        assertApproxEqAbs(
+            cellar.maxWithdraw(address(feesManager)),
+            expectedAssetsReceived,
+            1,
+            "Fees manager should own the correct amount of assets after resetting the performance fees."
+        );
+    }
+
     // ========================================= FEES TEST =========================================
     function testCollectFeesFromCellar() external {
         FeesManager feesManager = FeesManager(cellar.FEES_MANAGER());
