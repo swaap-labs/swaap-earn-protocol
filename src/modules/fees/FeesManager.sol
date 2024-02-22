@@ -159,7 +159,7 @@ contract FeesManager {
      * @param totalAssets total assets in the cellar
      * @param totalSupply total shares in the cellar
      * @return enterOrExitFeesRate enter or exit fees rate
-     * @return mintSharesAsFees minted shares to be used as fees
+     * @return mintFeesAsShares minted shares to be used as fees
      */
     function applyFeesBeforeJoinExit(
         uint256 totalAssets,
@@ -186,9 +186,9 @@ contract FeesManager {
 
         uint16 enterOrExitFeesRate = isEntering ? feeData.enterFeesRate : feeData.exitFeesRate;
 
-        uint256 mintSharesAsFees = performanceFees + managementFees;
+        uint256 mintFeesAsShares = performanceFees + managementFees;
 
-        return (enterOrExitFeesRate, mintSharesAsFees);
+        return (enterOrExitFeesRate, mintFeesAsShares);
     }
 
     /**
