@@ -77,6 +77,9 @@ contract FeesManager {
     /// @notice Throws when the fees are above authorized limit.
     error FeesManager__InvalidFeesRate();
 
+    /// @notice Throws when the protocol payout address is invalid.
+    error FeesManager__InvalidProtocolPayoutAddress();
+
     // =============================================== CONSTANTS ===============================================
 
     /// @notice Sets the max possible fee cut for cellars.
@@ -130,7 +133,7 @@ contract FeesManager {
 
     constructor(address _registry, address _protocolPayoutAddress) {
         registry = Registry(_registry);
-        protocolPayoutAddress = _protocolPayoutAddress;
+        _setProtocolPayoutAddress(_protocolPayoutAddress);
     }
 
     struct FeesData {
@@ -244,13 +247,13 @@ contract FeesManager {
 
         // if the strategist payout address is not set, the strategist doesn't get any fees
         address strategistPayoutAddress = feeData.strategistPayoutAddress;
-        uint256 strategistPlatformCut = strategistPayoutAddress == address(0)
+        uint256 strategistPayout = strategistPayoutAddress == address(0)
             ? 0
-            : (totalFees * feeData.strategistPlatformCut) / 1e18;
+            : (totalFees.mulDivUp(feeData.strategistPlatformCut, Math.WAD));
+
+        strategistPayout = strategistPayout > totalFees ? totalFees : strategistPayout;
 
         // Send the strategist's cut
-        uint256 strategistPayout = totalFees.mulDivUp(strategistPlatformCut, Math.WAD);
-        strategistPayout = strategistPayout > totalFees ? totalFees : strategistPayout;
         if (strategistPayout > 0) {
             ERC20(cellar).safeTransfer(strategistPayoutAddress, strategistPayout);
         }
@@ -265,15 +268,19 @@ contract FeesManager {
     }
 
     function setProtocolPayoutAddress(address newPayoutAddress) external onlyRegistryOwner {
+        _setProtocolPayoutAddress(newPayoutAddress);
+    }
+
+    function _setProtocolPayoutAddress(address newPayoutAddress) internal {
+        if (newPayoutAddress == address(0)) revert FeesManager__InvalidProtocolPayoutAddress();
         emit ProtocolPayoutAddressChanged(newPayoutAddress);
-        // no need to check if the address is not valid, the owner can set it to any address
         protocolPayoutAddress = newPayoutAddress;
     }
 
     /**
      * @notice Sets the Strategists payout address
      * @param newPayoutAddress the new strategist payout address
-     * @dev Callable by Swaap Strategist.
+     * @dev Callable by Sommelier Strategist.
      */
     function setStrategistPayoutAddress(address cellar, address newPayoutAddress) external onlyCellarOwner(cellar) {
         emit StrategistPayoutAddressChanged(newPayoutAddress);
@@ -287,7 +294,7 @@ contract FeesManager {
     /**
      * @notice Sets the Strategists cut of platform fees
      * @param cut the platform cut for the strategist
-     * @dev Callable by Swaap Governance.
+     * @dev Callable by Sommelier Governance.
      */
     function setStrategistPlatformCut(address cellar, uint64 cut) external onlyCellarOwner(cellar) {
         if (cut > MAX_FEE_CUT) revert FeesManager__InvalidFeesCut();
