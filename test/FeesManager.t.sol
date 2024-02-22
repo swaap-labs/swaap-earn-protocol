@@ -304,59 +304,96 @@ contract FeesManagerTest is MainnetStarterTest, AdaptorHelperFunctions {
     function testUpdateFeesRatesCorrectly() external {
         FeesManager feesManager = FeesManager(cellar.FEES_MANAGER());
 
-        FeesManager.FeesData memory expectedFeesData = FeesManager.FeesData(
-            {
-                enterFeesRate: 0, // in bps (max value = 10000)
-                exitFeesRate: 0, // in bps (max value = 10000)
-                previousManagementFeesClaimTime: 0, // last management fees claim time
-                managementFeesRate: 0,
-                performanceFeesRate: 0,
-                highWaterMarkPrice: 0,
-                highWaterMarkResetTime: 0, // the owner can choose to reset the high watermark (at most every HIGH_WATERMARK_RESET_INTERVAL)
-                strategistPlatformCut: 0, // the platform cut for the strategist in 18 decimals
-                strategistPayoutAddress: address(0)
-            }
-        );
-        
+        FeesManager.FeesData memory expectedFeesData = FeesManager.FeesData({
+            enterFeesRate: 0, // in bps (max value = 10000)
+            exitFeesRate: 0, // in bps (max value = 10000)
+            previousManagementFeesClaimTime: 0, // last management fees claim time
+            managementFeesRate: 0,
+            performanceFeesRate: 0,
+            highWaterMarkPrice: 0,
+            highWaterMarkResetTime: 0, // the owner can choose to reset the high watermark (at most every HIGH_WATERMARK_RESET_INTERVAL)
+            strategistPlatformCut: 0, // the platform cut for the strategist in 18 decimals
+            strategistPayoutAddress: address(0)
+        });
+
         address expectedProtocolPayoutAddress = registry.owner();
 
-        _assertEqFeesData(feesManager.getCellarFeesData(address(cellar)), expectedFeesData, feesManager.protocolPayoutAddress(), expectedProtocolPayoutAddress);
+        _assertEqFeesData(
+            feesManager.getCellarFeesData(address(cellar)),
+            expectedFeesData,
+            feesManager.protocolPayoutAddress(),
+            expectedProtocolPayoutAddress
+        );
 
         // setters work well
         feesManager.setManagementFeesPerYear(address(cellar), 2.5e16);
         expectedFeesData.managementFeesRate = uint48(mockManagementFeesLib.calcYearlyRate(2.5e16));
         expectedFeesData.previousManagementFeesClaimTime = uint40(block.timestamp);
 
-        _assertEqFeesData(feesManager.getCellarFeesData(address(cellar)), expectedFeesData, feesManager.protocolPayoutAddress(), expectedProtocolPayoutAddress);
+        _assertEqFeesData(
+            feesManager.getCellarFeesData(address(cellar)),
+            expectedFeesData,
+            feesManager.protocolPayoutAddress(),
+            expectedProtocolPayoutAddress
+        );
 
         feesManager.setPerformanceFees(address(cellar), 12e15);
         expectedFeesData.performanceFeesRate = 12e15;
         expectedFeesData.highWaterMarkPrice = uint72(cellar.totalAssets().mulDivDown(Math.WAD, cellar.totalSupply()));
-        _assertEqFeesData(feesManager.getCellarFeesData(address(cellar)), expectedFeesData, feesManager.protocolPayoutAddress(), expectedProtocolPayoutAddress);
+        _assertEqFeesData(
+            feesManager.getCellarFeesData(address(cellar)),
+            expectedFeesData,
+            feesManager.protocolPayoutAddress(),
+            expectedProtocolPayoutAddress
+        );
 
         feesManager.setEnterFees(address(cellar), 6);
         expectedFeesData.enterFeesRate = 6;
-        _assertEqFeesData(feesManager.getCellarFeesData(address(cellar)), expectedFeesData, feesManager.protocolPayoutAddress(), expectedProtocolPayoutAddress);
-
+        _assertEqFeesData(
+            feesManager.getCellarFeesData(address(cellar)),
+            expectedFeesData,
+            feesManager.protocolPayoutAddress(),
+            expectedProtocolPayoutAddress
+        );
 
         feesManager.setExitFees(address(cellar), 7);
         expectedFeesData.exitFeesRate = 7;
-        _assertEqFeesData(feesManager.getCellarFeesData(address(cellar)), expectedFeesData, feesManager.protocolPayoutAddress(), expectedProtocolPayoutAddress);
+        _assertEqFeesData(
+            feesManager.getCellarFeesData(address(cellar)),
+            expectedFeesData,
+            feesManager.protocolPayoutAddress(),
+            expectedProtocolPayoutAddress
+        );
 
         feesManager.setStrategistPlatformCut(address(cellar), 30e16);
         expectedFeesData.strategistPlatformCut = 30e16;
 
-        _assertEqFeesData(feesManager.getCellarFeesData(address(cellar)), expectedFeesData, feesManager.protocolPayoutAddress(), expectedProtocolPayoutAddress);
+        _assertEqFeesData(
+            feesManager.getCellarFeesData(address(cellar)),
+            expectedFeesData,
+            feesManager.protocolPayoutAddress(),
+            expectedProtocolPayoutAddress
+        );
 
         feesManager.setStrategistPayoutAddress(address(cellar), address(0x0a11ce));
         expectedFeesData.strategistPayoutAddress = address(0x0a11ce);
 
-        _assertEqFeesData(feesManager.getCellarFeesData(address(cellar)), expectedFeesData, feesManager.protocolPayoutAddress(), expectedProtocolPayoutAddress);
+        _assertEqFeesData(
+            feesManager.getCellarFeesData(address(cellar)),
+            expectedFeesData,
+            feesManager.protocolPayoutAddress(),
+            expectedProtocolPayoutAddress
+        );
 
         address newPayoutAddress = address(0xb0b);
         feesManager.setProtocolPayoutAddress(newPayoutAddress);
 
-        _assertEqFeesData(feesManager.getCellarFeesData(address(cellar)), expectedFeesData, newPayoutAddress, newPayoutAddress);
+        _assertEqFeesData(
+            feesManager.getCellarFeesData(address(cellar)),
+            expectedFeesData,
+            newPayoutAddress,
+            newPayoutAddress
+        );
     }
 
     // ========================================= FEES TEST =========================================
@@ -788,17 +825,49 @@ contract FeesManagerTest is MainnetStarterTest, AdaptorHelperFunctions {
         mockWbtcUsd.setMockUpdatedAt(block.timestamp);
     }
 
-    function _assertEqFeesData(FeesManager.FeesData memory data, FeesManager.FeesData memory expectedData, address protocolPayoutAddress, address expectedProtocolPayoutAddress) internal {
+    function _assertEqFeesData(
+        FeesManager.FeesData memory data,
+        FeesManager.FeesData memory expectedData,
+        address protocolPayoutAddress,
+        address expectedProtocolPayoutAddress
+    ) internal {
         assertEq(data.enterFeesRate, expectedData.enterFeesRate, "Enter fees does not match with expected.");
         assertEq(data.exitFeesRate, expectedData.exitFeesRate, "Exit fees does not match with expected.");
-        assertEq(data.previousManagementFeesClaimTime, expectedData.previousManagementFeesClaimTime, "Previous management fees claim time does not match with expected.");
-        assertEq(data.managementFeesRate, expectedData.managementFeesRate, "Management fees does not match with expected.");
-        assertEq(data.highWaterMarkPrice, expectedData.highWaterMarkPrice, "High watermark price does not match with expected.");
-        assertEq(data.performanceFeesRate, expectedData.performanceFeesRate, "Performance fees does not match with expected.");
-        assertEq(data.highWaterMarkResetTime, expectedData.highWaterMarkResetTime, "Watermark reset time does not match with expected.");
-        assertEq(data.strategistPlatformCut, expectedData.strategistPlatformCut, "Strategist platform cut is not set correctly.");
-        assertEq(data.strategistPayoutAddress, expectedData.strategistPayoutAddress, "Strategist payout address is not set correctly.");
+        assertEq(
+            data.previousManagementFeesClaimTime,
+            expectedData.previousManagementFeesClaimTime,
+            "Previous management fees claim time does not match with expected."
+        );
+        assertEq(
+            data.managementFeesRate,
+            expectedData.managementFeesRate,
+            "Management fees does not match with expected."
+        );
+        assertEq(
+            data.highWaterMarkPrice,
+            expectedData.highWaterMarkPrice,
+            "High watermark price does not match with expected."
+        );
+        assertEq(
+            data.performanceFeesRate,
+            expectedData.performanceFeesRate,
+            "Performance fees does not match with expected."
+        );
+        assertEq(
+            data.highWaterMarkResetTime,
+            expectedData.highWaterMarkResetTime,
+            "Watermark reset time does not match with expected."
+        );
+        assertEq(
+            data.strategistPlatformCut,
+            expectedData.strategistPlatformCut,
+            "Strategist platform cut is not set correctly."
+        );
+        assertEq(
+            data.strategistPayoutAddress,
+            expectedData.strategistPayoutAddress,
+            "Strategist payout address is not set correctly."
+        );
         assertEq(protocolPayoutAddress, expectedProtocolPayoutAddress, "Protocol payout address is not set correctly.");
-
     }
 }
