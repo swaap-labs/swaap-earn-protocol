@@ -398,10 +398,14 @@ contract FeesManagerTest is MainnetStarterTest, AdaptorHelperFunctions {
 
     // ========================================= FEES TEST =========================================
     function testManagementFeesEnterHook() external {
-        FeesManager feesManager = FeesManager(cellar.FEES_MANAGER());
-        uint256 managementFeesPerYear = Math.WAD / 100; // 1%
+        uint256 newShares = 1e18;
 
-        feesManager.setManagementFeesPerYear(address(cellar), managementFeesPerYear); // 1%
+        FeesManager feesManager = FeesManager(cellar.FEES_MANAGER());
+        uint256 managementFeesPerYear = (Math.WAD / 100) * 2; // 2%
+
+        uint256 previewMintAssetsWithoutFees = cellar.previewMint(newShares);
+
+        feesManager.setManagementFeesPerYear(address(cellar), managementFeesPerYear);
 
         assertEq(
             cellar.balanceOf(address(feesManager)),
@@ -412,8 +416,19 @@ contract FeesManagerTest is MainnetStarterTest, AdaptorHelperFunctions {
         _moveForwardAndUpdateOracle(365 days);
 
         // minting new shares should trigger fees.
-        uint256 newShares = 1e18;
-        deal(address(cellar.asset()), address(this), cellar.previewMint(newShares));
+        uint256 previewMintAssets = cellar.previewMint(newShares);
+        deal(address(cellar.asset()), address(this), previewMintAssets);
+
+        uint256 expectedPreviewMintAssets = (previewMintAssetsWithoutFees * (Math.WAD - managementFeesPerYear)) /
+            Math.WAD;
+
+        assertApproxEqRel(
+            previewMintAssets,
+            expectedPreviewMintAssets,
+            1e15,
+            "Fees should should own 2% of the total supply before the mint."
+        );
+
         uint256 totalSupplyBeforeMint = cellar.totalSupply();
         cellar.mint(newShares, address(this));
 
@@ -424,7 +439,7 @@ contract FeesManagerTest is MainnetStarterTest, AdaptorHelperFunctions {
             cellar.balanceOf(address(feesManager)),
             expectedSharesReceived,
             1e15,
-            "Fees manager should own 1% of the total supply before the mint."
+            "Fees manager should own 2% of the total supply before the mint."
         );
 
         _moveForwardAndUpdateOracle(365 days);
@@ -448,7 +463,7 @@ contract FeesManagerTest is MainnetStarterTest, AdaptorHelperFunctions {
             feeManageReceivedSharesAfterDeposit,
             expectedSharesReceived,
             1e12,
-            "Fees manager should own 1% of the new shares after the deposit."
+            "Fees manager should own 2% of the new shares after the deposit."
         );
     }
 
@@ -494,10 +509,12 @@ contract FeesManagerTest is MainnetStarterTest, AdaptorHelperFunctions {
     }
 
     function testPerformanceFeesDepositHook() external {
+        uint256 depositAssets = 1e18;
+
         FeesManager feesManager = FeesManager(cellar.FEES_MANAGER());
         uint256 performanceFees = Math.WAD / 5; // 20%
 
-        feesManager.setPerformanceFees(address(cellar), performanceFees); // 1%
+        feesManager.setPerformanceFees(address(cellar), performanceFees);
 
         assertEq(
             cellar.balanceOf(address(feesManager)),
@@ -515,12 +532,30 @@ contract FeesManagerTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         assertEq(feeData.performanceFeesRate, performanceFees, "Performance fees should be set to 20%.");
 
+        uint256 previewDepositSharesBeforePerformance = cellar.previewDeposit(depositAssets);
+        assertApproxEqAbs(previewDepositSharesBeforePerformance, 10 ** 30, 1, "Expected shares is 10**30");
+
         // setting the performance to 50%
         uint256 newAssets = cellar.totalAssets() / 2;
         deal(address(cellar.asset()), address(cellar), cellar.asset().balanceOf(address(cellar)) + newAssets);
 
         // depositing new shares should trigger fees.
-        uint256 depositAssets = 1e18;
+        uint256 totalAssets = cellar.asset().balanceOf(address(cellar));
+        uint256 totalSupply = cellar.totalSupply();
+        uint256 foo = performanceFees * newAssets;
+        uint256 feesAsShares = (foo * totalSupply) / (totalAssets * Math.WAD - foo);
+
+        uint256 previewDepositShares = cellar.previewDeposit(depositAssets);
+
+        uint256 expectedPreviewDepositShares = (depositAssets / totalAssets) * (totalSupply + feesAsShares);
+
+        assertApproxEqAbs(
+            previewDepositShares,
+            expectedPreviewDepositShares,
+            1e20,
+            "Preview deposit should yield the proper shares number"
+        );
+
         deal(address(cellar.asset()), address(this), depositAssets);
         cellar.deposit(depositAssets, address(this));
 

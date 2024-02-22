@@ -815,6 +815,18 @@ contract Cellar is ERC4626, Ownable {
         _exit(assets, shares, receiver, owner);
     }
 
+    function _previewBeforeEnterOrExitFeesHook(
+        uint256 _totalAssets,
+        uint256 _totalSupply,
+        bool _isEntering
+    ) internal view virtual returns (uint16, uint256) {
+        if (isShutdown) {
+            return (0, _totalSupply);
+        }
+
+        return FEES_MANAGER.previewApplyFeesBeforeJoinExit(_totalAssets, _totalSupply, _isEntering);
+    }
+
     function _beforeEnterOrExitFeesHook(
         uint256 _totalAssets,
         uint256 _totalSupply,
@@ -1020,9 +1032,8 @@ contract Cellar is ERC4626, Ownable {
      * @param shares amount of shares to convert
      * @return assets the shares can be exchanged for
      */
-    function convertToAssets(uint256 shares) public view override returns (uint256 assets) {
-        (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply(false);
-        assets = _convertToAssets(shares, _totalAssets, _totalSupply);
+    function convertToAssets(uint256 shares) public view override returns (uint256) {
+        return previewRedeem(shares);
     }
 
     /**
@@ -1033,8 +1044,7 @@ contract Cellar is ERC4626, Ownable {
      * @return shares the assets can be exchanged for
      */
     function convertToShares(uint256 assets) public view override returns (uint256 shares) {
-        (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply(true);
-        shares = _convertToShares(assets, _totalAssets, _totalSupply);
+        return previewDeposit(assets);
     }
 
     /**
@@ -1044,7 +1054,13 @@ contract Cellar is ERC4626, Ownable {
      */
     function previewMint(uint256 shares) public view override returns (uint256 assets) {
         (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply(true);
-        assets = _previewMint(shares, _totalAssets, _totalSupply);
+        (uint16 _enterFeesRate, uint256 _feesAsShares) = _previewBeforeEnterOrExitFeesHook(
+            _totalAssets,
+            _totalSupply,
+            true
+        );
+        assets = _previewMint(shares, _totalAssets, _totalSupply + _feesAsShares);
+        assets = _applyEnterOrExitFees(_enterFeesRate, assets, true);
     }
 
     /**
@@ -1054,7 +1070,13 @@ contract Cellar is ERC4626, Ownable {
      */
     function previewWithdraw(uint256 assets) public view override returns (uint256 shares) {
         (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply(false);
-        shares = _previewWithdraw(assets, _totalAssets, _totalSupply);
+        (uint16 _exitFeesRate, uint256 _feesAsShares) = _previewBeforeEnterOrExitFeesHook(
+            _totalAssets,
+            _totalSupply,
+            false
+        );
+        shares = _previewWithdraw(assets, _totalAssets, _totalSupply + _feesAsShares);
+        shares = _applyEnterOrExitFees(_exitFeesRate, shares, true);
     }
 
     /**
@@ -1064,7 +1086,13 @@ contract Cellar is ERC4626, Ownable {
      */
     function previewDeposit(uint256 assets) public view override returns (uint256 shares) {
         (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply(true);
-        shares = _convertToShares(assets, _totalAssets, _totalSupply);
+        (uint16 _enterFeesRate, uint256 _feesAsShares) = _previewBeforeEnterOrExitFeesHook(
+            _totalAssets,
+            _totalSupply,
+            true
+        );
+        shares = _convertToShares(assets, _totalAssets, _totalSupply + _feesAsShares);
+        shares = _applyEnterOrExitFees(_enterFeesRate, shares, false);
     }
 
     /**
@@ -1074,7 +1102,13 @@ contract Cellar is ERC4626, Ownable {
      */
     function previewRedeem(uint256 shares) public view override returns (uint256 assets) {
         (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply(false);
-        assets = _convertToAssets(shares, _totalAssets, _totalSupply);
+        (uint16 _exitFeesRate, uint256 _feesAsShares) = _previewBeforeEnterOrExitFeesHook(
+            _totalAssets,
+            _totalSupply,
+            false
+        );
+        assets = _convertToAssets(shares, _totalAssets, _totalSupply + _feesAsShares);
+        assets = _applyEnterOrExitFees(_exitFeesRate, assets, false);
     }
 
     /**

@@ -161,11 +161,26 @@ contract FeesManager {
      * @return enterOrExitFeesRate enter or exit fees rate
      * @return mintFeesAsShares minted shares to be used as fees
      */
-    function applyFeesBeforeJoinExit(
+    function previewApplyFeesBeforeJoinExit(
         uint256 totalAssets,
         uint256 totalSupply,
         bool isEntering
-    ) external returns (uint16, uint256) {
+    ) external view returns (uint16, uint256) {
+        (
+            uint16 enterOrExitFeesRate,
+            uint256 performanceFees,
+            uint256 managementFees,
+            ,
+
+        ) = _previewApplyFeesBeforeJoinExit(totalAssets, totalSupply, isEntering);
+        return (enterOrExitFeesRate, performanceFees + managementFees);
+    }
+
+    function _previewApplyFeesBeforeJoinExit(
+        uint256 totalAssets,
+        uint256 totalSupply,
+        bool isEntering
+    ) internal view returns (uint16, uint256, uint256, uint256, FeesData storage) {
         FeesData storage feeData = cellarFeesData[msg.sender];
 
         (uint256 managementFees, uint256 performanceFees, uint256 highWaterMarkPrice) = _getUnclaimedFees(
@@ -173,6 +188,31 @@ contract FeesManager {
             totalAssets,
             totalSupply
         );
+
+        uint16 enterOrExitFeesRate = isEntering ? feeData.enterFeesRate : feeData.exitFeesRate;
+
+        return (enterOrExitFeesRate, performanceFees, managementFees, highWaterMarkPrice, feeData);
+    }
+
+    /**
+     * @notice Called by cellars to compute the fees to apply before depositing assets (or minting shares).
+     * @param totalAssets total assets in the cellar
+     * @param totalSupply total shares in the cellar
+     * @return enterOrExitFeesRate enter or exit fees rate
+     * @return mintFeesAsShares minted shares to be used as fees
+     */
+    function applyFeesBeforeJoinExit(
+        uint256 totalAssets,
+        uint256 totalSupply,
+        bool isEntering
+    ) external returns (uint16, uint256) {
+        (
+            uint16 enterOrExitFeesRate,
+            uint256 performanceFees,
+            uint256 managementFees,
+            uint256 highWaterMarkPrice,
+            FeesData storage feeData
+        ) = _previewApplyFeesBeforeJoinExit(totalAssets, totalSupply, isEntering);
 
         if (managementFees > 0) {
             feeData.previousManagementFeesClaimTime = uint40(block.timestamp);
@@ -184,11 +224,7 @@ contract FeesManager {
             emit PerformanceFeesClaimed(msg.sender, performanceFees, highWaterMarkPrice, block.timestamp);
         }
 
-        uint16 enterOrExitFeesRate = isEntering ? feeData.enterFeesRate : feeData.exitFeesRate;
-
-        uint256 mintFeesAsShares = performanceFees + managementFees;
-
-        return (enterOrExitFeesRate, mintFeesAsShares);
+        return (enterOrExitFeesRate, performanceFees + managementFees);
     }
 
     /**
