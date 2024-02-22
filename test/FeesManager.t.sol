@@ -397,6 +397,41 @@ contract FeesManagerTest is MainnetStarterTest, AdaptorHelperFunctions {
     }
 
     // ========================================= FEES TEST =========================================
+    function testCollectFeesFromCellar() external {
+        FeesManager feesManager = FeesManager(cellar.FEES_MANAGER());
+        uint256 managementFeesPerYear = Math.WAD / 100; // 1%
+
+        feesManager.setManagementFeesPerYear(address(cellar), managementFeesPerYear); // 1%
+
+        assertEq(
+            cellar.balanceOf(address(feesManager)),
+            0,
+            "Fees manager should own 0% of the total supply when setting the management fees initially."
+        );
+
+        _moveForwardAndUpdateOracle(365 days);
+
+        // minting new shares should trigger fees.
+        vm.prank(address(0xa11ce)); // anyone should be able to start fees minting
+        cellar.collectFees();
+
+        uint256 expectedSharesReceived = (initialShares * managementFeesPerYear) / (Math.WAD - managementFeesPerYear);
+
+        assertApproxEqRel(
+            cellar.balanceOf(address(feesManager)),
+            expectedSharesReceived,
+            1e12,
+            "Fees manager should own 1% of the total supply after collecting fees."
+        );
+
+        assertApproxEqRel(
+            (cellar.balanceOf(address(feesManager)) * Math.WAD) / cellar.totalSupply(),
+            managementFeesPerYear,
+            1e12,
+            "Fees manager should own 1% of the total supply after collecting fees."
+        );
+    }
+
     function testManagementFeesEnterHook() external {
         uint256 newShares = 1e18;
 

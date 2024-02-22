@@ -827,6 +827,16 @@ contract Cellar is ERC4626, Ownable {
         return FEES_MANAGER.previewApplyFeesBeforeJoinExit(_totalAssets, _totalSupply, _isEntering);
     }
 
+    /**
+     * @notice Collect fees from the cellar.
+     * @dev Callable by anyone (permissionless).
+     */
+    function collectFees() external nonReentrant {
+        _checkIfPaused();
+        (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply(true);
+        _beforeEnterOrExitFeesHook(_totalAssets, _totalSupply, false);
+    }
+
     function _beforeEnterOrExitFeesHook(
         uint256 _totalAssets,
         uint256 _totalSupply,
