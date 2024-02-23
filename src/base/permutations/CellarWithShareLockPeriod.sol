@@ -152,12 +152,12 @@ contract CellarWithShareLockPeriod is Cellar {
      * @param inShares if false, then returns value in terms of assets
      *                 if true then returns value in terms of shares
      */
-    function _findMax(address owner, bool inShares) internal view override returns (uint256 maxOut) {
-        maxOut = super._findMax(owner, inShares);
+    function _findMax(address owner, bool inShares) internal view override returns (uint256) {
         uint256 lockTime = userShareLockStartTime[owner];
         if (lockTime != 0) {
             uint256 timeSharesAreUnlocked = lockTime + shareLockPeriod;
             if (timeSharesAreUnlocked > block.timestamp) return 0;
         }
+        return super._findMax(owner, inShares);
     }
 }
