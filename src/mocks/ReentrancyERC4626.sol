@@ -141,11 +141,11 @@ contract ReentrancyERC4626 is ERC4626, Test {
                      DEPOSIT/WITHDRAWAL LIMIT LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    function maxDeposit(address) public view override returns (uint256) {
+    function maxDeposit(address) public pure override returns (uint256) {
         return type(uint256).max;
     }
 
-    function maxMint(address) public view override returns (uint256) {
+    function maxMint(address) public pure override returns (uint256) {
         return type(uint256).max;
     }
 
