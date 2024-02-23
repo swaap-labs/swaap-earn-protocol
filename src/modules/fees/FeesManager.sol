@@ -73,7 +73,7 @@ contract FeesManager {
      * @notice Emitted when performance fees rate is updated.
      * @param cellar the cellar that had performance fees rate updated
      * @param performanceFeesRate the new performance fees rate
-     * @param highWaterMarkPrice the high watermark price at the time of the update
+     * @param highWaterMarkPrice the high-water mark price at the time of the update
      */
     event PerformanceFeesRateUpdated(address indexed cellar, uint256 performanceFeesRate, uint256 highWaterMarkPrice);
 
@@ -93,6 +93,9 @@ contract FeesManager {
 
     /// @notice Throws when the protocol payout address is invalid.
     error FeesManager__InvalidProtocolPayoutAddress();
+
+    /// @notice Throws when the high-water mark has not yet expired.
+    error FeesManager__HighWaterMarkNotYetExpired();
 
     // =============================================== CONSTANTS ===============================================
 
@@ -114,8 +117,11 @@ contract FeesManager {
     /// @notice Sets the max possible exit fees for cellars.
     uint256 public constant MAX_EXIT_FEES = _BPS_ONE_HUNDRED_PER_CENT / 10; // 10%
 
-    /// @notice Sets the high watermark reset interval for cellars.
-    uint256 public constant HIGH_WATERMARK_RESET_INTERVAL = 3 * 30 days; // 3 months
+    /// @notice Sets the high-water mark reset interval for cellars.
+    uint256 public constant HIGH_WATERMARK_RESET_INTERVAL = 1 * 30 days; // 1 months
+
+    /// @notice Sets the high-water mark reset interval for cellars.
+    uint256 public constant HIGH_WATERMARK_RESET_ASSET_THRESHOLD = Math.WAD + Math.WAD / 2; // 50%
 
     // =============================================== MODIFIERS ===============================================
 
@@ -157,7 +163,8 @@ contract FeesManager {
         uint48 managementFeesRate;
         uint64 performanceFeesRate;
         uint72 highWaterMarkPrice;
-        uint40 highWaterMarkResetTime; // the owner can choose to reset the high watermark (at most every HIGH_WATERMARK_RESET_INTERVAL)
+        uint40 highWaterMarkResetTime; // the owner can choose to reset the high-water mark (at most every HIGH_WATERMARK_RESET_INTERVAL)
+        uint256 highWaterMarkResetAssets; // the owner can choose to reset the high-water mark (at most every HIGH_WATERMARK_RESET_ASSETS_TOLERANCE)
         uint64 strategistPlatformCut; // the platform cut for the strategist in 18 decimals
         address strategistPayoutAddress;
     }
@@ -388,17 +395,17 @@ contract FeesManager {
 
         FeesData storage feeData = cellarFeesData[cellar];
 
-        // if the high watermark is not set, set it and do not collect fees potential pending management fees
+        // if the high-water mark is not set, set it and do not collect fees potential pending management fees
         // as the function is most likely called during the setup of the cellar.
         if (feeData.highWaterMarkPrice == 0) {
             feeData.performanceFeesRate = uint64(performanceFeesRate);
-            // initialize the high watermark
+            // initialize the high-water mark
             // note that the cellar will revert if we are calling totalAssets() when it's locked (nonReentrantView)
-            uint256 highWaterMarkPrice = PerformanceFeesLib._calcSharePrice(
-                Cellar(cellar).totalAssets(),
-                Cellar(cellar).totalSupply()
-            );
+            uint256 totalAssets = Cellar(cellar).totalAssets();
+            uint256 highWaterMarkPrice = PerformanceFeesLib._calcSharePrice(totalAssets, Cellar(cellar).totalSupply());
             cellarFeesData[cellar].highWaterMarkPrice = uint72(highWaterMarkPrice);
+            cellarFeesData[cellar].highWaterMarkResetTime = uint40(block.timestamp);
+            cellarFeesData[cellar].highWaterMarkResetAssets = uint256(totalAssets);
 
             emit PerformanceFeesRateUpdated(cellar, performanceFeesRate, highWaterMarkPrice);
             return;
@@ -435,5 +442,32 @@ contract FeesManager {
         }
 
         cellarFeesData[cellar].exitFeesRate = exitFeesRate;
+    }
+
+    /**
+     * @notice Resets the high-water mark for this cellar.
+     * @param cellar the cellar to reset the high-water mark state for
+     */
+    function resetHighWaterMark(address cellar) external onlyRegistryOwner {
+        Cellar c = Cellar(cellar);
+        FeesData storage feeData = cellarFeesData[cellar];
+        uint256 totalAssets = c.totalAssets();
+
+        // checks high-water mark reset conditions
+        if (
+            (feeData.highWaterMarkPrice > 0) && // unset condition
+            (block.timestamp < feeData.highWaterMarkResetTime + HIGH_WATERMARK_RESET_INTERVAL) && // time condition
+            (totalAssets < (feeData.highWaterMarkResetAssets * HIGH_WATERMARK_RESET_ASSET_THRESHOLD) / Math.WAD) // assets condition
+        ) {
+            revert FeesManager__HighWaterMarkNotYetExpired();
+        }
+
+        // calculates the new high-water mark
+        uint256 highWaterMarkPrice = PerformanceFeesLib._calcSharePrice(totalAssets, c.totalSupply());
+
+        // updates the high-water mark state
+        feeData.highWaterMarkPrice = uint72(highWaterMarkPrice);
+        feeData.highWaterMarkResetTime = uint40(block.timestamp);
+        feeData.highWaterMarkResetAssets = uint256(totalAssets);
     }
 }

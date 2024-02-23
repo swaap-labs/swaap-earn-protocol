@@ -199,6 +199,10 @@ contract FeesManagerTest is MainnetStarterTest, AdaptorHelperFunctions {
         vm.prank(cellarOwner);
         vm.expectRevert(FeesManager.FeesManager__OnlyRegistryOwner.selector);
         feesManager.setProtocolPayoutAddress(cellarOwner);
+
+        vm.prank(cellarOwner);
+        vm.expectRevert(FeesManager.FeesManager__OnlyRegistryOwner.selector);
+        feesManager.resetHighWaterMark(address(cellar));
     }
 
     function testFeesPayoutWithStrategistAddressAndCutUnset() external {
@@ -311,7 +315,8 @@ contract FeesManagerTest is MainnetStarterTest, AdaptorHelperFunctions {
             managementFeesRate: 0,
             performanceFeesRate: 0,
             highWaterMarkPrice: 0,
-            highWaterMarkResetTime: 0, // the owner can choose to reset the high watermark (at most every HIGH_WATERMARK_RESET_INTERVAL)
+            highWaterMarkResetTime: 0, // the owner can choose to reset the high-water mark (at most every HIGH_WATERMARK_RESET_INTERVAL)
+            highWaterMarkResetAssets: 0, // the owner can choose to reset the high-water mark (every HIGH_WATERMARK_RESET_ASSETS changes of tvl)
             strategistPlatformCut: 0, // the platform cut for the strategist in 18 decimals
             strategistPayoutAddress: address(0)
         });
@@ -340,6 +345,7 @@ contract FeesManagerTest is MainnetStarterTest, AdaptorHelperFunctions {
         feesManager.setPerformanceFees(address(cellar), 12e15);
         expectedFeesData.performanceFeesRate = 12e15;
         expectedFeesData.highWaterMarkPrice = uint72(cellar.totalAssets().mulDivDown(Math.WAD, cellar.totalSupply()));
+        expectedFeesData.highWaterMarkResetTime = uint40(block.timestamp);
         _assertEqFeesData(
             feesManager.getCellarFeesData(address(cellar)),
             expectedFeesData,
@@ -588,7 +594,7 @@ contract FeesManagerTest is MainnetStarterTest, AdaptorHelperFunctions {
         assertEq(
             feeData.highWaterMarkPrice,
             cellar.totalAssets().mulDivDown(Math.WAD, cellar.totalSupply()),
-            "High watermark price should be set to the initial share price."
+            "high-water mark price should be set to the initial share price."
         );
 
         assertEq(feeData.performanceFeesRate, performanceFees, "Performance fees should be set to 20%.");
@@ -631,7 +637,7 @@ contract FeesManagerTest is MainnetStarterTest, AdaptorHelperFunctions {
         assertEq(
             feeData.highWaterMarkPrice,
             cellar.totalAssets().mulDivDown(Math.WAD, cellar.totalSupply()),
-            "High watermark price should be set to the initial share price."
+            "high-water mark price should be set to the initial share price."
         );
 
         assertEq(feeData.performanceFeesRate, performanceFees, "Performance fees should be set to 20%.");
@@ -690,7 +696,7 @@ contract FeesManagerTest is MainnetStarterTest, AdaptorHelperFunctions {
         assertEq(
             feeData.highWaterMarkPrice,
             cellar.totalAssets().mulDivDown(Math.WAD, cellar.totalSupply()),
-            "High watermark price should be set to the initial share price."
+            "high-water mark price should be set to the initial share price."
         );
 
         assertEq(feeData.performanceFeesRate, performanceFees, "Performance fees should be set to 20%.");
@@ -741,7 +747,7 @@ contract FeesManagerTest is MainnetStarterTest, AdaptorHelperFunctions {
         assertEq(
             feeData.highWaterMarkPrice,
             cellar.totalAssets().mulDivDown(Math.WAD, cellar.totalSupply()),
-            "High watermark price should be set to the initial share price."
+            "high-water mark price should be set to the initial share price."
         );
 
         assertEq(feeData.performanceFeesRate, performanceFees, "Performance fees should be set to 20%.");
@@ -985,7 +991,7 @@ contract FeesManagerTest is MainnetStarterTest, AdaptorHelperFunctions {
         assertEq(
             data.highWaterMarkPrice,
             expectedData.highWaterMarkPrice,
-            "High watermark price does not match with expected."
+            "high-water mark price does not match with expected."
         );
         assertEq(
             data.performanceFeesRate,
@@ -1008,5 +1014,36 @@ contract FeesManagerTest is MainnetStarterTest, AdaptorHelperFunctions {
             "Strategist payout address is not set correctly."
         );
         assertEq(protocolPayoutAddress, expectedProtocolPayoutAddress, "Protocol payout address is not set correctly.");
+    }
+
+    function testHighWaterMarkReset() external {
+        FeesManager feesManager = FeesManager(cellar.FEES_MANAGER());
+
+        // is epected to work just fine as highWaterMarkPrice is not set at this stage
+        feesManager.resetHighWaterMark(address(cellar));
+
+        // is epected to fail as we just updated the highWaterMarkPrice state
+        vm.expectRevert(FeesManager.FeesManager__HighWaterMarkNotYetExpired.selector);
+        feesManager.resetHighWaterMark(address(cellar));
+
+        _moveForwardAndUpdateOracle(31 days);
+
+        // is epected to work just fine as we passed HIGH_WATERMARK_RESET_INTERVAL
+        feesManager.resetHighWaterMark(address(cellar));
+
+        // is epected to fail as we just updated the highWaterMarkPrice state
+        vm.expectRevert(FeesManager.FeesManager__HighWaterMarkNotYetExpired.selector);
+        feesManager.resetHighWaterMark(address(cellar));
+
+        deal(address(USDC), address(cellar), (cellar.totalAssets() * 2), true);
+        // is epected to work just fine as we passed HIGH_WATERMARK_RESET_INTERVAL
+        feesManager.resetHighWaterMark(address(cellar));
+
+        vm.expectRevert(FeesManager.FeesManager__HighWaterMarkNotYetExpired.selector);
+        feesManager.resetHighWaterMark(address(cellar));
+
+        // is epected to fail as we just updated the highWaterMarkPrice state
+        vm.expectRevert(FeesManager.FeesManager__HighWaterMarkNotYetExpired.selector);
+        feesManager.resetHighWaterMark(address(cellar));
     }
 }

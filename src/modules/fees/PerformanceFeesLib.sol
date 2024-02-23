@@ -13,10 +13,10 @@ library PerformanceFeesLib {
     /**
      * @param totalAssets The current total assets
      * @param totalSupply The total supply of shares
-     * @param highWatermarkPrice The high watermark share price (in 18 decimals)
+     * @param highWatermarkPrice The high-water mark share price (in 18 decimals)
      * @param performanceFeesRate The performance fees rate (in 18 decimals)
      * @return feesAsShares The shares that should be minted as fees
-     * @return highWaternarmPrice The updated high watermark price
+     * @return currentSharePrice The up-to-date high-water mark price
      */
     function _calcPerformanceFees(
         uint256 totalAssets,
@@ -27,7 +27,7 @@ library PerformanceFeesLib {
         uint256 currentSharePrice = _calcSharePrice(totalAssets, totalSupply);
 
         if (highWatermarkPrice == 0) {
-            // the first time the high watermark is set
+            // the first time the high-water mark is set
             return (0, currentSharePrice);
         }
 
@@ -35,7 +35,7 @@ library PerformanceFeesLib {
             return (0, currentSharePrice);
         }
 
-        // Calculate the high watermark total assets (in asset decimals)
+        // Calculate the high-water mark total assets (in asset decimals)
         uint256 highWatermarkTotalAssets = totalSupply.mulDivDown(highWatermarkPrice, Math.WAD);
 
         if (totalAssets <= highWatermarkTotalAssets) {
