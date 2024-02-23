@@ -1,23 +1,23 @@
 // // SPDX-License-Identifier: Apache-2.0
 // pragma solidity 0.8.21;
 
-// import { Cellar, ERC4626 } from "src/base/Cellar.sol";
+// import { Fund, ERC4626 } from "src/base/Fund.sol";
 // import { MockDataFeed } from "src/mocks/MockDataFeed.sol";
-// import { CellarAdaptor } from "src/modules/adaptors/Swaap/CellarAdaptor.sol";
+// import { SwaapFundAdaptor } from "src/modules/adaptors/Swaap/SwaapFundAdaptor.sol";
 
 // // Import Everything from Starter file.
 // import "test/resources/MainnetStarter.t.sol";
 
 // import { AdaptorHelperFunctions } from "test/resources/AdaptorHelperFunctions.sol";
 
-// // Will test the swapping and cellar position management using adaptors
-// contract UsingCellarAdaptorForSFraxTest is MainnetStarterTest, AdaptorHelperFunctions {
+// // Will test the swapping and fund position management using adaptors
+// contract UsingSwaapFundAdaptorForSFraxTest is MainnetStarterTest, AdaptorHelperFunctions {
 //     using SafeTransferLib for ERC20;
 
 //     MockDataFeed private fraxMockFeed;
 
-//     Cellar public cellar;
-//     CellarAdaptor public cellarAdaptor;
+//     Fund public fund;
+//     SwaapFundAdaptor public swaapFundAdaptor;
 
 //     uint32 fraxPosition = 1;
 //     uint32 sFraxPosition = 2;
@@ -47,35 +47,35 @@
 //         settings = PriceRouter.AssetSettings(CHAINLINK_DERIVATIVE, address(fraxMockFeed));
 //         priceRouter.addAsset(FRAX, settings, abi.encode(stor), price);
 
-//         cellarAdaptor = new CellarAdaptor();
+//         swaapFundAdaptor = new SwaapFundAdaptor();
 
-//         registry.trustAdaptor(address(cellarAdaptor));
+//         registry.trustAdaptor(address(swaapFundAdaptor));
 
 //         registry.trustPosition(fraxPosition, address(erc20Adaptor), abi.encode(FRAX));
-//         registry.trustPosition(sFraxPosition, address(cellarAdaptor), abi.encode(sFRAX));
+//         registry.trustPosition(sFraxPosition, address(swaapFundAdaptor), abi.encode(sFRAX));
 
-//         bytes memory creationCode = type(Cellar).creationCode;
+//         bytes memory creationCode = type(Fund).creationCode;
 //         bytes memory constructorArgs = abi.encode(
 //             address(this),
 //             registry,
 //             FRAX,
-//             "Test sFRAX Cellar",
+//             "Test sFRAX Fund",
 //             "TSFC",
 //             fraxPosition,
 //             abi.encode(0),
 //             1e18,
 //             type(uint192).max
 //         );
-//         cellar = Cellar(deployer.getAddress("Test Cellar"));
-//         FRAX.safeApprove(address(cellar), 1e18);
+//         fund = Fund(deployer.getAddress("Test Fund"));
+//         FRAX.safeApprove(address(fund), 1e18);
 //         deal(address(FRAX), address(this), 1e18);
-//         deployer.deployContract("Test Cellar", creationCode, constructorArgs, 0);
+//         deployer.deployContract("Test Fund", creationCode, constructorArgs, 0);
 
-//         cellar.addAdaptorToCatalogue(address(cellarAdaptor));
-//         cellar.addPositionToCatalogue(sFraxPosition);
-//         cellar.addPosition(0, sFraxPosition, abi.encode(true), false);
+//         fund.addAdaptorToCatalogue(address(swaapFundAdaptor));
+//         fund.addPositionToCatalogue(sFraxPosition);
+//         fund.addPosition(0, sFraxPosition, abi.encode(true), false);
 
-//         originalTotalAssets = cellar.totalAssets();
+//         originalTotalAssets = fund.totalAssets();
 //     }
 
 //     function testSFraxUse(uint256 assets) external {
@@ -83,59 +83,59 @@
 
 //         // User deposits.
 //         deal(address(FRAX), address(this), assets);
-//         FRAX.safeApprove(address(cellar), assets);
-//         cellar.deposit(assets, address(this));
+//         FRAX.safeApprove(address(fund), assets);
+//         fund.deposit(assets, address(this));
 
 //         // Strategist moves assets into sFrax, and makes sFrax the holding position.
 //         {
-//             Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+//             Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
 //             bytes[] memory adaptorCalls = new bytes[](1);
-//             adaptorCalls[0] = _createBytesDataToDepositToCellar(address(sFRAX), assets);
-//             data[0] = Cellar.AdaptorCall({ adaptor: address(cellarAdaptor), callData: adaptorCalls });
-//             cellar.callOnAdaptor(data);
+//             adaptorCalls[0] = _createBytesDataToDepositToFund(address(sFRAX), assets);
+//             data[0] = Fund.AdaptorCall({ adaptor: address(swaapFundAdaptor), callData: adaptorCalls });
+//             fund.callOnAdaptor(data);
 //         }
-//         cellar.setHoldingPosition(sFraxPosition);
+//         fund.setHoldingPosition(sFraxPosition);
 
 //         // Check that we deposited into sFRAX.
-//         uint256 cellarsFraxWorth = ERC4626(sFRAX).maxWithdraw(address(cellar));
-//         assertApproxEqAbs(cellarsFraxWorth, assets, 1, "Should have deposited assets into sFRAX.");
+//         uint256 fundsFraxWorth = ERC4626(sFRAX).maxWithdraw(address(fund));
+//         assertApproxEqAbs(fundsFraxWorth, assets, 1, "Should have deposited assets into sFRAX.");
 
 //         skip(100 days);
 //         fraxMockFeed.setMockUpdatedAt(block.timestamp);
 
 //         assertGt(
-//             cellar.totalAssets(),
+//             fund.totalAssets(),
 //             originalTotalAssets + assets,
-//             "Cellar totalAssets should have increased from sFRAX yield."
+//             "Fund totalAssets should have increased from sFRAX yield."
 //         );
 
 //         // Have user withdraw to make sure we can withdraw from sFRAX.
-//         uint256 maxWithdraw = cellar.maxWithdraw(address(this));
-//         cellar.withdraw(maxWithdraw, address(this), address(this));
+//         uint256 maxWithdraw = fund.maxWithdraw(address(this));
+//         fund.withdraw(maxWithdraw, address(this), address(this));
 
 //         assertEq(FRAX.balanceOf(address(this)), maxWithdraw, "Assets withdrawn should equal expected.");
 
 //         // Make sure we pulled from sFRAX.
-//         uint256 newCellarsFraxWorth = ERC4626(sFRAX).maxWithdraw(address(cellar));
-//         assertLt(newCellarsFraxWorth, cellarsFraxWorth, "Should have pulled assets from sFRAX.");
+//         uint256 newFundsFraxWorth = ERC4626(sFRAX).maxWithdraw(address(fund));
+//         assertLt(newFundsFraxWorth, fundsFraxWorth, "Should have pulled assets from sFRAX.");
 
 //         // Make sure users deposit go into sFRAX.
-//         FRAX.safeApprove(address(cellar), assets);
-//         cellar.deposit(assets, address(this));
+//         FRAX.safeApprove(address(fund), assets);
+//         fund.deposit(assets, address(this));
 
-//         uint256 expectedAssets = newCellarsFraxWorth + assets;
-//         cellarsFraxWorth = ERC4626(sFRAX).maxWithdraw(address(cellar));
-//         assertApproxEqAbs(cellarsFraxWorth, expectedAssets, 1, "Should have deposited assets into sFRAX.");
+//         uint256 expectedAssets = newFundsFraxWorth + assets;
+//         fundsFraxWorth = ERC4626(sFRAX).maxWithdraw(address(fund));
+//         assertApproxEqAbs(fundsFraxWorth, expectedAssets, 1, "Should have deposited assets into sFRAX.");
 
 //         // Make sure strategist can rebalance assets out of sFRAX.
 //         {
-//             Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+//             Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
 //             bytes[] memory adaptorCalls = new bytes[](1);
-//             adaptorCalls[0] = _createBytesDataToWithdrawFromCellar(sFRAX, type(uint256).max);
-//             data[0] = Cellar.AdaptorCall({ adaptor: address(cellarAdaptor), callData: adaptorCalls });
-//             cellar.callOnAdaptor(data);
+//             adaptorCalls[0] = _createBytesDataToWithdrawFromFund(sFRAX, type(uint256).max);
+//             data[0] = Fund.AdaptorCall({ adaptor: address(swaapFundAdaptor), callData: adaptorCalls });
+//             fund.callOnAdaptor(data);
 //         }
 
-//         assertEq(0, ERC20(sFRAX).balanceOf(address(cellar)), "Should have withdrawn all assets from sFRAX.");
+//         assertEq(0, ERC20(sFRAX).balanceOf(address(fund)), "Should have withdrawn all assets from sFRAX.");
 //     }
 // }

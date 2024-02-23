@@ -6,7 +6,7 @@ import { PositionlessAdaptor } from "src/modules/adaptors/PositionlessAdaptor.so
 
 /**
  * @title Enable Asset As Collateral Adaptor
- * @notice Allows Cellars to adjust whether Aave V2
+ * @notice Allows Funds to adjust whether Aave V2
  *         assets are used as collateral or not.
  * @author crispymangoes
  */
@@ -21,7 +21,7 @@ contract AaveV2EnableAssetAsCollateralAdaptor is PositionlessAdaptor {
     //====================================================================
 
     /**
-     @notice Attempted use asset as collateral to false would lower Cellar health factor too low.
+     @notice Attempted use asset as collateral to false would lower Fund health factor too low.
      */
     error AaveV2EnableAssetAsCollateralAdaptor__HealthFactorTooLow();
 
@@ -47,7 +47,7 @@ contract AaveV2EnableAssetAsCollateralAdaptor is PositionlessAdaptor {
     /**
      * @dev Identifier unique to this adaptor for a shared registry.
      * Normally the identifier would just be the address of this contract, but this
-     * Identifier is needed during Cellar Delegate Call Operations, so getting the address
+     * Identifier is needed during Fund Delegate Call Operations, so getting the address
      * of the adaptor is more difficult.
      */
     function identifier() public pure virtual override returns (bytes32) {

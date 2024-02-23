@@ -2,19 +2,19 @@
 pragma solidity 0.8.21;
 
 import { MockDataFeed } from "src/mocks/MockDataFeed.sol";
-import { CellarWithShareLockPeriod } from "src/base/permutations/CellarWithShareLockPeriod.sol";
+import { FundWithShareLockPeriod } from "src/base/permutations/FundWithShareLockPeriod.sol";
 
 // Import Everything from Starter file.
 import "test/resources/MainnetStarter.t.sol";
 
 import { AdaptorHelperFunctions } from "test/resources/AdaptorHelperFunctions.sol";
 
-contract CellarWithShareLockPeriodTest is MainnetStarterTest, AdaptorHelperFunctions {
+contract FundWithShareLockPeriodTest is MainnetStarterTest, AdaptorHelperFunctions {
     using SafeTransferLib for ERC20;
     using Math for uint256;
     using stdStorage for StdStorage;
 
-    CellarWithShareLockPeriod private cellar;
+    FundWithShareLockPeriod private fund;
 
     MockDataFeed private mockUsdcUsd;
     MockDataFeed private mockWethUsd;
@@ -70,81 +70,81 @@ contract CellarWithShareLockPeriodTest is MainnetStarterTest, AdaptorHelperFunct
         registry.trustPosition(wethPosition, address(erc20Adaptor), abi.encode(WETH));
         registry.trustPosition(wbtcPosition, address(erc20Adaptor), abi.encode(WBTC));
 
-        // Create Cellar.
-        string memory cellarName = "Share Lock Cellar V0.0";
+        // Create Fund.
+        string memory fundName = "Share Lock Fund V0.0";
         uint256 initialDeposit = 1e6;
 
-        // Approve new cellar to spend assets.
-        address cellarAddress = deployer.getAddress(cellarName);
+        // Approve new fund to spend assets.
+        address fundAddress = deployer.getAddress(fundName);
         deal(address(USDC), address(this), initialDeposit);
-        USDC.approve(cellarAddress, initialDeposit);
+        USDC.approve(fundAddress, initialDeposit);
 
         bytes memory creationCode;
         bytes memory constructorArgs;
-        creationCode = type(CellarWithShareLockPeriod).creationCode;
+        creationCode = type(FundWithShareLockPeriod).creationCode;
         constructorArgs = abi.encode(
             address(this),
             registry,
             USDC,
-            cellarName,
-            cellarName,
+            fundName,
+            fundName,
             usdcPosition,
             abi.encode(true),
             initialDeposit,
             type(uint192).max
         );
 
-        cellar = CellarWithShareLockPeriod(deployer.deployContract(cellarName, creationCode, constructorArgs, 0));
+        fund = FundWithShareLockPeriod(deployer.deployContract(fundName, creationCode, constructorArgs, 0));
 
-        // Set up remaining cellar positions.
-        cellar.addPositionToCatalogue(wethPosition);
-        cellar.addPosition(1, wethPosition, abi.encode(true), false);
-        cellar.addPositionToCatalogue(wbtcPosition);
-        cellar.addPosition(2, wbtcPosition, abi.encode(true), false);
+        // Set up remaining fund positions.
+        fund.addPositionToCatalogue(wethPosition);
+        fund.addPosition(1, wethPosition, abi.encode(true), false);
+        fund.addPositionToCatalogue(wbtcPosition);
+        fund.addPosition(2, wbtcPosition, abi.encode(true), false);
 
-        // cellar.setStrategistPayoutAddress(strategist);
+        // fund.setStrategistPayoutAddress(strategist);
 
-        vm.label(address(cellar), "cellar");
+        vm.label(address(fund), "fund");
         vm.label(strategist, "strategist");
 
-        // Approve cellar to spend all assets.
-        USDC.approve(address(cellar), type(uint256).max);
+        // Approve fund to spend all assets.
+        USDC.approve(address(fund), type(uint256).max);
 
-        initialAssets = cellar.totalAssets();
-        initialShares = cellar.totalSupply();
+        initialAssets = fund.totalAssets();
+        initialShares = fund.totalSupply();
     }
 
     function testTransfer() external {
-        // Change cellar share lock period.
-        cellar.setShareLockPeriod(300);
+        // Change fund share lock period.
+        fund.setShareLockPeriod(300);
 
-        // Deposit into cellar.
+        // Deposit into fund.
         uint256 assets = 100e6;
         deal(address(USDC), address(this), assets);
-        uint256 shares = cellar.deposit(assets, address(this));
+        uint256 shares = fund.deposit(assets, address(this));
 
         // Check that withdraw/redeem fails.
         vm.expectRevert(
             bytes(
                 abi.encodeWithSelector(
-                    CellarWithShareLockPeriod.Cellar__SharesAreLocked.selector,
-                    block.timestamp + cellar.shareLockPeriod(),
+                    FundWithShareLockPeriod.Fund__SharesAreLocked.selector,
+                    block.timestamp + fund.shareLockPeriod(),
                     block.timestamp
                 )
             )
         );
-        cellar.withdraw(assets, address(this), address(this));
+        fund.withdraw(assets, address(this), address(this));
 
         vm.expectRevert(
             bytes(
                 abi.encodeWithSelector(
-                    CellarWithShareLockPeriod.Cellar__SharesAreLocked.selector,
-                    block.timestamp + cellar.shareLockPeriod(),
+                    FundWithShareLockPeriod.Fund__SharesAreLocked.selector,
+                    block.timestamp + fund.shareLockPeriod(),
                     block.timestamp
                 )
             )
         );
-        cellar.redeem(shares, address(this), address(this));
+        fund.redeem(shares, address(this), address(this));
 
         // Check that transfer and transferFrom fails.
         address me = address(this);
@@ -152,158 +152,154 @@ contract CellarWithShareLockPeriodTest is MainnetStarterTest, AdaptorHelperFunct
         vm.expectRevert(
             bytes(
                 abi.encodeWithSelector(
-                    CellarWithShareLockPeriod.Cellar__SharesAreLocked.selector,
-                    block.timestamp + cellar.shareLockPeriod(),
+                    FundWithShareLockPeriod.Fund__SharesAreLocked.selector,
+                    block.timestamp + fund.shareLockPeriod(),
                     block.timestamp
                 )
             )
         );
-        cellar.transfer(friend, shares);
+        fund.transfer(friend, shares);
 
-        cellar.approve(friend, shares / 2);
+        fund.approve(friend, shares / 2);
         vm.startPrank(friend);
         vm.expectRevert(
             bytes(
                 abi.encodeWithSelector(
-                    CellarWithShareLockPeriod.Cellar__SharesAreLocked.selector,
-                    block.timestamp + cellar.shareLockPeriod(),
+                    FundWithShareLockPeriod.Fund__SharesAreLocked.selector,
+                    block.timestamp + fund.shareLockPeriod(),
                     block.timestamp
                 )
             )
         );
-        cellar.transferFrom(me, friend, shares);
+        fund.transferFrom(me, friend, shares);
         vm.stopPrank();
 
         // Advance time so shares are unlocked.
-        vm.warp(block.timestamp + cellar.shareLockPeriod());
+        vm.warp(block.timestamp + fund.shareLockPeriod());
 
         // Check that transfer complies with ERC20 standards.
-        assertTrue(cellar.transfer(friend, shares / 2), "transfer should return true.");
-        assertEq(cellar.balanceOf(friend), shares / 2, "Friend should have received shares.");
-        assertEq(cellar.balanceOf(me), shares / 2, "I should have sent shares.");
+        assertTrue(fund.transfer(friend, shares / 2), "transfer should return true.");
+        assertEq(fund.balanceOf(friend), shares / 2, "Friend should have received shares.");
+        assertEq(fund.balanceOf(me), shares / 2, "I should have sent shares.");
 
         // Check that transferFrom complies with ERC20 standards.
         vm.prank(friend);
-        assertTrue(cellar.transferFrom(me, friend, shares / 2), "transferFrom should return true.");
-        assertEq(cellar.balanceOf(friend), shares, "Friend should have received shares.");
-        assertEq(cellar.balanceOf(me), 0, "I should have sent shares.");
-        assertEq(cellar.allowance(me, friend), 0, "Friend should have used all their allowance.");
+        assertTrue(fund.transferFrom(me, friend, shares / 2), "transferFrom should return true.");
+        assertEq(fund.balanceOf(friend), shares, "Friend should have received shares.");
+        assertEq(fund.balanceOf(me), 0, "I should have sent shares.");
+        assertEq(fund.allowance(me, friend), 0, "Friend should have used all their allowance.");
     }
 
     function testChainlinkPriceFeedUpdateSandwichAttack() external {
-        // Initialize test Cellar.
-        string memory cellarName = "Share Lock Cellar V0.1";
+        // Initialize test Fund.
+        string memory fundName = "Share Lock Fund V0.1";
         uint256 initialDeposit = 1e6;
 
-        // Approve new cellar to spend assets.
-        address cellarAddress = deployer.getAddress(cellarName);
+        // Approve new fund to spend assets.
+        address fundAddress = deployer.getAddress(fundName);
         deal(address(USDC), address(this), initialDeposit);
-        USDC.approve(cellarAddress, initialDeposit);
+        USDC.approve(fundAddress, initialDeposit);
 
         bytes memory creationCode;
         bytes memory constructorArgs;
-        creationCode = type(CellarWithShareLockPeriod).creationCode;
+        creationCode = type(FundWithShareLockPeriod).creationCode;
         constructorArgs = abi.encode(
             address(this),
             registry,
             USDC,
-            cellarName,
-            cellarName,
+            fundName,
+            fundName,
             usdcPosition,
             abi.encode(true),
             initialDeposit,
             type(uint192).max
         );
 
-        CellarWithShareLockPeriod cellarA = CellarWithShareLockPeriod(
-            deployer.deployContract(cellarName, creationCode, constructorArgs, 0)
+        FundWithShareLockPeriod fundA = FundWithShareLockPeriod(
+            deployer.deployContract(fundName, creationCode, constructorArgs, 0)
         );
 
-        cellarA.addPositionToCatalogue(wethPosition);
-        cellarA.addPosition(1, wethPosition, abi.encode(true), false);
+        fundA.addPositionToCatalogue(wethPosition);
+        fundA.addPosition(1, wethPosition, abi.encode(true), false);
 
         // Set up worst case scenario where
-        // Cellar has all of its funds in mispriced asset(WETH)
+        // Fund has all of its funds in mispriced asset(WETH)
         // Chainlink updates price because of max price deviation(1%)
 
         uint256 assets = 10_000e6;
         deal(address(USDC), address(this), assets);
-        USDC.approve(address(cellarA), assets);
-        cellarA.deposit(assets, address(this));
+        USDC.approve(address(fundA), assets);
+        fundA.deposit(assets, address(this));
         // Manually rebalance funds from USDC to WETH.
-        deal(address(USDC), address(cellarA), 0);
-        deal(address(WETH), address(cellarA), 5e18);
+        deal(address(USDC), address(fundA), 0);
+        deal(address(WETH), address(fundA), 5e18);
 
-        // Attacker joins cellar right before price update.
+        // Attacker joins fund right before price update.
         address attacker = vm.addr(8349058);
         deal(address(USDC), attacker, assets);
         vm.startPrank(attacker);
-        USDC.approve(address(cellarA), assets);
-        cellarA.deposit(assets, attacker);
+        USDC.approve(address(fundA), assets);
+        fundA.deposit(assets, attacker);
         vm.stopPrank();
 
         // Price updates
         mockWethUsd.setMockAnswer(2020e8);
 
         // Confirm attackers maxWithdraw is zero while shares are locked.
-        assertEq(cellarA.maxWithdraw(attacker), 0, "Attackers maxWithdraw should be zero while shares are locked.");
+        assertEq(fundA.maxWithdraw(attacker), 0, "Attackers maxWithdraw should be zero while shares are locked.");
 
         // Confirm attackers maxRedeem is zero while shares are locked.
-        assertEq(cellarA.maxRedeem(attacker), 0, "Attackers maxRedeem should be zero while shares are locked.");
+        assertEq(fundA.maxRedeem(attacker), 0, "Attackers maxRedeem should be zero while shares are locked.");
 
         vm.startPrank(attacker);
-        uint256 shares = cellarA.balanceOf(attacker);
+        uint256 shares = fundA.balanceOf(attacker);
         // Attacker tries to redeem their shares.
         vm.expectRevert(
             bytes(
                 abi.encodeWithSelector(
-                    CellarWithShareLockPeriod.Cellar__SharesAreLocked.selector,
-                    block.timestamp + cellarA.shareLockPeriod(),
+                    FundWithShareLockPeriod.Fund__SharesAreLocked.selector,
+                    block.timestamp + fundA.shareLockPeriod(),
                     block.timestamp
                 )
             )
         );
-        cellarA.redeem(shares, attacker, attacker);
+        fundA.redeem(shares, attacker, attacker);
 
         // Attacker tries to transfer shares to another address.
         vm.expectRevert(
             bytes(
                 abi.encodeWithSelector(
-                    CellarWithShareLockPeriod.Cellar__SharesAreLocked.selector,
-                    block.timestamp + cellarA.shareLockPeriod(),
+                    FundWithShareLockPeriod.Fund__SharesAreLocked.selector,
+                    block.timestamp + fundA.shareLockPeriod(),
                     block.timestamp
                 )
             )
         );
-        cellarA.transfer(address(this), shares);
+        fundA.transfer(address(this), shares);
         vm.stopPrank();
 
-        vm.warp(block.timestamp + cellarA.shareLockPeriod());
+        vm.warp(block.timestamp + fundA.shareLockPeriod());
         mockUsdcUsd.setMockUpdatedAt(block.timestamp);
         mockWethUsd.setMockUpdatedAt(block.timestamp);
 
         // Confirm attackers shares are worth more once shares are unlocked.
-        assertGt(cellarA.maxWithdraw(attacker), assets, "Attackers shares should be worth more than deposit.");
+        assertGt(fundA.maxWithdraw(attacker), assets, "Attackers shares should be worth more than deposit.");
 
         // Note the attacker was able to arbitrage the price feed update, but must wait the share lock period in order to capture profit.
     }
 
     function testShareLockUpPeriod() external {
         // Try to set lock period to illogical value.
-        vm.expectRevert(
-            bytes(abi.encodeWithSelector(CellarWithShareLockPeriod.Cellar__InvalidShareLockPeriod.selector))
-        );
-        cellar.setShareLockPeriod(type(uint32).max);
+        vm.expectRevert(bytes(abi.encodeWithSelector(FundWithShareLockPeriod.Fund__InvalidShareLockPeriod.selector)));
+        fund.setShareLockPeriod(type(uint32).max);
 
-        vm.expectRevert(
-            bytes(abi.encodeWithSelector(CellarWithShareLockPeriod.Cellar__InvalidShareLockPeriod.selector))
-        );
-        cellar.setShareLockPeriod(0);
+        vm.expectRevert(bytes(abi.encodeWithSelector(FundWithShareLockPeriod.Fund__InvalidShareLockPeriod.selector)));
+        fund.setShareLockPeriod(0);
 
         // Set lock period to reasonable value.
         uint256 newLock = 300;
-        cellar.setShareLockPeriod(newLock);
-        assertEq(cellar.shareLockPeriod(), newLock, "Cellar share lock should equal newLock.");
+        fund.setShareLockPeriod(newLock);
+        assertEq(fund.shareLockPeriod(), newLock, "Fund share lock should equal newLock.");
 
         // Make sure user's who join with mint or deposit can not transfer, withdraw, or redeem for the shareLockPeriod.
         uint256 assets = 100e6;
@@ -312,112 +308,112 @@ contract CellarWithShareLockPeriodTest is MainnetStarterTest, AdaptorHelperFunct
         address mintUser = vm.addr(77777);
         vm.startPrank(depositUser);
         deal(address(USDC), depositUser, assets);
-        USDC.approve(address(cellar), assets);
-        cellar.deposit(assets, depositUser);
+        USDC.approve(address(fund), assets);
+        fund.deposit(assets, depositUser);
         vm.expectRevert(
             bytes(
                 abi.encodeWithSelector(
-                    CellarWithShareLockPeriod.Cellar__SharesAreLocked.selector,
-                    block.timestamp + cellar.shareLockPeriod(),
+                    FundWithShareLockPeriod.Fund__SharesAreLocked.selector,
+                    block.timestamp + fund.shareLockPeriod(),
                     block.timestamp
                 )
             )
         );
-        cellar.withdraw(assets, depositUser, depositUser);
+        fund.withdraw(assets, depositUser, depositUser);
         vm.expectRevert(
             bytes(
                 abi.encodeWithSelector(
-                    CellarWithShareLockPeriod.Cellar__SharesAreLocked.selector,
-                    block.timestamp + cellar.shareLockPeriod(),
+                    FundWithShareLockPeriod.Fund__SharesAreLocked.selector,
+                    block.timestamp + fund.shareLockPeriod(),
                     block.timestamp
                 )
             )
         );
-        cellar.redeem(shares, depositUser, depositUser);
+        fund.redeem(shares, depositUser, depositUser);
         vm.expectRevert(
             bytes(
                 abi.encodeWithSelector(
-                    CellarWithShareLockPeriod.Cellar__SharesAreLocked.selector,
-                    block.timestamp + cellar.shareLockPeriod(),
+                    FundWithShareLockPeriod.Fund__SharesAreLocked.selector,
+                    block.timestamp + fund.shareLockPeriod(),
                     block.timestamp
                 )
             )
         );
-        cellar.transfer(address(this), shares);
+        fund.transfer(address(this), shares);
         vm.stopPrank();
 
         vm.startPrank(mintUser);
         deal(address(USDC), mintUser, assets);
-        USDC.approve(address(cellar), assets);
-        cellar.mint(shares, mintUser);
+        USDC.approve(address(fund), assets);
+        fund.mint(shares, mintUser);
         vm.expectRevert(
             bytes(
                 abi.encodeWithSelector(
-                    CellarWithShareLockPeriod.Cellar__SharesAreLocked.selector,
-                    block.timestamp + cellar.shareLockPeriod(),
+                    FundWithShareLockPeriod.Fund__SharesAreLocked.selector,
+                    block.timestamp + fund.shareLockPeriod(),
                     block.timestamp
                 )
             )
         );
-        cellar.withdraw(assets, mintUser, mintUser);
+        fund.withdraw(assets, mintUser, mintUser);
         vm.expectRevert(
             bytes(
                 abi.encodeWithSelector(
-                    CellarWithShareLockPeriod.Cellar__SharesAreLocked.selector,
-                    block.timestamp + cellar.shareLockPeriod(),
+                    FundWithShareLockPeriod.Fund__SharesAreLocked.selector,
+                    block.timestamp + fund.shareLockPeriod(),
                     block.timestamp
                 )
             )
         );
-        cellar.redeem(shares, mintUser, mintUser);
+        fund.redeem(shares, mintUser, mintUser);
         vm.expectRevert(
             bytes(
                 abi.encodeWithSelector(
-                    CellarWithShareLockPeriod.Cellar__SharesAreLocked.selector,
-                    block.timestamp + cellar.shareLockPeriod(),
+                    FundWithShareLockPeriod.Fund__SharesAreLocked.selector,
+                    block.timestamp + fund.shareLockPeriod(),
                     block.timestamp
                 )
             )
         );
-        cellar.transfer(address(this), shares);
+        fund.transfer(address(this), shares);
         vm.stopPrank();
 
         // Advance block timestamp to end of share lock period.
-        vm.warp(block.timestamp + cellar.shareLockPeriod());
+        vm.warp(block.timestamp + fund.shareLockPeriod());
 
         // Users can withdraw.
         vm.prank(depositUser);
-        cellar.withdraw(assets, depositUser, depositUser);
+        fund.withdraw(assets, depositUser, depositUser);
 
         // Users can transfer.
         vm.prank(mintUser);
-        cellar.transfer(depositUser, shares);
+        fund.transfer(depositUser, shares);
 
         // Users can redeem.
         vm.prank(depositUser);
-        cellar.redeem(shares, depositUser, depositUser);
+        fund.redeem(shares, depositUser, depositUser);
 
         // Check that if a user has waited the lock period but then decides to deposit again, they must wait for the new lock period to end.
         vm.startPrank(depositUser);
         deal(address(USDC), depositUser, assets);
-        USDC.approve(address(cellar), 2 * assets);
-        cellar.deposit(assets, depositUser);
+        USDC.approve(address(fund), 2 * assets);
+        fund.deposit(assets, depositUser);
         // Advance block timestamp to end of share lock period.
-        vm.warp(block.timestamp + cellar.shareLockPeriod());
+        vm.warp(block.timestamp + fund.shareLockPeriod());
 
         // If user joins again, they must wait the lock period again, even if withdrawing previous amount.
         deal(address(USDC), depositUser, assets);
-        cellar.deposit(assets, depositUser);
+        fund.deposit(assets, depositUser);
         vm.expectRevert(
             bytes(
                 abi.encodeWithSelector(
-                    CellarWithShareLockPeriod.Cellar__SharesAreLocked.selector,
-                    block.timestamp + cellar.shareLockPeriod(),
+                    FundWithShareLockPeriod.Fund__SharesAreLocked.selector,
+                    block.timestamp + fund.shareLockPeriod(),
                     block.timestamp
                 )
             )
         );
-        cellar.withdraw(assets, depositUser, depositUser);
+        fund.withdraw(assets, depositUser, depositUser);
         vm.stopPrank();
     }
 
@@ -428,16 +424,16 @@ contract CellarWithShareLockPeriodTest is MainnetStarterTest, AdaptorHelperFunct
         vm.expectRevert(
             bytes(
                 abi.encodeWithSelector(
-                    CellarWithShareLockPeriod.Cellar__NotApprovedToDepositOnBehalf.selector,
+                    FundWithShareLockPeriod.Fund__NotApprovedToDepositOnBehalf.selector,
                     address(this)
                 )
             )
         );
-        cellar.deposit(assets, user);
+        fund.deposit(assets, user);
 
         // Add this address as an approved depositor.
         registry.setApprovedForDepositOnBehalf(address(this), true);
         // Deposits are now allowed.
-        cellar.deposit(assets, user);
+        fund.deposit(assets, user);
     }
 }

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.21;
 
-import { BaseAdaptor, ERC20, SafeTransferLib, Cellar, PriceRouter, Math } from "src/modules/adaptors/BaseAdaptor.sol";
+import { BaseAdaptor, ERC20, SafeTransferLib, Fund, PriceRouter, Math } from "src/modules/adaptors/BaseAdaptor.sol";
 import { IFToken } from "src/interfaces/external/Frax/IFToken.sol";
 import { FraxlendHealthFactorLogic } from "src/modules/adaptors/Frax/FraxlendHealthFactorLogic.sol";
 
 /**
  * @title FraxLend Collateral Adaptor
- * @notice Allows addition and removal of collateralAssets to Fraxlend pairs for a Cellar.
+ * @notice Allows addition and removal of collateralAssets to Fraxlend pairs for a Fund.
  * @author crispymangoes, 0xEinCodes
  */
 contract CollateralFTokenAdaptor is BaseAdaptor, FraxlendHealthFactorLogic {
@@ -23,12 +23,12 @@ contract CollateralFTokenAdaptor is BaseAdaptor, FraxlendHealthFactorLogic {
     // ==================================================================
 
     /**
-     * @notice Attempted to interact with an fraxlendPair the Cellar is not using.
+     * @notice Attempted to interact with an fraxlendPair the Fund is not using.
      */
     error CollateralFTokenAdaptor__FraxlendPairPositionsMustBeTracked(address fraxlendPair);
 
     /**
-     * @notice Removal of collateral causes Cellar Health Factor below what is required
+     * @notice Removal of collateral causes Fund Health Factor below what is required
      */
     error CollateralFTokenAdaptor__HealthFactorTooLow(address fraxlendPair);
 
@@ -54,7 +54,7 @@ contract CollateralFTokenAdaptor is BaseAdaptor, FraxlendHealthFactorLogic {
     /**
      * @dev Identifier unique to this adaptor for a shared registry.
      * Normally the identifier would just be the address of this contract, but this
-     * Identifier is needed during Cellar Delegate Call Operations, so getting the address
+     * Identifier is needed during Fund Delegate Call Operations, so getting the address
      * of the adaptor is more difficult.
      */
     function identifier() public pure virtual override returns (bytes32) {
@@ -100,7 +100,7 @@ contract CollateralFTokenAdaptor is BaseAdaptor, FraxlendHealthFactorLogic {
     }
 
     /**
-     * @notice Returns the cellar's balance of the collateralAsset position.
+     * @notice Returns the fund's balance of the collateralAsset position.
      * @param adaptorData the collateral asset deposited into Fraxlend
      */
     function balanceOf(bytes memory adaptorData) public view override returns (uint256) {
@@ -126,7 +126,7 @@ contract CollateralFTokenAdaptor is BaseAdaptor, FraxlendHealthFactorLogic {
     //============================================ Strategist Functions ===========================================
 
     /**
-     * @notice Allows strategists to add collateral to the respective cellar position on FraxLend, enabling borrowing.
+     * @notice Allows strategists to add collateral to the respective fund position on FraxLend, enabling borrowing.
      * @param _fraxlendPair The specified Fraxlend Pair
      * @param _collateralToDeposit The amount of collateral to add to Fraxlend Pair position
      */
@@ -144,7 +144,7 @@ contract CollateralFTokenAdaptor is BaseAdaptor, FraxlendHealthFactorLogic {
     }
 
     /**
-     * @notice Allows strategists to remove collateral from the respective cellar position on FraxLend.
+     * @notice Allows strategists to remove collateral from the respective fund position on FraxLend.
      * @param _collateralAmount The amount of collateral to remove from fraxlend pair position
      * @param _fraxlendPair The specified Fraxlend Pair
      */
@@ -167,13 +167,13 @@ contract CollateralFTokenAdaptor is BaseAdaptor, FraxlendHealthFactorLogic {
     //============================================ Helper Functions ===========================================
 
     /**
-     * @notice Validates that a given fToken is set up as a position in the Cellar.
-     * @dev This function uses `address(this)` as the address of the Cellar.
+     * @notice Validates that a given fToken is set up as a position in the Fund.
+     * @dev This function uses `address(this)` as the address of the Fund.
      */
     function _validateFToken(IFToken _fraxlendPair) internal view virtual {
         bytes32 positionHash = keccak256(abi.encode(identifier(), false, abi.encode(address(_fraxlendPair))));
-        uint32 positionId = Cellar(address(this)).registry().getPositionHashToPositionId(positionHash);
-        if (!Cellar(address(this)).isPositionUsed(positionId))
+        uint32 positionId = Fund(address(this)).registry().getPositionHashToPositionId(positionHash);
+        if (!Fund(address(this)).isPositionUsed(positionId))
             revert CollateralFTokenAdaptor__FraxlendPairPositionsMustBeTracked(address(_fraxlendPair));
     }
 
@@ -199,7 +199,7 @@ contract CollateralFTokenAdaptor is BaseAdaptor, FraxlendHealthFactorLogic {
     //===============================================================================
 
     /**
-     * @notice Increment collateral amount in cellar account within fraxlend pair
+     * @notice Increment collateral amount in fund account within fraxlend pair
      * @param _fraxlendPair The specified Fraxlend Pair
      * @param amountToDeposit The amount of collateral to add to Fraxlend Pair position
      */
@@ -217,7 +217,7 @@ contract CollateralFTokenAdaptor is BaseAdaptor, FraxlendHealthFactorLogic {
     }
 
     /**
-     * @notice Decrement collateral amount in cellar account within fraxlend pair
+     * @notice Decrement collateral amount in fund account within fraxlend pair
      * @param _collateralAmount The amount of collateral to remove from fraxlend pair position
      * @param _fraxlendPair The specified Fraxlend Pair
      */

@@ -5,10 +5,9 @@ import { AggregatorBaseAdaptor, ERC20 } from "src/modules/adaptors/AggregatorBas
 
 /**
  * @title 1inch Adaptor
- * @notice Allows Cellars to swap with 1Inch.
+ * @notice Allows Funds to swap with 1Inch.
  */
 contract OneInchAdaptor is AggregatorBaseAdaptor {
-
     //==================== Adaptor Data Specification ====================
     // NOT USED
     //================= Configuration Data Specification =================
@@ -32,7 +31,7 @@ contract OneInchAdaptor is AggregatorBaseAdaptor {
     /**
      * @dev Identifier unique to this adaptor for a shared registry.
      * Normally the identifier would just be the address of this contract, but this
-     * Identifier is needed during Cellar Delegate Call Operations, so getting the address
+     * Identifier is needed during Fund Delegate Call Operations, so getting the address
      * of the adaptor is more difficult.
      */
     function identifier() public pure virtual override returns (bytes32) {

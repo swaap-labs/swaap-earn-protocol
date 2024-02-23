@@ -32,8 +32,8 @@ import { ComptrollerG7 as Comptroller, CErc20 } from "src/interfaces/external/IC
 import { FTokenAdaptor, IFToken } from "src/modules/adaptors/Frax/FTokenAdaptor.sol";
 
 // Swaap
-import { CellarAdaptor } from "src/modules/adaptors/Swaap/CellarAdaptor.sol";
-import { SwaapPoolAdaptor } from "src/modules/adaptors/Swaap/SwaapPoolAdaptor.sol";
+import { SwaapFundAdaptor } from "src/modules/adaptors/Swaap/SwaapFundAdaptor.sol";
+import { SwaapV2Adaptor } from "src/modules/adaptors/Swaap/SwaapV2Adaptor.sol";
 
 // Maker
 import { DSRAdaptor } from "src/modules/adaptors/Maker/DSRAdaptor.sol";
@@ -362,7 +362,7 @@ contract AdaptorHelperFunctions {
         uint256[] memory maxAmountsIn,
         uint256 sptShares
     ) internal pure returns (bytes memory) {
-        return abi.encodeWithSelector(SwaapPoolAdaptor.joinPool.selector, pool, tokens, maxAmountsIn, sptShares);
+        return abi.encodeWithSelector(SwaapV2Adaptor.joinPool.selector, pool, tokens, maxAmountsIn, sptShares);
     }
 
     function _createBytesDataToJoinAllowlistSwaapPool(
@@ -375,7 +375,7 @@ contract AdaptorHelperFunctions {
     ) internal pure returns (bytes memory) {
         return
             abi.encodeWithSelector(
-                SwaapPoolAdaptor.joinPoolWithAllowlistOn.selector,
+                SwaapV2Adaptor.joinPoolWithAllowlistOn.selector,
                 pool,
                 tokens,
                 maxAmountsIn,
@@ -391,7 +391,7 @@ contract AdaptorHelperFunctions {
         uint256[] memory minAmountsOut,
         uint256 sptShares
     ) internal pure returns (bytes memory) {
-        return abi.encodeWithSelector(SwaapPoolAdaptor.exitPool.selector, pool, tokens, minAmountsOut, sptShares);
+        return abi.encodeWithSelector(SwaapV2Adaptor.exitPool.selector, pool, tokens, minAmountsOut, sptShares);
     }
 
     // ========================================= Balancer FUNCTIONS =========================================
@@ -504,12 +504,12 @@ contract AdaptorHelperFunctions {
 
     // ========================================= Swaap FUNCTIONS =========================================
 
-    function _createBytesDataToDepositToCellar(address cellar, uint256 assets) internal pure returns (bytes memory) {
-        return abi.encodeWithSelector(CellarAdaptor.depositToCellar.selector, cellar, assets);
+    function _createBytesDataToDepositToFund(address fund, uint256 assets) internal pure returns (bytes memory) {
+        return abi.encodeWithSelector(SwaapFundAdaptor.depositToFund.selector, fund, assets);
     }
 
-    function _createBytesDataToWithdrawFromCellar(address cellar, uint256 assets) internal pure returns (bytes memory) {
-        return abi.encodeWithSelector(CellarAdaptor.withdrawFromCellar.selector, cellar, assets);
+    function _createBytesDataToWithdrawFromFund(address fund, uint256 assets) internal pure returns (bytes memory) {
+        return abi.encodeWithSelector(SwaapFundAdaptor.withdrawFromFund.selector, fund, assets);
     }
 
     function _createBytesDataToDepositToERC4626Vault(

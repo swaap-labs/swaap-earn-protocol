@@ -40,7 +40,7 @@ contract SwaapSafeguarPoolTest is MainnetStarterTest, AdaptorHelperFunctions {
         expectedWETH_USDC_SPTPrice = 0.2328e8;
 
         // Deploy Required Extensions.
-        swaapSafeguardPoolExtension = new SwaapSafeguardPoolExtension(priceRouter, IVault(swaapVault));
+        swaapSafeguardPoolExtension = new SwaapSafeguardPoolExtension(priceRouter, IVault(swaapV2Vault));
     }
 
     // ======================================= HAPPY PATH =======================================
@@ -115,7 +115,7 @@ contract SwaapSafeguarPoolTest is MainnetStarterTest, AdaptorHelperFunctions {
         for (uint256 i; i < lengthToUse; ++i) {
             assets[i] = IAsset(address(tokens[i]));
             deal(address(tokens[i]), address(this), type(uint256).max / 10);
-            ERC20(tokens[i]).approve(swaapVault, type(uint256).max);
+            ERC20(tokens[i]).approve(swaapV2Vault, type(uint256).max);
             maxAmounts[i] = type(uint256).max;
             balancesBefore[i] = tokens[i].balanceOf(address(this));
         }
@@ -124,7 +124,7 @@ contract SwaapSafeguarPoolTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         uint256 totalSupplyBefore = ERC20(address(pool)).balanceOf(address(this));
 
-        IVault(swaapVault).joinPool(
+        IVault(swaapV2Vault).joinPool(
             pool.getPoolId(),
             address(this),
             address(this),
@@ -161,7 +161,7 @@ contract SwaapSafeguarPoolTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         uint256 totalSupplyBefore = ERC20(address(pool)).balanceOf(address(this));
 
-        IVault(swaapVault).exitPool(
+        IVault(swaapV2Vault).exitPool(
             pool.getPoolId(),
             address(this),
             payable(address(this)),

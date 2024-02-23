@@ -2,7 +2,7 @@
 pragma solidity 0.8.21;
 
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
-import { Cellar } from "src/base/Cellar.sol";
+import { Fund } from "src/base/Fund.sol";
 import { ERC20 } from "@solmate/tokens/ERC20.sol";
 import { BaseAdaptor } from "src/modules/adaptors/BaseAdaptor.sol";
 import { PriceRouter } from "src/modules/price-router/PriceRouter.sol";
@@ -50,7 +50,7 @@ contract Registry is Ownable {
     FeesManager public immutable FEES_MANAGER;
 
     /**
-     * @notice toggles a depositors  ability to deposit into cellars on behalf of users.
+     * @notice toggles a depositors  ability to deposit into funds on behalf of users.
      */
     function setApprovedForDepositOnBehalf(address depositor, bool state) external onlyOwner {
         approvedForDepositOnBehalf[depositor] = state;
@@ -243,19 +243,19 @@ contract Registry is Ownable {
     error Registry__TargetAlreadyPaused(address target);
 
     /**
-     * @notice Mapping stores whether or not a cellar is paused.
+     * @notice Mapping stores whether or not a fund is paused.
      */
     mapping(address => bool) public isCallerPaused;
 
     /**
-     * @notice Allows multisig to pause multiple cellars in a single call.
+     * @notice Allows multisig to pause multiple funds in a single call.
      */
     function batchPause(address[] calldata targets) external onlyOwner {
         for (uint256 i; i < targets.length; ++i) _pauseTarget(targets[i]);
     }
 
     /**
-     * @notice Allows multisig to unpause multiple cellars in a single call.
+     * @notice Allows multisig to unpause multiple funds in a single call.
      */
     function batchUnpause(address[] calldata targets) external onlyOwner {
         for (uint256 i; i < targets.length; ++i) _unpauseTarget(targets[i]);
@@ -307,7 +307,7 @@ contract Registry is Ownable {
     mapping(bytes32 => bool) public isIdentifierUsed;
 
     /**
-     * @notice Trust an adaptor to be used by cellars
+     * @notice Trust an adaptor to be used by funds
      * @param adaptor address of the adaptor to trust
      */
     function trustAdaptor(address adaptor) external onlyOwner {
@@ -320,7 +320,7 @@ contract Registry is Ownable {
 
     /**
      * @notice Allows registry to distrust adaptors.
-     * @dev Doing so prevents Cellars from adding this adaptor to their catalogue.
+     * @dev Doing so prevents Funds from adding this adaptor to their catalogue.
      */
     function distrustAdaptor(address adaptor) external onlyOwner {
         if (!isAdaptorTrusted[adaptor]) revert Registry__AdaptorNotTrusted(adaptor);
@@ -340,11 +340,11 @@ contract Registry is Ownable {
 
     // ============================================ POSITION LOGIC ============================================
     /**
-     * @notice stores data related to Cellar positions.
+     * @notice stores data related to Fund positions.
      * @param adaptors address of the adaptor to use for this position
      * @param isDebt bool indicating whether this position takes on debt or not
      * @param adaptorData arbitrary data needed to correclty set up a position
-     * @param configurationData arbitrary data settable by strategist to change cellar <-> adaptor interaction
+     * @param configurationData arbitrary data settable by strategist to change fund <-> adaptor interaction
      */
     struct PositionData {
         address adaptor;
@@ -390,19 +390,19 @@ contract Registry is Ownable {
     error Registry__PositionIsNotTrusted(uint32 position);
 
     /**
-     * @notice Addresses of the positions currently used by the cellar.
+     * @notice Addresses of the positions currently used by the fund.
      */
     uint256 public constant PRICE_ROUTER_REGISTRY_SLOT = 2;
 
     /**
      * @notice Maps a position hash to a position Id.
-     * @dev can be used by adaptors to verify that a certain position is open during Cellar `callOnAdaptor` calls.
+     * @dev can be used by adaptors to verify that a certain position is open during Fund `callOnAdaptor` calls.
      */
     mapping(bytes32 => uint32) public getPositionHashToPositionId;
 
     /**
      * @notice Maps a position id to its position data.
-     * @dev used by Cellars when adding new positions.
+     * @dev used by Funds when adding new positions.
      */
     mapping(uint32 => PositionData) public getPositionIdToPositionData;
 
@@ -412,7 +412,7 @@ contract Registry is Ownable {
     mapping(uint32 => bool) public isPositionTrusted;
 
     /**
-     * @notice Trust a position to be used by the cellar.
+     * @notice Trust a position to be used by the fund.
      * @param positionId the position id of the newly added position
      * @param adaptor the adaptor address this position uses
      * @param adaptorData arbitrary bytes used to configure this position
@@ -458,7 +458,7 @@ contract Registry is Ownable {
 
     /**
      * @notice Allows registry to distrust positions.
-     * @dev Doing so prevents Cellars from adding this position to their catalogue,
+     * @dev Doing so prevents Funds from adding this position to their catalogue,
      *      and adding the position to their tracked arrays.
      */
     function distrustPosition(uint32 positionId) external onlyOwner {
@@ -468,12 +468,12 @@ contract Registry is Ownable {
     }
 
     /**
-     * @notice Called by Cellars to add a new position to themselves.
-     * @param positionId the id of the position the cellar wants to add
+     * @notice Called by Funds to add a new position to themselves.
+     * @param positionId the id of the position the fund wants to add
      * @return adaptor the address of the adaptor, isDebt bool indicating whether position is
      *         debt or not, and adaptorData needed to interact with position
      */
-    function addPositionToCellar(
+    function addPositionToFund(
         uint32 positionId
     ) external view returns (address adaptor, bool isDebt, bytes memory adaptorData) {
         if (positionId == 0) revert Registry__PositionDoesNotExist();
@@ -494,93 +494,93 @@ contract Registry is Ownable {
 
     // ========================================== LIMIT ADAPTOR SWAP VOLUME LOGIC ==========================================
 
-    event CellarTradeVolumeDataUpdated(
-        address indexed cellar,
+    event FundTradeVolumeDataUpdated(
+        address indexed fund,
         uint48 lastUpdate,
         uint48 periodLength,
         uint80 volumeInUSD,
         uint80 maxVolumeInUSD
     );
 
-    error Registry__CellarTradingVolumeExceeded(address cellar);
+    error Registry__FundTradingVolumeExceeded(address fund);
     error Registry__InvalidVolumeInput();
 
-    struct CellarVolumeData {
+    struct FundVolumeData {
         uint48 lastUpdate;
         uint48 periodLength;
         uint80 volumeInUSD; // volume per period in USD and 8 decimals (80 bits are largely sufficient)
         uint80 maxVolumeInUSD; // volume per period in USD and 8 decimals (80 bits are largely sufficient)
     }
 
-    mapping(address => CellarVolumeData) public cellarsAdaptorVolumeData;
+    mapping(address => FundVolumeData) public fundsAdaptorVolumeData;
 
     /**
-     * @notice View the amount of assets in each Cellar Position.
-     * @dev If the cellar volume parameters were not set, the cellar won't be able to trade.
+     * @notice View the amount of assets in each Fund Position.
+     * @dev If the fund volume parameters were not set, the fund won't be able to trade.
      */
-    function checkAndUpdateCellarTradeVolume(uint256 volumeInUSD) external {
-        // caller should be the cellar through the swap adapters
-        CellarVolumeData storage cellarVolumeData = cellarsAdaptorVolumeData[msg.sender];
+    function checkAndUpdateFundTradeVolume(uint256 volumeInUSD) external {
+        // caller should be the fund through the swap adapters
+        FundVolumeData storage fundVolumeData = fundsAdaptorVolumeData[msg.sender];
 
-        if (cellarVolumeData.maxVolumeInUSD == type(uint80).max) return;
+        if (fundVolumeData.maxVolumeInUSD == type(uint80).max) return;
 
         // input sanity check
         if (volumeInUSD > type(uint80).max) revert Registry__InvalidVolumeInput();
 
         uint256 endPeriod;
         unchecked {
-            endPeriod = cellarVolumeData.lastUpdate + cellarVolumeData.periodLength;
+            endPeriod = fundVolumeData.lastUpdate + fundVolumeData.periodLength;
         }
 
         if (block.timestamp > endPeriod) {
-            cellarVolumeData.lastUpdate = uint48(block.timestamp);
-            cellarVolumeData.volumeInUSD = uint80(volumeInUSD);
+            fundVolumeData.lastUpdate = uint48(block.timestamp);
+            fundVolumeData.volumeInUSD = uint80(volumeInUSD);
         } else {
-            cellarVolumeData.volumeInUSD += uint80(volumeInUSD);
+            fundVolumeData.volumeInUSD += uint80(volumeInUSD);
         }
 
-        if (cellarVolumeData.volumeInUSD > cellarVolumeData.maxVolumeInUSD)
-            revert Registry__CellarTradingVolumeExceeded(msg.sender);
+        if (fundVolumeData.volumeInUSD > fundVolumeData.maxVolumeInUSD)
+            revert Registry__FundTradingVolumeExceeded(msg.sender);
 
-        emit CellarTradeVolumeDataUpdated(
+        emit FundTradeVolumeDataUpdated(
             msg.sender,
-            cellarVolumeData.lastUpdate,
-            cellarVolumeData.periodLength,
-            cellarVolumeData.volumeInUSD,
-            cellarVolumeData.maxVolumeInUSD
+            fundVolumeData.lastUpdate,
+            fundVolumeData.periodLength,
+            fundVolumeData.volumeInUSD,
+            fundVolumeData.maxVolumeInUSD
         );
     }
 
     /**
      * @notice Set the max allowed volume for an adaptor to trade in a period.
-     * @param cellar the address of the cellar
+     * @param fund the address of the fund
      * @param periodLength the length of the period in seconds
      * @param maxVolumeInUSD the max volume an adaptor can trade in a period
      * @param resetVolume the current volume an adaptor has traded
      */
     function setMaxAllowedAdaptorVolumeParams(
-        address cellar,
+        address fund,
         uint48 periodLength,
         uint80 maxVolumeInUSD,
         bool resetVolume
     ) external onlyOwner {
-        // there is no explicit limit on volume since it can depend on the size of the cellar,
+        // there is no explicit limit on volume since it can depend on the size of the fund,
         // as well as the strategies involved
-        CellarVolumeData storage cellarVolumeData = cellarsAdaptorVolumeData[cellar];
-        cellarVolumeData.periodLength = periodLength;
-        cellarVolumeData.maxVolumeInUSD = maxVolumeInUSD;
+        FundVolumeData storage fundVolumeData = fundsAdaptorVolumeData[fund];
+        fundVolumeData.periodLength = periodLength;
+        fundVolumeData.maxVolumeInUSD = maxVolumeInUSD;
 
         if (resetVolume) {
-            cellarVolumeData.lastUpdate = uint48(block.timestamp);
-            cellarVolumeData.volumeInUSD = 0;
+            fundVolumeData.lastUpdate = uint48(block.timestamp);
+            fundVolumeData.volumeInUSD = 0;
         }
 
-        emit CellarTradeVolumeDataUpdated(
-            cellar,
-            cellarVolumeData.lastUpdate,
-            cellarVolumeData.periodLength,
-            cellarVolumeData.volumeInUSD,
-            cellarVolumeData.maxVolumeInUSD
+        emit FundTradeVolumeDataUpdated(
+            fund,
+            fundVolumeData.lastUpdate,
+            fundVolumeData.periodLength,
+            fundVolumeData.volumeInUSD,
+            fundVolumeData.maxVolumeInUSD
         );
     }
 }

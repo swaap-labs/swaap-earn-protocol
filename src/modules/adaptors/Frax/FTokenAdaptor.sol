@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.21;
 
-import { BaseAdaptor, ERC20, SafeTransferLib, Cellar, PriceRouter, Math } from "src/modules/adaptors/BaseAdaptor.sol";
+import { BaseAdaptor, ERC20, SafeTransferLib, Fund, PriceRouter, Math } from "src/modules/adaptors/BaseAdaptor.sol";
 import { IFToken } from "src/interfaces/external/Frax/IFToken.sol";
 
 /**
@@ -9,7 +9,7 @@ import { IFToken } from "src/interfaces/external/Frax/IFToken.sol";
  * @dev This adaptor is specifically for FraxLendPairV2 contracts.
  *      To interact with a different version, inherit from this adaptor
  *      and override the interface helper functions.
- * @notice Allows Cellars to lend FRAX to FraxLend pairs.
+ * @notice Allows Funds to lend FRAX to FraxLend pairs.
  * @author crispymangoes, 0xEinCodes
  */
 contract FTokenAdaptor is BaseAdaptor {
@@ -25,7 +25,7 @@ contract FTokenAdaptor is BaseAdaptor {
     //====================================================================
 
     /**
-     * @notice Attempted to interact with an fToken the Cellar is not using.
+     * @notice Attempted to interact with an fToken the Fund is not using.
      */
     error FTokenAdaptor__FTokenPositionsMustBeTracked(address fToken);
 
@@ -51,7 +51,7 @@ contract FTokenAdaptor is BaseAdaptor {
     /**
      * @dev Identifier unique to this adaptor for a shared registry.
      * Normally the identifier would just be the address of this contract, but this
-     * Identifier is needed during Cellar Delegate Call Operations, so getting the address
+     * Identifier is needed during Fund Delegate Call Operations, so getting the address
      * of the adaptor is more difficult.
      */
     function identifier() public pure virtual override returns (bytes32) {
@@ -60,7 +60,7 @@ contract FTokenAdaptor is BaseAdaptor {
 
     //============================================ Implement Base Functions ===========================================
     /**
-     * @notice Cellar must approve fToken to spend its assets, then call deposit to lend its assets.
+     * @notice Fund must approve fToken to spend its assets, then call deposit to lend its assets.
      * @param assets the amount of assets to lend on FraxLend
      * @param adaptorData adaptor data containing the abi encoded fToken
      * @dev configurationData is NOT used
@@ -77,8 +77,8 @@ contract FTokenAdaptor is BaseAdaptor {
     }
 
     /**
-     * @notice Cellars must withdraw from FraxLend, then transfer assets to receiver.
-     * @dev Important to verify that external receivers are allowed if receiver is not Cellar address.
+     * @notice Funds must withdraw from FraxLend, then transfer assets to receiver.
+     * @dev Important to verify that external receivers are allowed if receiver is not Fund address.
      * @param assets the amount of assets to withdraw from FraxLend
      * @param receiver the address to send withdrawn assets to
      * @param adaptorData adaptor data containing the abi encoded fToken
@@ -112,7 +112,7 @@ contract FTokenAdaptor is BaseAdaptor {
     }
 
     /**
-     * @notice Returns the cellar's balance of the FRAX position.
+     * @notice Returns the fund's balance of the FRAX position.
      */
     function balanceOf(bytes memory adaptorData) public view override returns (uint256) {
         IFToken fToken = abi.decode(adaptorData, (IFToken));
@@ -188,13 +188,13 @@ contract FTokenAdaptor is BaseAdaptor {
     }
 
     /**
-     * @notice Validates that a given fToken is set up as a position in the Cellar.
-     * @dev This function uses `address(this)` as the address of the Cellar.
+     * @notice Validates that a given fToken is set up as a position in the Fund.
+     * @dev This function uses `address(this)` as the address of the Fund.
      */
     function _validateFToken(IFToken fToken) internal view {
         bytes32 positionHash = keccak256(abi.encode(identifier(), false, abi.encode(address(fToken))));
-        uint32 positionId = Cellar(address(this)).registry().getPositionHashToPositionId(positionHash);
-        if (!Cellar(address(this)).isPositionUsed(positionId))
+        uint32 positionId = Fund(address(this)).registry().getPositionHashToPositionId(positionHash);
+        if (!Fund(address(this)).isPositionUsed(positionId))
             revert FTokenAdaptor__FTokenPositionsMustBeTracked(address(fToken));
     }
 

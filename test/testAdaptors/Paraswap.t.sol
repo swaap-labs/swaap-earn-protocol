@@ -7,9 +7,9 @@ import { MockParaswapAdaptor } from "src/mocks/adaptors/MockParaswapAdaptor.sol"
 // Import Everything from Starter file.
 import "test/resources/MainnetStarter.t.sol";
 
-import { CellarAggregatorBaseAdaptorTest, MockAggregatorBaseAdaptor } from "test/testAdaptors/AggregatorBaseAdaptor.t.sol";
+import { FundAggregatorBaseAdaptorTest, MockAggregatorBaseAdaptor } from "test/testAdaptors/AggregatorBaseAdaptor.t.sol";
 
-contract CellarParaswapTest is CellarAggregatorBaseAdaptorTest {
+contract FundParaswapTest is FundAggregatorBaseAdaptorTest {
     using Math for uint256;
 
     ParaswapAdaptor private paraswapAdaptor;
@@ -42,44 +42,48 @@ contract CellarParaswapTest is CellarAggregatorBaseAdaptorTest {
         registry.trustAdaptor(address(paraswapAdaptor));
         registry.trustAdaptor(address(mockParaswapAdaptor));
 
-        cellar.addAdaptorToCatalogue(address(paraswapAdaptor));
-        cellar.addAdaptorToCatalogue(address(mockParaswapAdaptor));
+        fund.addAdaptorToCatalogue(address(paraswapAdaptor));
+        fund.addAdaptorToCatalogue(address(mockParaswapAdaptor));
 
         // replacing all mockAggregatorAdaptor with mockParaswapAdaptor to test the real adaptor
         mockAggregatorAdaptor = MockAggregatorBaseAdaptor(address(mockParaswapAdaptor));
     }
 
     function testParaswapSwap() external {
-        // Deposit into Cellar.
+        // Deposit into Fund.
         uint256 assets = 10_000_000;
         deal(address(USDC), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
         uint32 maxSlippage = 0.99e4;
 
         registry.setMaxAllowedAdaptorVolumeParams(
-            address(cellar),
+            address(fund),
             1 days, // period length
             type(uint80).max, // max volume traded
             true // reset volume
         );
 
         {
-            Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+            Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
             bytes[] memory adaptorCalls = new bytes[](1);
             adaptorCalls[0] = _createBytesDataToSwap(USDC, WETH, assets, maxSlippage, swapCallData);
 
-            data[0] = Cellar.AdaptorCall({ adaptor: address(paraswapAdaptor), callData: adaptorCalls });
-            cellar.callOnAdaptor(data);
+            data[0] = Fund.AdaptorCall({ adaptor: address(paraswapAdaptor), callData: adaptorCalls });
+            fund.callOnAdaptor(data);
         }
 
-        assertEq(USDC.balanceOf(address(cellar)), assets + initialAssets - swapTokenInAmount, "Cellar USDC should have been converted into WETH.");
+        assertEq(
+            USDC.balanceOf(address(fund)),
+            assets + initialAssets - swapTokenInAmount,
+            "Fund USDC should have been converted into WETH."
+        );
         uint256 expectedWETH = priceRouter.getValue(USDC, assets, WETH);
         assertApproxEqRel(
-            WETH.balanceOf(address(cellar)),
+            WETH.balanceOf(address(fund)),
             expectedWETH,
             0.01e18,
-            "Cellar WETH should be approximately equal to expected."
+            "Fund WETH should be approximately equal to expected."
         );
     }
 
@@ -91,6 +95,13 @@ contract CellarParaswapTest is CellarAggregatorBaseAdaptorTest {
         bytes memory _swapCallData
     ) internal pure override returns (bytes memory) {
         return
-            abi.encodeWithSelector(ParaswapAdaptor.swapWithParaswap.selector, tokenIn, tokenOut, amount, slippage, _swapCallData);
+            abi.encodeWithSelector(
+                ParaswapAdaptor.swapWithParaswap.selector,
+                tokenIn,
+                tokenOut,
+                amount,
+                slippage,
+                _swapCallData
+            );
     }
 }

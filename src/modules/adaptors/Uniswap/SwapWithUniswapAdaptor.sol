@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.21;
 
-import { ERC20, SafeTransferLib, Cellar, PriceRouter, Registry, Math } from "src/modules/adaptors/BaseAdaptor.sol";
+import { ERC20, SafeTransferLib, Fund, PriceRouter, Registry, Math } from "src/modules/adaptors/BaseAdaptor.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { PositionlessAdaptor } from "src/modules/adaptors/PositionlessAdaptor.sol";
 import { IUniswapV2Router02 as IUniswapV2Router } from "src/interfaces/external/IUniswapV2Router02.sol";
@@ -9,7 +9,7 @@ import { IUniswapV3Router } from "src/interfaces/external/IUniswapV3Router.sol";
 
 /**
  * @title SwapWithUniswapAdaptor
- * @notice Allows Cellars to swap using Uniswap V2, or V3.
+ * @notice Allows Funds to swap using Uniswap V2, or V3.
  * @author crispymangoes
  */
 contract SwapWithUniswapAdaptor is PositionlessAdaptor {
@@ -47,7 +47,7 @@ contract SwapWithUniswapAdaptor is PositionlessAdaptor {
     /**
      * @dev Identifier unique to this adaptor for a shared registry.
      * Normally the identifier would just be the address of this contract, but this
-     * Identifier is needed during Cellar Delegate Call Operations, so getting the address
+     * Identifier is needed during Fund Delegate Call Operations, so getting the address
      * of the adaptor is more difficult.
      */
     function identifier() public pure virtual override returns (bytes32) {
@@ -61,7 +61,7 @@ contract SwapWithUniswapAdaptor is PositionlessAdaptor {
      * @dev Allows for a blind swap, if type(uint256).max is used for the amount.
      */
     function swapWithUniV2(address[] memory path, uint256 amount, uint256 amountOutMin) public {
-        PriceRouter priceRouter = Cellar(address(this)).priceRouter();
+        PriceRouter priceRouter = Fund(address(this)).priceRouter();
 
         ERC20 tokenIn = ERC20(path[0]);
         ERC20 tokenOut = ERC20(path[path.length - 1]);
@@ -93,7 +93,7 @@ contract SwapWithUniswapAdaptor is PositionlessAdaptor {
 
             if (tokenInValueOut < tokenInAmountIn.mulDivDown(slippage(), 1e4)) revert BaseAdaptor__Slippage();
         } else {
-            // Token In is not supported by price router, so we know it is at least not the Cellars Reserves,
+            // Token In is not supported by price router, so we know it is at least not the Funds Reserves,
             // or a prominent asset, so skip value in vs value out check.
             // Execute the swap.
             uniswapV2Router.swapExactTokensForTokens(amount, amountOutMin, path, address(this), block.timestamp + 60);
@@ -113,7 +113,7 @@ contract SwapWithUniswapAdaptor is PositionlessAdaptor {
         uint256 amount,
         uint256 amountOutMin
     ) public {
-        PriceRouter priceRouter = Cellar(address(this)).priceRouter();
+        PriceRouter priceRouter = Fund(address(this)).priceRouter();
 
         ERC20 tokenIn = ERC20(path[0]);
         ERC20 tokenOut = ERC20(path[path.length - 1]);
@@ -151,7 +151,7 @@ contract SwapWithUniswapAdaptor is PositionlessAdaptor {
 
             if (tokenInValueOut < tokenInAmountIn.mulDivDown(slippage(), 1e4)) revert BaseAdaptor__Slippage();
         } else {
-            // Token In is not supported by price router, so we know it is at least not the Cellars Reserves,
+            // Token In is not supported by price router, so we know it is at least not the Funds Reserves,
             // or a prominent asset, so skip value in vs value out check.
             // Execute the swap.
             uniswapV3Router.exactInput(

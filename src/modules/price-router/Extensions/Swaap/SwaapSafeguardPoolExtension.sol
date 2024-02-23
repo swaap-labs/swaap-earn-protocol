@@ -17,7 +17,7 @@ contract SwaapSafeguardPoolExtension is BalancerPoolExtension {
 
     error SwaapSafeguardPoolExtension__PoolNotRegistered();
 
-    constructor(PriceRouter _priceRouter, IVault _swaapVault) BalancerPoolExtension(_priceRouter, _swaapVault) {}
+    constructor(PriceRouter _priceRouter, IVault _swaapV2Vault) BalancerPoolExtension(_priceRouter, _swaapV2Vault) {}
 
     /**
      * @notice Balancer Stable Pool Extension Storage

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.21;
 
-import "src/base/permutations/CellarWithShareLockFlashLoansWhitelisting.sol";
+import "src/base/permutations/FundWithShareLockFlashLoansWhitelisting.sol";
 
-contract MockCellarWithShareLockFlashLoansWhitelisting is CellarWithShareLockFlashLoansWhitelisting {
+contract MockFundWithShareLockFlashLoansWhitelisting is FundWithShareLockFlashLoansWhitelisting {
     constructor(
         address _owner,
         Registry _registry,
@@ -16,7 +16,7 @@ contract MockCellarWithShareLockFlashLoansWhitelisting is CellarWithShareLockFla
         uint192 _shareSupplyCap,
         address _balancerVault
     )
-        CellarWithShareLockFlashLoansWhitelisting(
+        FundWithShareLockFlashLoansWhitelisting(
             _owner,
             _registry,
             _asset,

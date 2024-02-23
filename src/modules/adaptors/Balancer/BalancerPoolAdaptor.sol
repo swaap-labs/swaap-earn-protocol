@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.21;
 
-import { BaseAdaptor, ERC20, SafeTransferLib, Cellar, Registry, PriceRouter } from "src/modules/adaptors/BaseAdaptor.sol";
+import { BaseAdaptor, ERC20, SafeTransferLib, Fund, Registry, PriceRouter } from "src/modules/adaptors/BaseAdaptor.sol";
 import { IBalancerQueries } from "src/interfaces/external/Balancer/IBalancerQueries.sol";
 import { IVault, IERC20, IAsset, IFlashLoanRecipient } from "src/interfaces/external/Balancer/IVault.sol";
 import { IStakingLiquidityGauge } from "src/interfaces/external/Balancer/IStakingLiquidityGauge.sol";
@@ -14,7 +14,7 @@ import { IBalancerMinter } from "src/interfaces/external/IBalancerMinter.sol";
 
 /**
  * @title Balancer Pool Adaptor
- * @notice Allows Cellars to interact with Stable and Boosted Stable Balancer Pools (BPs).
+ * @notice Allows Funds to interact with Stable and Boosted Stable Balancer Pools (BPs).
  * @author 0xEinCodes and CrispyMangoes
  */
 contract BalancerPoolAdaptor is BaseAdaptor {
@@ -30,7 +30,7 @@ contract BalancerPoolAdaptor is BaseAdaptor {
     // NOT USED
     // **************************** IMPORTANT ****************************
     // This adaptor has the `assetOf` as a bpt, and thus relies on the `PriceRouterv2` Balancer
-    // Extensions corresponding with the type of bpt the Cellar is working with.
+    // Extensions corresponding with the type of bpt the Fund is working with.
     //====================================================================
 
     //============================================ Error Statements ===========================================
@@ -105,7 +105,7 @@ contract BalancerPoolAdaptor is BaseAdaptor {
     IVault public immutable vault;
 
     /**
-     * @notice The BalancerMinter contract adhering to IBalancerMinter (custom interface) to access `mint()` to collect $BAL rewards for Cellar
+     * @notice The BalancerMinter contract adhering to IBalancerMinter (custom interface) to access `mint()` to collect $BAL rewards for Fund
      * @notice For mainnet use 0x239e55F427D44C3cc793f49bFB507ebe76638a2b
      */
     IBalancerMinter public immutable minter;
@@ -137,7 +137,7 @@ contract BalancerPoolAdaptor is BaseAdaptor {
 
     /**
      * @notice Identifier unique to this adaptor for a shared registry.
-     * Normally the identifier would just be the address of this contract, but this identifier is needed during Cellar Delegate Call Operations, so getting the address of the adaptor is more difficult.
+     * Normally the identifier would just be the address of this contract, but this identifier is needed during Fund Delegate Call Operations, so getting the address of the adaptor is more difficult.
      * @return encoded adaptor identifier
      */
     function identifier() public pure virtual override returns (bytes32) {
@@ -152,8 +152,8 @@ contract BalancerPoolAdaptor is BaseAdaptor {
     function deposit(uint256, bytes memory, bytes memory) public pure override {}
 
     /**
-     * @notice If a user withdraw needs more BPTs than what is in the Cellar's
-     *         wallet, then the Cellar will unstake BPTs from the gauge.
+     * @notice If a user withdraw needs more BPTs than what is in the Fund's
+     *         wallet, then the Fund will unstake BPTs from the gauge.
      */
     function withdraw(
         uint256 _amountBPTToSend,
@@ -173,7 +173,7 @@ contract BalancerPoolAdaptor is BaseAdaptor {
     }
 
     /**
-     * @notice Accounts for BPTs in the Cellar's wallet, and staked in gauge.
+     * @notice Accounts for BPTs in the Fund's wallet, and staked in gauge.
      * @dev See `balanceOf`.
      */
     function withdrawableFrom(bytes memory _adaptorData, bytes memory) public view override returns (uint256) {
@@ -181,9 +181,9 @@ contract BalancerPoolAdaptor is BaseAdaptor {
     }
 
     /**
-     * @notice Calculates the Cellar's balance of the positions creditAsset, a specific bpt.
+     * @notice Calculates the Fund's balance of the positions creditAsset, a specific bpt.
      * @param _adaptorData encoded data for trusted adaptor position detailing the bpt and liquidityGauge address (if it exists)
-     * @return total balance of bpt for Cellar, including liquid bpt and staked bpt
+     * @return total balance of bpt for Fund, including liquid bpt and staked bpt
      */
     function balanceOf(bytes memory _adaptorData) public view override returns (uint256) {
         (ERC20 bpt, address liquidityGauge) = abi.decode(_adaptorData, (ERC20, address));
@@ -196,7 +196,7 @@ contract BalancerPoolAdaptor is BaseAdaptor {
     /**
      * @notice Returns the positions underlying assets.
      * @param _adaptorData encoded data for trusted adaptor position detailing the bpt and liquidityGauge address (if it exists)
-     * @return bpt for Cellar's respective balancer pool position
+     * @return bpt for Fund's respective balancer pool position
      */
     function assetOf(bytes memory _adaptorData) public pure override returns (ERC20) {
         return ERC20(abi.decode(_adaptorData, (address)));
@@ -206,7 +206,7 @@ contract BalancerPoolAdaptor is BaseAdaptor {
      * @notice When positions are added to the Registry, this function can be used in order to figure out
      *         what assets this adaptor needs to price, and confirm pricing is properly setup.
      * @param _adaptorData specified bpt of interest
-     * @return assets for Cellar's respective balancer pool position
+     * @return assets for Fund's respective balancer pool position
      * @dev all breakdowns of bpt pricing and its underlying assets are done through the PriceRouter extension (in accordance to PriceRouterv2 architecture)
      */
     function assetsUsed(bytes memory _adaptorData) public pure override returns (ERC20[] memory assets) {
@@ -237,7 +237,7 @@ contract BalancerPoolAdaptor is BaseAdaptor {
         uint256 minimumBpt
     ) external {
         bytes32 poolId = IBasePool(address(targetBpt)).getPoolId();
-        PriceRouter priceRouter = Cellar(address(this)).priceRouter();
+        PriceRouter priceRouter = Fund(address(this)).priceRouter();
 
         // Start formulating request.
         IVault.JoinPoolRequest memory request;
@@ -371,7 +371,7 @@ contract BalancerPoolAdaptor is BaseAdaptor {
         for (uint256 i; i < expectedTokensOut.length; ++i)
             tokensOutDelta[i] = expectedTokensOut[i].balanceOf(address(this)) - tokensOutDelta[i];
 
-        PriceRouter priceRouter = Cellar(address(this)).priceRouter();
+        PriceRouter priceRouter = Fund(address(this)).priceRouter();
         for (uint256 i; i < expectedTokensOut.length; ++i) {
             // If we didn't receive any of this token, continue.
             if (tokensOutDelta[i] == 0) continue;
@@ -469,16 +469,16 @@ contract BalancerPoolAdaptor is BaseAdaptor {
     //============================================ Helper Functions ===========================================
 
     /**
-     * @notice Validates that a given bpt and liquidityGauge is set up as a position in the Cellar
-     * @dev This function uses `address(this)` as the address of the Cellar
+     * @notice Validates that a given bpt and liquidityGauge is set up as a position in the Fund
+     * @dev This function uses `address(this)` as the address of the Fund
      * @param _bpt of interest
      * @param _liquidityGauge corresponding to _bpt
-     * NOTE: _liquidityGauge can be zeroAddress in cases where Cellar doesn't want to stake or there are no gauges yet available for respective bpt
+     * NOTE: _liquidityGauge can be zeroAddress in cases where Fund doesn't want to stake or there are no gauges yet available for respective bpt
      */
     function _validateBptAndGauge(address _bpt, address _liquidityGauge) internal view {
         bytes32 positionHash = keccak256(abi.encode(identifier(), false, abi.encode(_bpt, _liquidityGauge)));
-        uint32 positionId = Cellar(address(this)).registry().getPositionHashToPositionId(positionHash);
-        if (!Cellar(address(this)).isPositionUsed(positionId))
+        uint32 positionId = Fund(address(this)).registry().getPositionHashToPositionId(positionHash);
+        if (!Fund(address(this)).isPositionUsed(positionId))
             revert BalancerPoolAdaptor__BptAndGaugeComboMustBeTracked(_bpt, _liquidityGauge);
     }
 

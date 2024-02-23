@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.21;
 
-import { BaseAdaptor, ERC20, SafeTransferLib, Cellar } from "src/modules/adaptors/BaseAdaptor.sol";
+import { BaseAdaptor, ERC20, SafeTransferLib, Fund } from "src/modules/adaptors/BaseAdaptor.sol";
 import { ERC4626 } from "src/base/ERC4626.sol";
 
 /**
- * @title Generic ERC4626 Vault Adaptor (basically a copy of Cellar Adaptor w/ virtual function sigs to enable inheritance and overriding).
- * @notice Allows Cellars to interact with other ERC4626 contracts.
+ * @title Generic ERC4626 Vault Adaptor (basically a copy of Fund Adaptor w/ virtual function sigs to enable inheritance and overriding).
+ * @notice Allows Funds to interact with other ERC4626 contracts.
  * @author crispymangoes, 0xEinCodes
- * NOTE: `CellarAdaptor.sol` was used, and is still used for nested Cellar positions for Swaap Cellars (ERC4626 Vaults). Integrations into Aura, among other ERC4626 contracts outside of Swaap have led to using a separate ERC4626Vault.sol file that allows more flexibility via inheritance.
- * NOTE: `Cellar` is still used throughout this contract at times because it is a contract made for the Swaap protocol (has extra pricing and accounting mechanics, etc.)
+ * NOTE: `SwaapFundAdaptor.sol` was used, and is still used for nested Fund positions for Swaap Funds (ERC4626 Vaults). Integrations into Aura, among other ERC4626 contracts outside of Swaap have led to using a separate ERC4626Vault.sol file that allows more flexibility via inheritance.
+ * NOTE: `Fund` is still used throughout this contract at times because it is a contract made for the Swaap protocol (has extra pricing and accounting mechanics, etc.)
  */
 contract ERC4626Adaptor is BaseAdaptor {
     using SafeTransferLib for ERC20;
@@ -38,7 +38,7 @@ contract ERC4626Adaptor is BaseAdaptor {
     /**
      * @dev Identifier unique to this adaptor for a shared registry.
      * Normally the identifier would just be the address of this contract, but this
-     * Identifier is needed during Cellar Delegate Call Operations, so getting the address
+     * Identifier is needed during Fund Delegate Call Operations, so getting the address
      * of the adaptor is more difficult.
      */
     function identifier() public pure virtual override returns (bytes32) {
@@ -47,7 +47,7 @@ contract ERC4626Adaptor is BaseAdaptor {
 
     //============================================ Implement Base Functions ===========================================
     /**
-     * @notice Cellar must approve ERC4626 position to spend its assets, then deposit into the ERC4626 position.
+     * @notice Fund must approve ERC4626 position to spend its assets, then deposit into the ERC4626 position.
      * @param assets the amount of assets to deposit into the ERC4626 position
      * @param adaptorData adaptor data containining the abi encoded ERC4626
      * @dev configurationData is NOT used
@@ -65,8 +65,8 @@ contract ERC4626Adaptor is BaseAdaptor {
     }
 
     /**
-     * @notice Cellar needs to call withdraw on ERC4626 position.
-     * @dev Important to verify that external receivers are allowed if receiver is not Cellar address.
+     * @notice Fund needs to call withdraw on ERC4626 position.
+     * @dev Important to verify that external receivers are allowed if receiver is not Fund address.
      * @param assets the amount of assets to withdraw from the ERC4626 position
      * @param receiver address to send assets to'
      * @param adaptorData data needed to withdraw from the ERC4626 position
@@ -92,7 +92,7 @@ contract ERC4626Adaptor is BaseAdaptor {
     }
 
     /**
-     * @notice Cellar needs to call `maxWithdraw` to see if its assets are locked.
+     * @notice Fund needs to call `maxWithdraw` to see if its assets are locked.
      */
     function withdrawableFrom(
         bytes memory adaptorData,
@@ -106,7 +106,7 @@ contract ERC4626Adaptor is BaseAdaptor {
     }
 
     /**
-     * @notice Uses ERC4626 `previewRedeem` to determine Cellars balance in ERC4626 position.
+     * @notice Uses ERC4626 `previewRedeem` to determine Funds balance in ERC4626 position.
      */
     function balanceOf(bytes memory adaptorData) public view virtual override returns (uint256) {
         ERC4626 erc4626Vault = abi.decode(adaptorData, (ERC4626));
@@ -160,15 +160,15 @@ contract ERC4626Adaptor is BaseAdaptor {
     //============================================ Helper Functions ===========================================
 
     /**
-     * @notice Reverts if a given `erc4626Vault` is not set up as a position in the calling Cellar.
+     * @notice Reverts if a given `erc4626Vault` is not set up as a position in the calling Fund.
      * @dev This function is only used in a delegate call context, hence why address(this) is used
-     *      to get the calling Cellar.
+     *      to get the calling Fund.
      */
     function _verifyERC4626PositionIsUsed(address erc4626Vault) internal view {
-        // Check that erc4626Vault position is setup to be used in the calling cellar.
+        // Check that erc4626Vault position is setup to be used in the calling fund.
         bytes32 positionHash = keccak256(abi.encode(identifier(), false, abi.encode(erc4626Vault)));
-        uint32 positionId = Cellar(address(this)).registry().getPositionHashToPositionId(positionHash);
-        if (!Cellar(address(this)).isPositionUsed(positionId))
+        uint32 positionId = Fund(address(this)).registry().getPositionHashToPositionId(positionHash);
+        if (!Fund(address(this)).isPositionUsed(positionId))
             revert ERC4626Adaptor__ERC4626PositionNotUsed(erc4626Vault);
     }
 }

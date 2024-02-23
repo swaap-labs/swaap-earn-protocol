@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.21;
 
-import { Cellar, Registry, ERC20, Math, SafeTransferLib } from "src/base/Cellar.sol";
+import { Fund, Registry, ERC20, Math, SafeTransferLib } from "src/base/Fund.sol";
 import { IFlashLoanRecipient, IERC20 } from "@balancer/interfaces/contracts/vault/IFlashLoanRecipient.sol";
-import { CellarWithShareLockPeriod } from "src/base/permutations/CellarWithShareLockPeriod.sol";
+import { FundWithShareLockPeriod } from "src/base/permutations/FundWithShareLockPeriod.sol";
 import { EIP712, ECDSA } from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 
 /**
- * @title Cellar with a Share Lock Perios, Flash Loans, and Whitelisting.
+ * @title Fund with a Share Lock Period, Flash Loans, and Whitelisting.
  */
-contract CellarWithShareLockFlashLoansWhitelisting is CellarWithShareLockPeriod, EIP712 {
+contract FundWithShareLockFlashLoansWhitelisting is FundWithShareLockPeriod, EIP712 {
     using SafeTransferLib for ERC20;
 
     uint256 internal constant WHITELIST_VALIDITY_PERIOD = 5 minutes;
@@ -35,7 +35,7 @@ contract CellarWithShareLockFlashLoansWhitelisting is CellarWithShareLockPeriod,
         uint192 _shareSupplyCap,
         address _balancerVault
     )
-        CellarWithShareLockPeriod(
+        FundWithShareLockPeriod(
             _owner,
             _registry,
             _asset,
@@ -46,7 +46,7 @@ contract CellarWithShareLockFlashLoansWhitelisting is CellarWithShareLockPeriod,
             _initialDeposit,
             _shareSupplyCap
         )
-        EIP712("CellarWithShareLockFlashLoansWhitelisting", "1.0")
+        EIP712("FundWithShareLockFlashLoansWhitelisting", "1.0")
     {
         balancerVault = _balancerVault;
     }
@@ -55,15 +55,15 @@ contract CellarWithShareLockFlashLoansWhitelisting is CellarWithShareLockPeriod,
     /**
      * @notice External contract attempted to initiate a flash loan.
      */
-    error Cellar__ExternalInitiator();
+    error Fund__ExternalInitiator();
 
     /**
      * @notice receiveFlashLoan was not called by Balancer Vault.
      */
-    error Cellar__CallerNotBalancerVault();
+    error Fund__CallerNotBalancerVault();
 
     /**
-     * @notice Allows strategist to utilize balancer flashloans while rebalancing the cellar.
+     * @notice Allows strategist to utilize balancer flashloans while rebalancing the fund.
      * @dev Balancer does not provide an initiator, so instead insure we are in the `callOnAdaptor` context
      *      by reverting if `blockExternalReceiver` is false.
      */
@@ -73,8 +73,8 @@ contract CellarWithShareLockFlashLoansWhitelisting is CellarWithShareLockPeriod,
         uint256[] calldata feeAmounts,
         bytes calldata userData
     ) external {
-        if (msg.sender != balancerVault) revert Cellar__CallerNotBalancerVault();
-        if (!blockExternalReceiver) revert Cellar__ExternalInitiator();
+        if (msg.sender != balancerVault) revert Fund__CallerNotBalancerVault();
+        if (!blockExternalReceiver) revert Fund__ExternalInitiator();
 
         AdaptorCall[] memory data = abi.decode(userData, (AdaptorCall[]));
 
@@ -94,44 +94,44 @@ contract CellarWithShareLockFlashLoansWhitelisting is CellarWithShareLockPeriod,
      * @dev The user must use "whitelistDeposit" or "whitelistMint" to deposit or mint shares when
      *      whitelist is enabled.
      */
-    error Cellar__WhitelistEnabled();
+    error Fund__WhitelistEnabled();
 
     /**
      * @notice Emitted when the signature deadline is invalid.
      */
-    error Cellar__InvalidSignatureDeadline();
+    error Fund__InvalidSignatureDeadline();
 
     /**
      * @notice Emitted when the signature is invalid.
      */
-    error Cellar__InvalidSignature();
+    error Fund__InvalidSignature();
 
     /**
-     * @notice Deposits assets into the cellar, and returns shares to receiver.
+     * @notice Deposits assets into the fund, and returns shares to receiver.
      * @dev The nonReentrant modifier is defined in the parent contract.
      * @param assets amount of assets deposited by user.
      * @param receiver address to receive the shares.
      * @return shares amount of shares given for deposit.
      */
     function deposit(uint256 assets, address receiver) public override returns (uint256 shares) {
-        if (isWhitelistEnabled) revert Cellar__WhitelistEnabled();
+        if (isWhitelistEnabled) revert Fund__WhitelistEnabled();
         return super.deposit(assets, receiver);
     }
 
     /**
-     * @notice Mints shares from the cellar, and returns shares to receiver.
+     * @notice Mints shares from the fund, and returns shares to receiver.
      * @dev The nonReentrant modifier is defined in the parent contract.
      * @param shares amount of shares requested by user.
      * @param receiver address to receive the shares.
-     * @return assets amount of assets deposited into the cellar.
+     * @return assets amount of assets deposited into the fund.
      */
     function mint(uint256 shares, address receiver) public override returns (uint256 assets) {
-        if (isWhitelistEnabled) revert Cellar__WhitelistEnabled();
+        if (isWhitelistEnabled) revert Fund__WhitelistEnabled();
         return super.mint(shares, receiver);
     }
 
     /**
-     * @notice Deposits assets into the cellar, and returns shares to receiver.
+     * @notice Deposits assets into the fund, and returns shares to receiver.
      * @param assets amount of assets deposited by user.
      * @param receiver address to receive the shares.
      * @param signedAt timestamp of when the signature was created.
@@ -149,12 +149,12 @@ contract CellarWithShareLockFlashLoansWhitelisting is CellarWithShareLockPeriod,
     }
 
     /**
-     * @notice Mints shares from the cellar, and returns shares to receiver.
+     * @notice Mints shares from the fund, and returns shares to receiver.
      * @param shares amount of shares requested by user.
      * @param receiver address to receive the shares.
      * @param signedAt timestamp of when the signature was created.
      * @param signature signature of the whitelist permission.
-     * @return assets amount of assets deposited into the cellar.
+     * @return assets amount of assets deposited into the fund.
      */
     function whitelistMint(
         uint256 shares,
@@ -169,8 +169,8 @@ contract CellarWithShareLockFlashLoansWhitelisting is CellarWithShareLockPeriod,
     function _verifyWhitelistSignature(address receiver, uint256 signedAt, bytes memory signature) internal view {
         if (isWhitelistEnabled) {
             // verify deadline is still valid
-            if (block.timestamp > signedAt + WHITELIST_VALIDITY_PERIOD) revert Cellar__InvalidSignatureDeadline();
-            if (block.timestamp < signedAt) revert Cellar__InvalidSignatureDeadline();
+            if (block.timestamp > signedAt + WHITELIST_VALIDITY_PERIOD) revert Fund__InvalidSignatureDeadline();
+            if (block.timestamp < signedAt) revert Fund__InvalidSignatureDeadline();
 
             bytes32 digest = _hashTypedDataV4(
                 keccak256(abi.encode(WHITELIST_TYPEHASH, msg.sender, receiver, signedAt))
@@ -178,7 +178,7 @@ contract CellarWithShareLockFlashLoansWhitelisting is CellarWithShareLockPeriod,
 
             address signer = ECDSA.recover(digest, signature);
 
-            if (signer != automationActions && signer != owner()) revert Cellar__InvalidSignature();
+            if (signer != automationActions && signer != owner()) revert Fund__InvalidSignature();
         }
     }
 

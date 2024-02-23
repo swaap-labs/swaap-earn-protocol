@@ -41,7 +41,7 @@ error USR_NotEnoughActiveShares(uint256 activeShares, uint256 attemptedActiveSha
 error USR_InvalidSwap(address assetOut, address currentAsset);
 
 /**
- * @notice Attempted to sweep an asset that is managed by the cellar.
+ * @notice Attempted to sweep an asset that is managed by the fund.
  * @param token address of the token that can't be sweeped
  */
 error USR_ProtectedAsset(address token);
@@ -67,7 +67,7 @@ error USR_UntrustedPosition(address position);
 /**
  * @notice Attempted to update a position to an asset that uses an incompatible amount of decimals.
  * @param newDecimals decimals of precision that the new position uses
- * @param maxDecimals maximum decimals of precision for a position to be compatible with the cellar
+ * @param maxDecimals maximum decimals of precision for a position to be compatible with the fund
  */
 error USR_TooManyDecimals(uint8 newDecimals, uint8 maxDecimals);
 
@@ -153,7 +153,7 @@ error USR_NotCustodian();
  */
 
 /**
- * @notice Attempted an action when cellar is using an asset that has a fee on transfer.
+ * @notice Attempted an action when fund is using an asset that has a fee on transfer.
  * @param assetWithFeeOnTransfer address of the asset with fee on transfer
  */
 error STATE_AssetUsesFeeOnTransfer(address assetWithFeeOnTransfer);

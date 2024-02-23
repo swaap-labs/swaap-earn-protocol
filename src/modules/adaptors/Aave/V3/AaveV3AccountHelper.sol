@@ -10,7 +10,7 @@ import { IPoolV3 } from "src/interfaces/external/IPoolV3.sol";
 
 /**
  * @title Aave V3 Account Helper Contract
- * @notice Allows Cellars to create multiple aave accounts and get their addresses.
+ * @notice Allows Funds to create multiple aave accounts and get their addresses.
  */
 abstract contract AaveV3AccountHelper {
     /**
@@ -33,18 +33,18 @@ abstract contract AaveV3AccountHelper {
 
     event AccountExtensionCreated(uint8 indexed accountId, address accountAddress);
 
-    function _createAccountExtensionIfNeeded(uint8 accountId) internal returns (address) { 
+    function _createAccountExtensionIfNeeded(uint8 accountId) internal returns (address) {
         address expectedAccountAddress = _getAccountAddress(accountId, address(this));
 
         // if the account does not exist (yet), we still want to create the account
-        if(!Address.isContract(expectedAccountAddress)) {
+        if (!Address.isContract(expectedAccountAddress)) {
             bytes memory creationCode = _getCreationCode();
             // Create 2 will check if the account extension already exists and reverts if it does
             bytes32 salt = _getSaltById(accountId);
             address deployedAccountAddress = Create2.deploy(0, salt, creationCode);
-            
+
             // this should never happen, but just in case
-            if(deployedAccountAddress != expectedAccountAddress) {
+            if (deployedAccountAddress != expectedAccountAddress) {
                 revert AaveV3AccountHelper__AccountExtensionAddresDoNotMatch();
             }
 
@@ -61,17 +61,23 @@ abstract contract AaveV3AccountHelper {
     }
 
     // extracts the account address and aave token from the adaptor data without verifying that the account exists
-    function _extractAdaptorData(bytes memory adaptorData, address cellarAddress) internal view returns (address, address) {
+    function _extractAdaptorData(
+        bytes memory adaptorData,
+        address fundAddress
+    ) internal view returns (address, address) {
         (uint8 id, address aaveToken) = _decodeAdaptorData(adaptorData);
 
-        address accountAddress = _getAccountAddress(id, cellarAddress);
+        address accountAddress = _getAccountAddress(id, fundAddress);
 
         return (accountAddress, aaveToken);
     }
 
     // extracts the account address and aave token from the adaptor data and verifies that the account exists
-    function _extractAdaptorDataAndVerify(bytes memory adaptorData, address cellarAddress) internal view returns (address, address) {
-        (address accountAddress, address aaveToken) = _extractAdaptorData(adaptorData, cellarAddress);
+    function _extractAdaptorDataAndVerify(
+        bytes memory adaptorData,
+        address fundAddress
+    ) internal view returns (address, address) {
+        (address accountAddress, address aaveToken) = _extractAdaptorData(adaptorData, fundAddress);
 
         if (!Address.isContract(accountAddress)) {
             revert AaveV3AccountHelper__AccountExtensionDoesNotExist();
@@ -81,17 +87,17 @@ abstract contract AaveV3AccountHelper {
     }
 
     // extracts the account address
-    function _getAccountAddress(uint8 id, address cellarAddress) internal view returns (address) {
+    function _getAccountAddress(uint8 id, address fundAddress) internal view returns (address) {
         bytes32 salt = _getSaltById(id);
         // create 2 is necessary to have a deterministic address for the account extension using the bytecode hash
-        return Create2.computeAddress(salt, accountBytecodeHash, cellarAddress);
+        return Create2.computeAddress(salt, accountBytecodeHash, fundAddress);
     }
 
     // extracts the account address and aave token from the adaptor data and verifies that the account exists
-    function _getAccountAddressAndVerify(uint8 id, address cellarAddress) internal view returns (address) {
-        address accountAddress = _getAccountAddress(id, cellarAddress);
+    function _getAccountAddressAndVerify(uint8 id, address fundAddress) internal view returns (address) {
+        address accountAddress = _getAccountAddress(id, fundAddress);
 
-        if(!Address.isContract(accountAddress)) {
+        if (!Address.isContract(accountAddress)) {
             revert AaveV3AccountHelper__AccountExtensionDoesNotExist();
         }
 

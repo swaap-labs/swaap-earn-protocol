@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.21;
 
-import { Cellar, Registry, ERC20, Math, SafeTransferLib } from "src/base/Cellar.sol";
+import { Fund, Registry, ERC20, Math, SafeTransferLib } from "src/base/Fund.sol";
 
-contract CellarWithAaveFlashLoans is Cellar {
+contract FundWithAaveFlashLoans is Fund {
     using Math for uint256;
     using SafeTransferLib for ERC20;
 
@@ -25,7 +25,7 @@ contract CellarWithAaveFlashLoans is Cellar {
         uint192 _shareSupplyCap,
         address _aavePool
     )
-        Cellar(
+        Fund(
             _owner,
             _registry,
             _asset,
@@ -44,15 +44,15 @@ contract CellarWithAaveFlashLoans is Cellar {
     /**
      * @notice External contract attempted to initiate a flash loan.
      */
-    error Cellar__ExternalInitiator();
+    error Fund__ExternalInitiator();
 
     /**
      * @notice executeOperation was not called by the Aave Pool.
      */
-    error Cellar__CallerNotAavePool();
+    error Fund__CallerNotAavePool();
 
     /**
-     * @notice Allows strategist to utilize Aave flashloans while rebalancing the cellar.
+     * @notice Allows strategist to utilize Aave flashloans while rebalancing the fund.
      */
     function executeOperation(
         address[] calldata assets,
@@ -61,8 +61,8 @@ contract CellarWithAaveFlashLoans is Cellar {
         address initiator,
         bytes calldata params
     ) external returns (bool) {
-        if (initiator != address(this)) revert Cellar__ExternalInitiator();
-        if (msg.sender != aavePool) revert Cellar__CallerNotAavePool();
+        if (initiator != address(this)) revert Fund__ExternalInitiator();
+        if (msg.sender != aavePool) revert Fund__CallerNotAavePool();
 
         AdaptorCall[] memory data = abi.decode(params, (AdaptorCall[]));
 

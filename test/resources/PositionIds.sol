@@ -58,7 +58,7 @@ contract PositionIds {
     uint32 public mdV3WETHPosition = 5500005; // adaptor_name='MorphoAaveV3DebtTokenAdaptor', underlying_asset='WETH', adaptor_data=['WETH'])
     uint32 public mdV2WETHPositionLHF = 5500006; // adaptor_name='MorphoAaveV2DebtTokenAdaptor 1.02HF', underlying_asset='WETH', adaptor_data=['aWETH', 'WETH'])
     uint32 public mdV3WETHPositionLHF = 5500007; // adaptor_name='MorphoAaveV3DebtTokenAdaptor 1.02HF', underlying_asset='WETH', adaptor_data=['WETH'])
-    uint32 public turboStethtPosition = 10000003; // adaptor_name='CellarAdaptor', underlying_asset='WETH', adaptor_data=['TurboSTETH', 'WETH'])
+    uint32 public turboStethtPosition = 10000003; // adaptor_name='SwaapFundAdaptor', underlying_asset='WETH', adaptor_data=['TurboSTETH', 'WETH'])
     uint32 public vestingGHOPosition = 100000001; // adaptor_name='VestingSimpleAdaptor', underlying_asset='GHO', adaptor_data=['0x70664b1f1c443bec0353a0ea6bbd9cccb5a4844c', 'GHO'])
     uint32 public vestingSWETHPosition = 100000002; // adaptor_name='VestingSimpleAdaptor', underlying_asset='SWETH', adaptor_data=['0xda832c59ba8054d547e6c9248c146a2fc1ed1854', 'SWETH'])
     uint32 public vestingWSTETHPosition = 100000003; // adaptor_name='VestingSimpleAdaptor', underlying_asset='WSTETH', adaptor_data=['0x1dc98303ec465ed5ed2ba069e21763a67101f54b', 'WSTETH'])

@@ -7,7 +7,7 @@ import { Pot } from "src/interfaces/external/Maker/Pot.sol";
 
 /**
  * @title DSR Adaptor
- * @notice Allows Cellars to deposit/withdraw DAI from the DSR.
+ * @notice Allows Funds to deposit/withdraw DAI from the DSR.
  * @author crispymangoes
  */
 contract DSRAdaptor is BaseAdaptor {
@@ -24,7 +24,7 @@ contract DSRAdaptor is BaseAdaptor {
     /**
      * @dev Identifier unique to this adaptor for a shared registry.
      * Normally the identifier would just be the address of this contract, but this
-     * Identifier is needed during Cellar Delegate Call Operations, so getting the address
+     * Identifier is needed during Fund Delegate Call Operations, so getting the address
      * of the adaptor is more difficult.
      */
     function identifier() public pure override returns (bytes32) {

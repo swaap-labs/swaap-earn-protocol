@@ -9,14 +9,14 @@ import "test/resources/MainnetStarter.t.sol";
 import { AdaptorHelperFunctions } from "test/resources/AdaptorHelperFunctions.sol";
 import { PriceRouter } from "src/modules/price-router/PriceRouter.sol";
 
-contract CellarAggregatorBaseAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
+contract FundAggregatorBaseAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
     using SafeTransferLib for ERC20;
     using Math for uint256;
     using stdStorage for StdStorage;
 
     MockAggregatorBaseAdaptor internal mockAggregatorAdaptor;
 
-    Cellar internal cellar;
+    Fund internal fund;
 
     uint32 internal usdcPosition = 1;
     uint32 internal wethPosition = 2;
@@ -52,7 +52,7 @@ contract CellarAggregatorBaseAdaptorTest is MainnetStarterTest, AdaptorHelperFun
         settings = PriceRouter.AssetSettings(CHAINLINK_DERIVATIVE, USDC_USD_FEED);
         priceRouter.addAsset(USDC, settings, abi.encode(stor), price);
 
-        // Setup Cellar:
+        // Setup Fund:
 
         // Add adaptors and positions to the registry.
         registry.trustAdaptor(address(mockAggregatorAdaptor));
@@ -60,29 +60,29 @@ contract CellarAggregatorBaseAdaptorTest is MainnetStarterTest, AdaptorHelperFun
         registry.trustPosition(usdcPosition, address(erc20Adaptor), abi.encode(USDC));
         registry.trustPosition(wethPosition, address(erc20Adaptor), abi.encode(WETH));
 
-        string memory cellarName = "Aggregator Cellar V0.0";
+        string memory fundName = "Aggregator Fund V0.0";
         uint256 initialDeposit = 1e6;
 
-        cellar = _createCellar(cellarName, USDC, usdcPosition, abi.encode(0), initialDeposit);
+        fund = _createFund(fundName, USDC, usdcPosition, abi.encode(0), initialDeposit);
 
-        cellar.addAdaptorToCatalogue(address(mockAggregatorAdaptor));
+        fund.addAdaptorToCatalogue(address(mockAggregatorAdaptor));
 
-        cellar.addPositionToCatalogue(wethPosition);
+        fund.addPositionToCatalogue(wethPosition);
 
-        cellar.addPosition(1, wethPosition, abi.encode(0), false);
+        fund.addPosition(1, wethPosition, abi.encode(0), false);
 
-        cellar.setRebalanceDeviation(0.01e18);
+        fund.setRebalanceDeviation(0.01e18);
 
-        USDC.safeApprove(address(cellar), type(uint256).max);
+        USDC.safeApprove(address(fund), type(uint256).max);
 
-        initialAssets = cellar.totalAssets();
+        initialAssets = fund.totalAssets();
     }
 
     function testRevertAggregatorSwapIfTotalVolumeIsSurpassed() external virtual {
-        // Deposit into Cellar.
+        // Deposit into Fund.
         uint256 assets = 10_000_000e6;
         deal(address(USDC), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
         // Make a swap where both assets are supported by the price router, and slippage is good.
         ERC20 from = USDC;
@@ -97,23 +97,21 @@ contract CellarAggregatorBaseAdaptorTest is MainnetStarterTest, AdaptorHelperFun
             maxSlippage + 1
         );
 
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
         adaptorCalls[0] = _createBytesDataToSwap(from, to, assets, maxSlippage, slippageSwapData);
 
-        data[0] = Cellar.AdaptorCall({ adaptor: address(mockAggregatorAdaptor), callData: adaptorCalls });
+        data[0] = Fund.AdaptorCall({ adaptor: address(mockAggregatorAdaptor), callData: adaptorCalls });
 
-        vm.expectRevert(
-            abi.encodeWithSelector(Registry.Registry__CellarTradingVolumeExceeded.selector, address(cellar))
-        );
-        cellar.callOnAdaptor(data);
+        vm.expectRevert(abi.encodeWithSelector(Registry.Registry__FundTradingVolumeExceeded.selector, address(fund)));
+        fund.callOnAdaptor(data);
     }
 
     function testVolumeIsIncrementedCorrectly() external virtual {
-        // Deposit into Cellar.
+        // Deposit into Fund.
         uint256 assets = 1_000_000e6;
         deal(address(USDC), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
         uint256 periodLength = 2 hours;
 
@@ -121,7 +119,7 @@ contract CellarAggregatorBaseAdaptorTest is MainnetStarterTest, AdaptorHelperFun
         ERC20 to;
         uint256 fromAmount;
         bytes memory slippageSwapData;
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
 
         // Make a swap where both assets are supported by the price router, and slippage is good.
@@ -138,7 +136,7 @@ contract CellarAggregatorBaseAdaptorTest is MainnetStarterTest, AdaptorHelperFun
         );
 
         registry.setMaxAllowedAdaptorVolumeParams(
-            address(cellar),
+            address(fund),
             uint48(periodLength), // period length
             type(uint80).max, // max volume traded
             true // reset volume
@@ -147,39 +145,39 @@ contract CellarAggregatorBaseAdaptorTest is MainnetStarterTest, AdaptorHelperFun
         uint48 initLastUpdate;
 
         (uint48 newLastUpdate, uint48 newPeriodLength, uint80 newVolumeInUSD, uint80 newMaxVolumeInUSD) = registry
-            .cellarsAdaptorVolumeData(address(cellar));
+            .fundsAdaptorVolumeData(address(fund));
 
         // checking that the variables are set correctly after setting the volume parameters
         assertApproxEqAbs(
             newLastUpdate,
             block.timestamp,
             1,
-            "lastUpdate should be the current block timestamp after resetting cellar volume data"
+            "lastUpdate should be the current block timestamp after resetting fund volume data"
         );
         assertEq(newPeriodLength, periodLength, "periodLength should be equal to the initial period");
-        assertEq(newVolumeInUSD, 0, "volumeInUSD should be 0 after resetting cellar volume data");
+        assertEq(newVolumeInUSD, 0, "volumeInUSD should be 0 after resetting fund volume data");
         assertEq(newMaxVolumeInUSD, type(uint80).max, "maxVolumeInUSD should be equal to type(uint80).max");
 
         initLastUpdate = newLastUpdate;
 
         // Make the swap.
         adaptorCalls[0] = _createBytesDataToSwap(from, to, fromAmount, maxSlippage, slippageSwapData);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(mockAggregatorAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(mockAggregatorAdaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
 
-        (newLastUpdate, newPeriodLength, newVolumeInUSD, newMaxVolumeInUSD) = registry.cellarsAdaptorVolumeData(
-            address(cellar)
+        (newLastUpdate, newPeriodLength, newVolumeInUSD, newMaxVolumeInUSD) = registry.fundsAdaptorVolumeData(
+            address(fund)
         );
 
         // checking that the variables are set correctly after swapping
         // when the max volume is set to type(uint80).max
         assertEq(newLastUpdate, initLastUpdate, "lastUpdate should be the current block timestamp after a trade");
         assertEq(newPeriodLength, periodLength, "periodLength should be equal to the initial period");
-        assertEq(newVolumeInUSD, 0, "Cellar volume should remain the same when max volume is set to type(uint80).max");
+        assertEq(newVolumeInUSD, 0, "Fund volume should remain the same when max volume is set to type(uint80).max");
         assertEq(newMaxVolumeInUSD, type(uint80).max, "maxVolumeInUSD should remain the same after a trade");
 
         registry.setMaxAllowedAdaptorVolumeParams(
-            address(cellar),
+            address(fund),
             uint48(periodLength), // period length
             type(uint80).max / 2, // max volume traded
             false // reset volume
@@ -187,24 +185,24 @@ contract CellarAggregatorBaseAdaptorTest is MainnetStarterTest, AdaptorHelperFun
 
         // checking that the variables are set correctly after swapping
         // when the max volume is set to less than type(uint80).max
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
-        (newLastUpdate, newPeriodLength, newVolumeInUSD, newMaxVolumeInUSD) = registry.cellarsAdaptorVolumeData(
-            address(cellar)
+        (newLastUpdate, newPeriodLength, newVolumeInUSD, newMaxVolumeInUSD) = registry.fundsAdaptorVolumeData(
+            address(fund)
         );
 
         assertEq(newLastUpdate, initLastUpdate, "lastUpdate should be equal to the initial lastUpdate");
         assertEq(newPeriodLength, periodLength, "periodLength should be equal to the initial period");
-        assertApproxEqRel(newVolumeInUSD, (fromAmount * 1e8) / 1e6, 0.01e18, "Cellar volume should be updated");
+        assertApproxEqRel(newVolumeInUSD, (fromAmount * 1e8) / 1e6, 0.01e18, "Fund volume should be updated");
         assertEq(newMaxVolumeInUSD, type(uint80).max / 2, "maxVolumeInUSD should remain the same after a trade");
 
         // advance time by 5 minutes
         skip(5 minutes);
 
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
-        (newLastUpdate, newPeriodLength, newVolumeInUSD, newMaxVolumeInUSD) = registry.cellarsAdaptorVolumeData(
-            address(cellar)
+        (newLastUpdate, newPeriodLength, newVolumeInUSD, newMaxVolumeInUSD) = registry.fundsAdaptorVolumeData(
+            address(fund)
         );
 
         // checking that the variables are set correctly after swapping twice
@@ -215,17 +213,17 @@ contract CellarAggregatorBaseAdaptorTest is MainnetStarterTest, AdaptorHelperFun
             newVolumeInUSD,
             (fromAmount * 2 * 1e8) / 1e6,
             0.01e18,
-            "Cellar volume should be updated after a trade"
+            "Fund volume should be updated after a trade"
         );
         assertEq(newMaxVolumeInUSD, type(uint80).max / 2, "maxVolumeInUSD should remain the same after a trade");
 
         skip(periodLength);
 
         // Make the swap again.
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
-        (newLastUpdate, newPeriodLength, newVolumeInUSD, newMaxVolumeInUSD) = registry.cellarsAdaptorVolumeData(
-            address(cellar)
+        (newLastUpdate, newPeriodLength, newVolumeInUSD, newMaxVolumeInUSD) = registry.fundsAdaptorVolumeData(
+            address(fund)
         );
 
         // checking that the variables are set correctly after swapping several
@@ -236,7 +234,7 @@ contract CellarAggregatorBaseAdaptorTest is MainnetStarterTest, AdaptorHelperFun
             newVolumeInUSD,
             (fromAmount * 1e8) / 1e6,
             0.01e18,
-            "Cellar volume should be reset and then updated"
+            "Fund volume should be reset and then updated"
         );
         assertEq(newMaxVolumeInUSD, type(uint80).max / 2, "maxVolumeInUSD should remain the same after a trade");
 
@@ -246,48 +244,48 @@ contract CellarAggregatorBaseAdaptorTest is MainnetStarterTest, AdaptorHelperFun
         skip(5 minutes);
 
         registry.setMaxAllowedAdaptorVolumeParams(
-            address(cellar),
+            address(fund),
             uint48(periodLength) * 2, // period length
             type(uint80).max, // max volume traded
             false // reset volume
         );
 
-        (newLastUpdate, newPeriodLength, newVolumeInUSD, newMaxVolumeInUSD) = registry.cellarsAdaptorVolumeData(
-            address(cellar)
+        (newLastUpdate, newPeriodLength, newVolumeInUSD, newMaxVolumeInUSD) = registry.fundsAdaptorVolumeData(
+            address(fund)
         );
 
         // checking that the variables are after setting max volume and period length only
         assertEq(newLastUpdate, initLastUpdate, "lastUpdate should remain the same");
         assertEq(newPeriodLength, periodLength * 2, "periodLength should be equal to the initial period after a trade");
-        assertApproxEqRel(newVolumeInUSD, (fromAmount * 1e8) / 1e6, 0.01e18, "Cellar volume should not be reset");
+        assertApproxEqRel(newVolumeInUSD, (fromAmount * 1e8) / 1e6, 0.01e18, "Fund volume should not be reset");
         assertEq(newMaxVolumeInUSD, type(uint80).max, "maxVolumeInUSD should be updated");
 
         registry.setMaxAllowedAdaptorVolumeParams(
-            address(cellar),
+            address(fund),
             uint48(periodLength), // period length
             type(uint80).max, // max volume traded
             true // reset volume
         );
 
-        (newLastUpdate, newPeriodLength, newVolumeInUSD, newMaxVolumeInUSD) = registry.cellarsAdaptorVolumeData(
-            address(cellar)
+        (newLastUpdate, newPeriodLength, newVolumeInUSD, newMaxVolumeInUSD) = registry.fundsAdaptorVolumeData(
+            address(fund)
         );
 
         // checking that the variables are after setting max volume and period length and resetting volume
         assertApproxEqAbs(newLastUpdate, block.timestamp, 1, "lastUpdate should be updated after a reset");
         assertEq(newPeriodLength, periodLength, "periodLength should be updated");
-        assertEq(newVolumeInUSD, 0, "Cellar volume should be set to 0 after a reset");
+        assertEq(newVolumeInUSD, 0, "Fund volume should be set to 0 after a reset");
         assertEq(newMaxVolumeInUSD, type(uint80).max, "maxVolumeInUSD should be updated");
     }
 
     function testSlippageChecks() external virtual {
-        // Deposit into Cellar.
+        // Deposit into Fund.
         uint256 assets = 1_000_000e6;
         deal(address(USDC), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
         registry.setMaxAllowedAdaptorVolumeParams(
-            address(cellar),
+            address(fund),
             1 days, // period length
             type(uint80).max, // max volume traded
             true // reset volume
@@ -297,7 +295,7 @@ contract CellarAggregatorBaseAdaptorTest is MainnetStarterTest, AdaptorHelperFun
         ERC20 to;
         uint256 fromAmount;
         bytes memory slippageSwapData;
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
         uint32 maxSlippage = 1e4 - (1e4 - mockAggregatorAdaptor.slippage()) / 2;
 
@@ -315,11 +313,11 @@ contract CellarAggregatorBaseAdaptorTest is MainnetStarterTest, AdaptorHelperFun
 
         // Make the swap.
         adaptorCalls[0] = _createBytesDataToSwap(from, to, fromAmount, maxSlippage, slippageSwapData);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(mockAggregatorAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(mockAggregatorAdaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
 
-        // This test does not spend cellars approval, but check it is still zero.
-        assertEq(USDC.allowance(address(cellar), address(this)), 0, "Approval should have been revoked.");
+        // This test does not spend funds approval, but check it is still zero.
+        assertEq(USDC.allowance(address(fund), address(this)), 0, "Approval should have been revoked.");
 
         // Make the same swap, but have the slippage check fail (for custom slippage).
         slippageSwapData = abi.encodeWithSignature(
@@ -332,9 +330,9 @@ contract CellarAggregatorBaseAdaptorTest is MainnetStarterTest, AdaptorHelperFun
 
         // Make the swap.
         adaptorCalls[0] = _createBytesDataToSwap(from, to, fromAmount, maxSlippage, slippageSwapData);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(mockAggregatorAdaptor), callData: adaptorCalls });
+        data[0] = Fund.AdaptorCall({ adaptor: address(mockAggregatorAdaptor), callData: adaptorCalls });
         vm.expectRevert(bytes(abi.encodeWithSelector(BaseAdaptor.BaseAdaptor__Slippage.selector)));
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
         // Make the same swap, but have the slippage check fail (for aggregator base slippage).
         slippageSwapData = abi.encodeWithSignature(
@@ -347,9 +345,9 @@ contract CellarAggregatorBaseAdaptorTest is MainnetStarterTest, AdaptorHelperFun
 
         // Make the swap.
         adaptorCalls[0] = _createBytesDataToSwap(from, to, fromAmount, 0, slippageSwapData);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(mockAggregatorAdaptor), callData: adaptorCalls });
+        data[0] = Fund.AdaptorCall({ adaptor: address(mockAggregatorAdaptor), callData: adaptorCalls });
         vm.expectRevert(bytes(abi.encodeWithSelector(BaseAdaptor.BaseAdaptor__Slippage.selector)));
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
         // Demonstrate that multiple swaps back to back can max out slippage and still work.
         from = USDC;
@@ -366,8 +364,8 @@ contract CellarAggregatorBaseAdaptorTest is MainnetStarterTest, AdaptorHelperFun
         adaptorCalls = new bytes[](10);
         for (uint256 i; i < 10; ++i)
             adaptorCalls[i] = _createBytesDataToSwap(from, to, fromAmount, maxSlippage, slippageSwapData);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(mockAggregatorAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(mockAggregatorAdaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
 
         // Above rebalance works, but this attack vector will be mitigated on the steward side, by flagging suspicious rebalances,
         // such as the one above.
@@ -375,7 +373,7 @@ contract CellarAggregatorBaseAdaptorTest is MainnetStarterTest, AdaptorHelperFun
 
     function testRevertForUnsupportedAssets() external virtual {
         registry.setMaxAllowedAdaptorVolumeParams(
-            address(cellar),
+            address(fund),
             1 days, // period length
             type(uint80).max, // max volume traded
             true // reset volume
@@ -385,11 +383,11 @@ contract CellarAggregatorBaseAdaptorTest is MainnetStarterTest, AdaptorHelperFun
         ERC20 to;
         uint256 fromAmount;
         bytes memory slippageSwapData;
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
         uint32 maxSlippage = 1e4 - (1e4 - mockAggregatorAdaptor.slippage()) / 2;
 
-        // Try making a swap where the from `asset` is supported, but the `to` asset is not by a position in the cellar.
+        // Try making a swap where the from `asset` is supported, but the `to` asset is not by a position in the fund.
         from = USDC;
         to = ERC20(address(1));
         fromAmount = 1_000e6;
@@ -401,18 +399,18 @@ contract CellarAggregatorBaseAdaptorTest is MainnetStarterTest, AdaptorHelperFun
             maxSlippage + 1
         );
         adaptorCalls[0] = _createBytesDataToSwap(from, to, fromAmount, maxSlippage, slippageSwapData);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(mockAggregatorAdaptor), callData: adaptorCalls });
+        data[0] = Fund.AdaptorCall({ adaptor: address(mockAggregatorAdaptor), callData: adaptorCalls });
 
         vm.expectRevert(
             abi.encodeWithSelector(BaseAdaptor.BaseAdaptor__PositionNotUsed.selector, abi.encode(address(1)))
         );
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
         // Make a swap where the `from` asset is not supported by the price router.
         from = DAI;
         to = USDC;
         fromAmount = 1_000e18;
-        deal(address(DAI), address(cellar), fromAmount);
+        deal(address(DAI), address(fund), fromAmount);
         slippageSwapData = abi.encodeWithSignature(
             "slippageSwap(address,address,uint256,uint32)",
             from,
@@ -421,10 +419,10 @@ contract CellarAggregatorBaseAdaptorTest is MainnetStarterTest, AdaptorHelperFun
             maxSlippage + 1
         );
         adaptorCalls[0] = _createBytesDataToSwap(from, to, fromAmount, maxSlippage, slippageSwapData);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(mockAggregatorAdaptor), callData: adaptorCalls });
+        data[0] = Fund.AdaptorCall({ adaptor: address(mockAggregatorAdaptor), callData: adaptorCalls });
 
         vm.expectRevert(abi.encodeWithSelector(PriceRouter.PriceRouter__UnknownDerivative.selector, 0));
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
     }
 
     function slippageSwap(ERC20 from, ERC20 to, uint256 inAmount, uint32 slippage) public virtual {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.21;
 
-import { BaseAdaptor, ERC20, SafeTransferLib, Cellar, PriceRouter, Math } from "src/modules/adaptors/BaseAdaptor.sol";
+import { BaseAdaptor, ERC20, SafeTransferLib, Fund, PriceRouter, Math } from "src/modules/adaptors/BaseAdaptor.sol";
 import { IAaveToken } from "src/interfaces/external/IAaveToken.sol";
 import { IAaveOracle } from "src/interfaces/external/IAaveOracle.sol";
 import { AaveV3AccountHelper, Address } from "./AaveV3AccountHelper.sol";
@@ -9,7 +9,7 @@ import { AaveV3AccountExtension } from "./AaveV3AccountExtension.sol";
 
 /**
  * @title Aave aToken Adaptor
- * @notice Allows Cellars to interact with Aave aToken positions.
+ * @notice Allows Funds to interact with Aave aToken positions.
  */
 contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
     using SafeTransferLib for ERC20;
@@ -31,15 +31,15 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
     //      position reverts if a user withdraw lowers health factor below minimum
     //
     // **************************** IMPORTANT ****************************
-    // Cellars with multiple aToken positions MUST only specify minimum
+    // Funds with multiple aToken positions MUST only specify minimum
     // health factor on ONE of the positions. Failing to do so will result
     // in user withdraws temporarily being blocked.
-    // An aToken should always have a position in the cellar as well as a position
+    // An aToken should always have a position in the fund as well as a position
     // for its underlying asset. The adapter does not check the latter for gas optimzation purposes.
     //====================================================================
 
     /**
-     @notice Attempted withdraw would lower Cellar health factor too low.
+     @notice Attempted withdraw would lower Fund health factor too low.
      */
     error AaveV3ATokenAdaptor__HealthFactorTooLow();
 
@@ -77,7 +77,7 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
     /**
      * @dev Identifier unique to this adaptor for a shared registry.
      * Normally the identifier would just be the address of this contract, but this
-     * Identifier is needed during Cellar Delegate Call Operations, so getting the address
+     * Identifier is needed during Fund Delegate Call Operations, so getting the address
      * of the adaptor is more difficult.
      */
     function identifier() public pure override returns (bytes32) {
@@ -86,14 +86,14 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
 
     //============================================ Implement Base Functions ===========================================
     /**
-     * @notice Cellar must approve Pool to spend its assets, then call deposit to lend its assets.
+     * @notice Fund must approve Pool to spend its assets, then call deposit to lend its assets.
      * @param assets the amount of assets to lend on Aave
      * @param adaptorData adaptor data containining the abi encoded aToken
      * @dev configurationData is NOT used because this action will only increase the health factor
      */
     function deposit(uint256 assets, bytes memory adaptorData, bytes memory) public override {
-        // we need to verify that the position is used by the cellar before depositing assets
-        // this is to prevent the strategist from depositing assets into a position that is not used by the cellar
+        // we need to verify that the position is used by the fund before depositing assets
+        // this is to prevent the strategist from depositing assets into a position that is not used by the fund
         _verifyUsedPositionIfDeployed(adaptorData);
 
         // Deposit assets to Aave.
@@ -113,9 +113,9 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
     }
 
     /**
-     @notice Cellars must withdraw from Aave, check if a minimum health factor is specified
+     @notice Funds must withdraw from Aave, check if a minimum health factor is specified
      *       then transfer assets to receiver.
-     * @dev Important to verify that external receivers are allowed if receiver is not Cellar address.
+     * @dev Important to verify that external receivers are allowed if receiver is not Fund address.
      * @param assets the amount of assets to withdraw from Aave
      * @param receiver the address to send withdrawn assets to
      * @param adaptorData adaptor data containining the abi encoded aToken
@@ -138,7 +138,7 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
 
         (, uint256 totalDebtBase, , , , uint256 healthFactor) = pool.getUserAccountData(accountAddress);
         if (totalDebtBase > 0) {
-            // If cellar has entered an EMode, and has debt, user withdraws are not allowed.
+            // If fund has entered an EMode, and has debt, user withdraws are not allowed.
             if (pool.getUserEMode(accountAddress) != 0) revert BaseAdaptor__UserWithdrawsNotAllowed();
 
             // Run minimum health factor checks.
@@ -172,7 +172,7 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
         (address accountAddress, address aToken) = _extractAdaptorData(adaptorData, msg.sender);
 
         // if the account does not exist (yet) but has aToken sent to it, we still want to return 0
-        // because the cellar cannot withdraw from it unless it has been created
+        // because the fund cannot withdraw from it unless it has been created
         if (!Address.isContract(accountAddress)) return 0;
 
         (
@@ -184,10 +184,10 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
             uint256 healthFactor
         ) = pool.getUserAccountData(accountAddress);
 
-        // If Cellar has no Aave debt, then return the cellars balance of the aToken.
+        // If Fund has no Aave debt, then return the funds balance of the aToken.
         if (totalDebtBase == 0) return ERC20(aToken).balanceOf(accountAddress);
 
-        // Cellar has Aave debt, so if cellar is entered into a non zero emode, return 0.
+        // Fund has Aave debt, so if fund is entered into a non zero emode, return 0.
         if (pool.getUserEMode(accountAddress) != 0) return 0;
 
         // Otherwise we need to look at minimum health factor.
@@ -218,7 +218,7 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
         ERC20 underlyingAsset = ERC20(IAaveToken(aToken).UNDERLYING_ASSET_ADDRESS());
 
         // Convert `maxBorrowableWithMin` from Base to position underlying asset.
-        PriceRouter priceRouter = Cellar(msg.sender).priceRouter();
+        PriceRouter priceRouter = Fund(msg.sender).priceRouter();
         uint256 underlyingAssetToUSD = priceRouter.getPriceInUSD(underlyingAsset);
         uint256 withdrawable = maxBorrowableWithMin.mulDivDown(10 ** underlyingAsset.decimals(), underlyingAssetToUSD);
         uint256 balance = ERC20(aToken).balanceOf(accountAddress);
@@ -227,13 +227,13 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
     }
 
     /**
-     * @notice Returns the cellars balance of the positions aToken.
+     * @notice Returns the funds balance of the positions aToken.
      */
     function balanceOf(bytes memory adaptorData) public view override returns (uint256) {
         (address accountAddress, address aToken) = _extractAdaptorData(adaptorData, msg.sender);
 
         // if the account does not exist (yet) but has aToken sent to it, we still want to return 0
-        // because the cellar cannot withdraw from it unless it has been created
+        // because the fund cannot withdraw from it unless it has been created
         if (!Address.isContract(accountAddress)) return 0;
 
         return ERC20(aToken).balanceOf(accountAddress);
@@ -274,7 +274,7 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
      */
     function depositToAave(uint8 accountId, IAaveToken aToken, uint256 amountToDeposit) public {
         // since this function can be called by the strategist, we need to verify that the adaptorData is defined in
-        // in a position that is used by the cellar
+        // in a position that is used by the fund
         _validateAToken(accountId, aToken);
 
         address accountAddress = _createAccountExtensionIfNeeded(accountId);
@@ -328,8 +328,8 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
 
     /**
      * @notice Allows strategist to use aTokens to repay debt tokens with the same underlying.
-     * @param accountId the id of the account used as an extension to the cellar.
-     * @param aToken any aave aToken used in the account that is used by a position in the cellar.
+     * @param accountId the id of the account used as an extension to the fund.
+     * @param aToken any aave aToken used in the account that is used by a position in the fund.
      */
     function createAccountExtension(uint8 accountId, IAaveToken aToken) public returns (address) {
         _validateAToken(accountId, aToken);

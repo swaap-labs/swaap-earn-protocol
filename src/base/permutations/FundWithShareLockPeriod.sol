@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.21;
 
-import { Cellar, Registry, ERC20, Math } from "src/base/Cellar.sol";
+import { Fund, Registry, ERC20, Math } from "src/base/Fund.sol";
 
 /**
- * @title Cellar With Share Lock Period
- * @notice Extends Cellar to add a share lock period.*
+ * @title Fund With Share Lock Period
+ * @notice Extends Fund to add a share lock period.*
  * @dev Forked from https://github.com/PeggyJV/cellar-contracts
  */
-contract CellarWithShareLockPeriod is Cellar {
+contract FundWithShareLockPeriod is Fund {
     using Math for uint256;
 
     constructor(
@@ -22,7 +22,7 @@ contract CellarWithShareLockPeriod is Cellar {
         uint256 _initialDeposit,
         uint192 _shareSupplyCap
     )
-        Cellar(
+        Fund(
             _owner,
             _registry,
             _asset,
@@ -45,19 +45,19 @@ contract CellarWithShareLockPeriod is Cellar {
     /**
      * @notice Attempted to set `shareLockPeriod` to an invalid number.
      */
-    error Cellar__InvalidShareLockPeriod();
+    error Fund__InvalidShareLockPeriod();
 
     /**
      * @notice Attempted to burn shares when they are locked.
      * @param timeSharesAreUnlocked time when caller can transfer/redeem shares
      * @param currentBlock the current block number.
      */
-    error Cellar__SharesAreLocked(uint256 timeSharesAreUnlocked, uint256 currentBlock);
+    error Fund__SharesAreLocked(uint256 timeSharesAreUnlocked, uint256 currentBlock);
 
     /**
      * @notice Attempted deposit on behalf of a user without being approved.
      */
-    error Cellar__NotApprovedToDepositOnBehalf(address depositor);
+    error Fund__NotApprovedToDepositOnBehalf(address depositor);
 
     /**
      * @notice Shares must be locked for at least 5 minutes after minting.
@@ -86,7 +86,7 @@ contract CellarWithShareLockPeriod is Cellar {
      */
     function setShareLockPeriod(uint256 newLock) external onlyOwner {
         if (newLock < MINIMUM_SHARE_LOCK_PERIOD || newLock > MAXIMUM_SHARE_LOCK_PERIOD)
-            revert Cellar__InvalidShareLockPeriod();
+            revert Fund__InvalidShareLockPeriod();
         uint256 oldLockingPeriod = shareLockPeriod;
         shareLockPeriod = newLock;
         emit ShareLockingPeriodChanged(oldLockingPeriod, newLock);
@@ -101,7 +101,7 @@ contract CellarWithShareLockPeriod is Cellar {
         if (lockTime != 0) {
             uint256 timeSharesAreUnlocked = lockTime + shareLockPeriod;
             if (timeSharesAreUnlocked > block.timestamp)
-                revert Cellar__SharesAreLocked(timeSharesAreUnlocked, block.timestamp);
+                revert Fund__SharesAreLocked(timeSharesAreUnlocked, block.timestamp);
         }
     }
 
@@ -129,8 +129,7 @@ contract CellarWithShareLockPeriod is Cellar {
     function beforeDeposit(uint256 assets, uint256 shares, address receiver) internal view override {
         super.beforeDeposit(assets, shares, receiver);
         if (msg.sender != receiver) {
-            if (!registry.approvedForDepositOnBehalf(msg.sender))
-                revert Cellar__NotApprovedToDepositOnBehalf(msg.sender);
+            if (!registry.approvedForDepositOnBehalf(msg.sender)) revert Fund__NotApprovedToDepositOnBehalf(msg.sender);
         }
     }
 
@@ -152,7 +151,7 @@ contract CellarWithShareLockPeriod is Cellar {
     }
 
     /**
-     * @notice Finds the max amount of value an `owner` can remove from the cellar.
+     * @notice Finds the max amount of value an `owner` can remove from the fund.
      * @param owner address of the user to find max value.
      * @param inShares if false, then returns value in terms of assets
      *                 if true then returns value in terms of shares

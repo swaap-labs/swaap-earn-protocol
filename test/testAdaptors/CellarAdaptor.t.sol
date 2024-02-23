@@ -1,24 +1,24 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.21;
 
-import { CellarAdaptor } from "src/modules/adaptors/Swaap/CellarAdaptor.sol";
+import { SwaapFundAdaptor } from "src/modules/adaptors/Swaap/SwaapFundAdaptor.sol";
 
 // Import Everything from Starter file.
 import "test/resources/MainnetStarter.t.sol";
 
 import { AdaptorHelperFunctions } from "test/resources/AdaptorHelperFunctions.sol";
 
-contract CellarAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
+contract SwaapFundAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
     using SafeTransferLib for ERC20;
     using Math for uint256;
     using stdStorage for StdStorage;
 
-    CellarAdaptor private cellarAdaptor;
-    Cellar private cellar;
+    SwaapFundAdaptor private swaapFundAdaptor;
+    Fund private fund;
 
     uint32 private usdcPosition = 1;
     uint32 private wethPosition = 2;
-    uint32 private cellarPosition = 3;
+    uint32 private fundPosition = 3;
 
     function setUp() external {
         // Setup forked environment.
@@ -29,7 +29,7 @@ contract CellarAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
         // Run Starter setUp code.
         _setUp();
 
-        cellarAdaptor = new CellarAdaptor();
+        swaapFundAdaptor = new SwaapFundAdaptor();
 
         PriceRouter.ChainlinkDerivativeStorage memory stor;
 
@@ -43,71 +43,67 @@ contract CellarAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
         settings = PriceRouter.AssetSettings(CHAINLINK_DERIVATIVE, USDC_USD_FEED);
         priceRouter.addAsset(USDC, settings, abi.encode(stor), price);
 
-        // Setup Cellar:
+        // Setup Fund:
 
         // Add adaptors and positions to the registry.
-        registry.trustAdaptor(address(cellarAdaptor));
+        registry.trustAdaptor(address(swaapFundAdaptor));
 
         registry.trustPosition(usdcPosition, address(erc20Adaptor), abi.encode(USDC));
         registry.trustPosition(wethPosition, address(erc20Adaptor), abi.encode(WETH));
 
-        string memory cellarName = "Dummy Cellar V0.0";
+        string memory fundName = "Dummy Fund V0.0";
         uint256 initialDeposit = 1e6;
 
-        cellar = _createCellar(cellarName, USDC, usdcPosition, abi.encode(true), initialDeposit);
+        fund = _createFund(fundName, USDC, usdcPosition, abi.encode(true), initialDeposit);
 
-        cellar.setRebalanceDeviation(0.01e18);
+        fund.setRebalanceDeviation(0.01e18);
 
-        USDC.safeApprove(address(cellar), type(uint256).max);
+        USDC.safeApprove(address(fund), type(uint256).max);
     }
 
-    function testUsingIlliquidCellarPosition() external {
-        registry.trustPosition(cellarPosition, address(cellarAdaptor), abi.encode(address(cellar)));
+    function testUsingIlliquidFundPosition() external {
+        registry.trustPosition(fundPosition, address(swaapFundAdaptor), abi.encode(address(fund)));
 
-        string memory cellarName = "Meta Cellar V0.0";
+        string memory fundName = "Meta Fund V0.0";
         uint256 initialDeposit = 1e6;
 
-        Cellar metaCellar = _createCellar(cellarName, USDC, usdcPosition, abi.encode(true), initialDeposit);
-        uint256 initialAssets = metaCellar.totalAssets();
+        Fund metaFund = _createFund(fundName, USDC, usdcPosition, abi.encode(true), initialDeposit);
+        uint256 initialAssets = metaFund.totalAssets();
 
-        metaCellar.addPositionToCatalogue(cellarPosition);
-        metaCellar.addAdaptorToCatalogue(address(cellarAdaptor));
-        metaCellar.addPosition(0, cellarPosition, abi.encode(false), false);
-        metaCellar.setHoldingPosition(cellarPosition);
+        metaFund.addPositionToCatalogue(fundPosition);
+        metaFund.addAdaptorToCatalogue(address(swaapFundAdaptor));
+        metaFund.addPosition(0, fundPosition, abi.encode(false), false);
+        metaFund.setHoldingPosition(fundPosition);
 
-        USDC.safeApprove(address(metaCellar), type(uint256).max);
+        USDC.safeApprove(address(metaFund), type(uint256).max);
 
-        // Deposit into meta cellar.
+        // Deposit into meta fund.
         uint256 assets = 100_000e6;
         deal(address(USDC), address(this), assets);
 
-        metaCellar.deposit(assets, address(this));
+        metaFund.deposit(assets, address(this));
 
-        uint256 assetsDeposited = cellar.totalAssets();
-        assertEq(assetsDeposited, assets + initialAssets, "All assets should have been deposited into cellar.");
+        uint256 assetsDeposited = fund.totalAssets();
+        assertEq(assetsDeposited, assets + initialAssets, "All assets should have been deposited into fund.");
 
-        uint256 liquidAssets = metaCellar.maxWithdraw(address(this));
-        assertEq(
-            liquidAssets,
-            initialAssets,
-            "Meta Cellar only liquid assets should be USDC deposited in constructor."
-        );
+        uint256 liquidAssets = metaFund.maxWithdraw(address(this));
+        assertEq(liquidAssets, initialAssets, "Meta Fund only liquid assets should be USDC deposited in constructor.");
 
         // Check logic in the withdraw function by having strategist call withdraw, passing in isLiquid = false.
         bool isLiquid = false;
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
         adaptorCalls[0] = abi.encodeWithSelector(
-            CellarAdaptor.withdraw.selector,
+            SwaapFundAdaptor.withdraw.selector,
             assets,
             address(this),
-            abi.encode(cellar),
+            abi.encode(fund),
             abi.encode(isLiquid)
         );
 
-        data[0] = Cellar.AdaptorCall({ adaptor: address(cellarAdaptor), callData: adaptorCalls });
+        data[0] = Fund.AdaptorCall({ adaptor: address(swaapFundAdaptor), callData: adaptorCalls });
 
         vm.expectRevert(bytes(abi.encodeWithSelector(BaseAdaptor.BaseAdaptor__UserWithdrawsNotAllowed.selector)));
-        metaCellar.callOnAdaptor(data);
+        metaFund.callOnAdaptor(data);
     }
 }

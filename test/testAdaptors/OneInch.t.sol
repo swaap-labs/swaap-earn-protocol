@@ -7,9 +7,9 @@ import { MockOneInchAdaptor } from "src/mocks/adaptors/MockOneInchAdaptor.sol";
 // Import Everything from Starter file.
 import "test/resources/MainnetStarter.t.sol";
 
-import { CellarAggregatorBaseAdaptorTest, MockAggregatorBaseAdaptor } from "test/testAdaptors/AggregatorBaseAdaptor.t.sol";
+import { FundAggregatorBaseAdaptorTest, MockAggregatorBaseAdaptor } from "test/testAdaptors/AggregatorBaseAdaptor.t.sol";
 
-contract CellarOneInchTest is CellarAggregatorBaseAdaptorTest {
+contract FundOneInchTest is FundAggregatorBaseAdaptorTest {
     using SafeTransferLib for ERC20;
     using Math for uint256;
     using stdStorage for StdStorage;
@@ -22,7 +22,7 @@ contract CellarOneInchTest is CellarAggregatorBaseAdaptorTest {
 
     bytes private swapCallData =
         hex"0502b1c5000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb480000000000000000000000000000000000000000000000000000000000989680000000000000000000000000000000000000000000000000001483d59a9bcf1b0000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000000100000000000000003b5dc1003926a168c11a816e10c13977f75f488bfffe88e4cfee7c08";
-    
+
     // Swap Details from the calldata
     uint256 swapTokenInAmount = 10_000_000;
 
@@ -31,7 +31,7 @@ contract CellarOneInchTest is CellarAggregatorBaseAdaptorTest {
         string memory rpcKey = "MAINNET_RPC_URL";
         uint256 blockNumber = 16921343;
         _startFork(rpcKey, blockNumber);
-        
+
         // Run Starter setUp code.
         _setUpAggregatorTest();
 
@@ -42,44 +42,48 @@ contract CellarOneInchTest is CellarAggregatorBaseAdaptorTest {
         registry.trustAdaptor(address(oneInchAdaptor));
         registry.trustAdaptor(address(mockOneInchAdaptor));
 
-        cellar.addAdaptorToCatalogue(address(oneInchAdaptor));
-        cellar.addAdaptorToCatalogue(address(mockOneInchAdaptor));
+        fund.addAdaptorToCatalogue(address(oneInchAdaptor));
+        fund.addAdaptorToCatalogue(address(mockOneInchAdaptor));
 
         // replacing all mockAggregatorAdaptor with mockOneInchAdaptor to test the real adaptor
         mockAggregatorAdaptor = MockAggregatorBaseAdaptor(address(mockOneInchAdaptor));
     }
 
     function testOneInchSwap() external {
-        // Deposit into Cellar.
+        // Deposit into Fund.
         uint256 assets = 10_000_000;
         deal(address(USDC), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
         uint32 maxSlippage = 0.99e4;
 
         registry.setMaxAllowedAdaptorVolumeParams(
-            address(cellar),
+            address(fund),
             1 days, // period length
             type(uint80).max, // max volume traded
             true // reset volume
         );
 
         {
-            Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+            Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
             bytes[] memory adaptorCalls = new bytes[](1);
             adaptorCalls[0] = _createBytesDataToSwap(USDC, WETH, assets, maxSlippage, swapCallData);
 
-            data[0] = Cellar.AdaptorCall({ adaptor: address(oneInchAdaptor), callData: adaptorCalls });
-            cellar.callOnAdaptor(data);
+            data[0] = Fund.AdaptorCall({ adaptor: address(oneInchAdaptor), callData: adaptorCalls });
+            fund.callOnAdaptor(data);
         }
 
-        assertEq(USDC.balanceOf(address(cellar)), initialAssets + assets - swapTokenInAmount, "Cellar USDC should have been converted into WETH.");
+        assertEq(
+            USDC.balanceOf(address(fund)),
+            initialAssets + assets - swapTokenInAmount,
+            "Fund USDC should have been converted into WETH."
+        );
         uint256 expectedWETH = priceRouter.getValue(USDC, assets, WETH);
         assertApproxEqRel(
-            WETH.balanceOf(address(cellar)),
+            WETH.balanceOf(address(fund)),
             expectedWETH,
             0.01e18,
-            "Cellar WETH should be approximately equal to expected."
+            "Fund WETH should be approximately equal to expected."
         );
     }
 
@@ -91,7 +95,14 @@ contract CellarOneInchTest is CellarAggregatorBaseAdaptorTest {
         bytes memory _swapCallData
     ) internal pure override returns (bytes memory) {
         return
-            abi.encodeWithSelector(OneInchAdaptor.swapWithOneInch.selector, tokenIn, tokenOut, amount, slippage, _swapCallData);
+            abi.encodeWithSelector(
+                OneInchAdaptor.swapWithOneInch.selector,
+                tokenIn,
+                tokenOut,
+                amount,
+                slippage,
+                _swapCallData
+            );
     }
 }
 

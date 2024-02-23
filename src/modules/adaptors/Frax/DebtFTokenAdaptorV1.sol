@@ -18,7 +18,7 @@ interface V1FToken {
 
 /**
  * @title FraxLend Debt Token Adaptor for FraxlendV1 pairs
- * @notice Allows Cellars to borrow assets from FraxLendV1 Pairs
+ * @notice Allows Funds to borrow assets from FraxLendV1 Pairs
  * @author crispymangoes, 0xEinCodes
  */
 contract DebtFTokenAdaptorV1 is DebtFTokenAdaptor {
@@ -26,7 +26,7 @@ contract DebtFTokenAdaptorV1 is DebtFTokenAdaptor {
     // Since there is no way to calculate pending interest for this positions balanceOf,
     // The positions balance is only updated when accounts interact with the
     // Frax Lend pair this position is working with.
-    // This can lead to a divergence from the Cellars share price, and its real value.
+    // This can lead to a divergence from the Funds share price, and its real value.
     // This can be mitigated by calling `callAddInterest` on Frax Lend pairs
     // that are not frequently interacted with.
 
@@ -64,7 +64,7 @@ contract DebtFTokenAdaptorV1 is DebtFTokenAdaptor {
     /**
      * @dev Identifier unique to this adaptor for a shared registry.
      * Normally the identifier would just be the address of this contract, but this
-     * Identifier is needed during Cellar Delegate Call Operations, so getting the address
+     * Identifier is needed during Fund Delegate Call Operations, so getting the address
      * of the adaptor is more difficult.
      */
     function identifier() public pure virtual override returns (bytes32) {

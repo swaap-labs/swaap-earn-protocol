@@ -27,7 +27,7 @@ contract FraxLendFTokenAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
     FTokenAdaptorV1 private fTokenAdaptor;
     MockFTokenAdaptor private mockFTokenAdaptorV2;
     MockFTokenAdaptorV1 private mockFTokenAdaptor;
-    Cellar private cellar;
+    Fund private fund;
 
     address private UNTRUSTED_sfrxETH = 0x78bB3aEC3d855431bd9289fD98dA13F9ebB7ef15;
 
@@ -75,7 +75,7 @@ contract FraxLendFTokenAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
         settings = PriceRouter.AssetSettings(CHAINLINK_DERIVATIVE, address(mockWethUsd));
         priceRouter.addAsset(WETH, settings, abi.encode(stor), price);
 
-        // Setup Cellar:
+        // Setup Fund:
 
         // Add adaptors and positions to the registry.
         registry.trustAdaptor(address(fTokenAdaptor));
@@ -95,108 +95,103 @@ contract FraxLendFTokenAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
             abi.encode(SFRXETH_FRAX_PAIR)
         );
 
-        string memory cellarName = "FraxLend Cellar V0.0";
+        string memory fundName = "FraxLend Fund V0.0";
         uint256 initialDeposit = 1e18;
 
-        cellar = _createCellar(cellarName, FRAX, fraxPosition, abi.encode(0), initialDeposit);
+        fund = _createFund(fundName, FRAX, fraxPosition, abi.encode(0), initialDeposit);
 
-        cellar.addAdaptorToCatalogue(address(fTokenAdaptor));
-        cellar.addAdaptorToCatalogue(address(fTokenAdaptorV2));
+        fund.addAdaptorToCatalogue(address(fTokenAdaptor));
+        fund.addAdaptorToCatalogue(address(fTokenAdaptorV2));
 
-        cellar.addPositionToCatalogue(fxsFraxPairPosition);
-        cellar.addPositionToCatalogue(fpiFraxPairPosition);
-        cellar.addPositionToCatalogue(sfrxEthFraxPairPosition);
-        cellar.addPositionToCatalogue(wEthFraxPairPosition);
+        fund.addPositionToCatalogue(fxsFraxPairPosition);
+        fund.addPositionToCatalogue(fpiFraxPairPosition);
+        fund.addPositionToCatalogue(sfrxEthFraxPairPosition);
+        fund.addPositionToCatalogue(wEthFraxPairPosition);
 
-        cellar.addPositionToCatalogue(fxsFraxPairPosition);
-        cellar.addPosition(0, fxsFraxPairPosition, abi.encode(0), false);
-        cellar.setHoldingPosition(fxsFraxPairPosition);
+        fund.addPositionToCatalogue(fxsFraxPairPosition);
+        fund.addPosition(0, fxsFraxPairPosition, abi.encode(0), false);
+        fund.setHoldingPosition(fxsFraxPairPosition);
 
-        FRAX.safeApprove(address(cellar), type(uint256).max);
+        FRAX.safeApprove(address(fund), type(uint256).max);
 
-        initialAssets = cellar.totalAssets();
+        initialAssets = fund.totalAssets();
 
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         // Lend FRAX on FraxLend.
         {
             bytes[] memory adaptorCalls = new bytes[](1);
             adaptorCalls[0] = _createBytesDataToLendOnFraxLend(FXS_FRAX_PAIR, initialDeposit);
-            data[0] = Cellar.AdaptorCall({ adaptor: address(fTokenAdaptor), callData: adaptorCalls });
+            data[0] = Fund.AdaptorCall({ adaptor: address(fTokenAdaptor), callData: adaptorCalls });
         }
 
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
     }
 
     function testDeposit(uint256 assets) external {
         assets = bound(assets, 0.01e18, 100_000_000e18);
         deal(address(FRAX), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
     }
 
     function testWithdraw(uint256 assets) external {
         assets = bound(assets, 0.01e18, 100_000_000e18);
         deal(address(FRAX), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
-        cellar.withdraw(assets - 2, address(this), address(this));
+        fund.withdraw(assets - 2, address(this), address(this));
     }
 
     function testDepositV2(uint256 assets) external {
         assets = bound(assets, 0.01e18, 100_000_000e18);
-        // Adjust Cellar holding position to deposit into a Frax Pair V2.
-        cellar.addPosition(0, sfrxEthFraxPairPosition, abi.encode(0), false);
-        cellar.setHoldingPosition(sfrxEthFraxPairPosition);
+        // Adjust Fund holding position to deposit into a Frax Pair V2.
+        fund.addPosition(0, sfrxEthFraxPairPosition, abi.encode(0), false);
+        fund.setHoldingPosition(sfrxEthFraxPairPosition);
         deal(address(FRAX), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
     }
 
     function testWithdrawV2(uint256 assets) external {
         assets = bound(assets, 0.01e18, 100_000_000e18);
-        // Adjust Cellar holding position to withdraw from a Frax Pair V2.
-        cellar.addPosition(0, sfrxEthFraxPairPosition, abi.encode(0), false);
-        cellar.setHoldingPosition(sfrxEthFraxPairPosition);
+        // Adjust Fund holding position to withdraw from a Frax Pair V2.
+        fund.addPosition(0, sfrxEthFraxPairPosition, abi.encode(0), false);
+        fund.setHoldingPosition(sfrxEthFraxPairPosition);
         deal(address(FRAX), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
-        cellar.withdraw(assets - 2, address(this), address(this));
+        fund.withdraw(assets - 2, address(this), address(this));
     }
 
     function testTotalAssets(uint256 assets) external {
         assets = bound(assets, 0.01e18, 100_000_000e18);
         deal(address(FRAX), address(this), assets);
-        cellar.deposit(assets, address(this));
-        assertApproxEqAbs(
-            cellar.totalAssets(),
-            assets + initialAssets,
-            2,
-            "Total assets should equal assets deposited."
-        );
+        fund.deposit(assets, address(this));
+        assertApproxEqAbs(fund.totalAssets(), assets + initialAssets, 2, "Total assets should equal assets deposited.");
     }
 
     function testLendingFrax(uint256 assets) external {
         // Add FRAX position and change holding position to vanilla FRAX.
-        cellar.setHoldingPosition(fraxPosition);
+        fund.setHoldingPosition(fraxPosition);
 
-        // Have user deposit into cellar.
+        // Have user deposit into fund.
         assets = bound(assets, 0.01e18, 100_000_000e18);
         deal(address(FRAX), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
         // Strategist rebalances to lend FRAX.
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         // Lend FRAX on FraxLend.
         {
             bytes[] memory adaptorCalls = new bytes[](1);
             adaptorCalls[0] = _createBytesDataToLendOnFraxLend(FXS_FRAX_PAIR, assets);
-            data[0] = Cellar.AdaptorCall({ adaptor: address(fTokenAdaptor), callData: adaptorCalls });
+            data[0] = Fund.AdaptorCall({ adaptor: address(fTokenAdaptor), callData: adaptorCalls });
         }
 
         // Perform callOnAdaptor.
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
         IFToken pair = IFToken(FXS_FRAX_PAIR);
-        uint256 shareBalance = pair.balanceOf(address(cellar));
-        assertTrue(shareBalance > 0, "Cellar should own shares.");
+        uint256 shareBalance = pair.balanceOf(address(fund));
+        assertTrue(shareBalance > 0, "Fund should own shares.");
         assertApproxEqAbs(
             pair.toAssetAmount(shareBalance, false),
             assets + initialAssets,
@@ -206,60 +201,60 @@ contract FraxLendFTokenAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
     }
 
     function testWithdrawingFrax(uint256 assets) external {
-        // Have user deposit into cellar.
+        // Have user deposit into fund.
         assets = bound(assets, 0.01e18, 100_000_000e18);
         deal(address(FRAX), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
         // Strategist rebalances to withdraw FRAX.
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         // Withdraw FRAX from FraxLend.
         {
             bytes[] memory adaptorCalls = new bytes[](1);
             adaptorCalls[0] = _createBytesDataToRedeemFromFraxLend(FXS_FRAX_PAIR, type(uint256).max);
-            data[0] = Cellar.AdaptorCall({ adaptor: address(fTokenAdaptor), callData: adaptorCalls });
+            data[0] = Fund.AdaptorCall({ adaptor: address(fTokenAdaptor), callData: adaptorCalls });
         }
 
         // Perform callOnAdaptor.
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
         assertApproxEqAbs(
-            FRAX.balanceOf(address(cellar)),
+            FRAX.balanceOf(address(fund)),
             assets + initialAssets,
             2,
-            "Cellar FRAX should have been withdraw from FraxLend."
+            "Fund FRAX should have been withdraw from FraxLend."
         );
     }
 
     function testRebalancingBetweenPairs(uint256 assets) external {
         // Add another Frax Lend pair, and vanilla FRAX.
-        cellar.addPosition(0, sfrxEthFraxPairPosition, abi.encode(0), false);
+        fund.addPosition(0, sfrxEthFraxPairPosition, abi.encode(0), false);
 
-        // Have user deposit into cellar.
+        // Have user deposit into fund.
         assets = bound(assets, 0.01e18, 100_000_000e18);
         deal(address(FRAX), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
         // Strategist rebalances to withdraw FRAX, and lend in a different pair.
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](2);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](2);
         // Withdraw FRAX from FraxLend.
         {
             bytes[] memory adaptorCalls = new bytes[](1);
             adaptorCalls[0] = _createBytesDataToRedeemFromFraxLend(FXS_FRAX_PAIR, type(uint256).max);
-            data[0] = Cellar.AdaptorCall({ adaptor: address(fTokenAdaptor), callData: adaptorCalls });
+            data[0] = Fund.AdaptorCall({ adaptor: address(fTokenAdaptor), callData: adaptorCalls });
         }
         {
             bytes[] memory adaptorCalls = new bytes[](1);
             adaptorCalls[0] = _createBytesDataToLendOnFraxLend(SFRXETH_FRAX_PAIR, type(uint256).max);
-            data[1] = Cellar.AdaptorCall({ adaptor: address(fTokenAdaptorV2), callData: adaptorCalls });
+            data[1] = Fund.AdaptorCall({ adaptor: address(fTokenAdaptorV2), callData: adaptorCalls });
         }
 
         // Perform callOnAdaptor.
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
         IFToken pair = IFToken(SFRXETH_FRAX_PAIR);
-        uint256 shareBalance = pair.balanceOf(address(cellar));
-        assertTrue(shareBalance > 0, "Cellar should own shares.");
+        uint256 shareBalance = pair.balanceOf(address(fund));
+        assertTrue(shareBalance > 0, "Fund should own shares.");
         assertApproxEqAbs(
             pair.toAssetAmount(shareBalance, false, false),
             assets + initialAssets,
@@ -268,35 +263,35 @@ contract FraxLendFTokenAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
         );
 
         // Withdraw half the assets from Frax Pair V2.
-        data = new Cellar.AdaptorCall[](1);
+        data = new Fund.AdaptorCall[](1);
         {
             bytes[] memory adaptorCalls = new bytes[](1);
             adaptorCalls[0] = _createBytesDataToWithdrawFromFraxLend(SFRXETH_FRAX_PAIR, assets / 2);
-            data[0] = Cellar.AdaptorCall({ adaptor: address(fTokenAdaptorV2), callData: adaptorCalls });
+            data[0] = Fund.AdaptorCall({ adaptor: address(fTokenAdaptorV2), callData: adaptorCalls });
         }
 
         // Perform callOnAdaptor.
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
-        assertEq(FRAX.balanceOf(address(cellar)), assets / 2, "Should have withdrawn half the assets from FraxLend.");
+        assertEq(FRAX.balanceOf(address(fund)), assets / 2, "Should have withdrawn half the assets from FraxLend.");
     }
 
     function testUsingPairNotSetupAsPosition(uint256 assets) external {
         // Add FRAX position and change holding position to vanilla FRAX.
-        cellar.setHoldingPosition(fraxPosition);
+        fund.setHoldingPosition(fraxPosition);
 
-        // Have user deposit into cellar.
+        // Have user deposit into fund.
         assets = bound(assets, 0.01e18, 100_000_000e18);
         deal(address(FRAX), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
         // Strategist rebalances to lend FRAX.
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         // Lend FRAX on FraxLend.
         {
             bytes[] memory adaptorCalls = new bytes[](1);
             adaptorCalls[0] = _createBytesDataToLendOnFraxLend(UNTRUSTED_sfrxETH, assets);
-            data[0] = Cellar.AdaptorCall({ adaptor: address(fTokenAdaptor), callData: adaptorCalls });
+            data[0] = Fund.AdaptorCall({ adaptor: address(fTokenAdaptor), callData: adaptorCalls });
         }
 
         vm.expectRevert(
@@ -307,13 +302,13 @@ contract FraxLendFTokenAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
                 )
             )
         );
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
         address maliciousContract = vm.addr(87345834);
         {
             bytes[] memory adaptorCalls = new bytes[](1);
             adaptorCalls[0] = _createBytesDataToRedeemFromFraxLend(maliciousContract, assets);
-            data[0] = Cellar.AdaptorCall({ adaptor: address(fTokenAdaptor), callData: adaptorCalls });
+            data[0] = Fund.AdaptorCall({ adaptor: address(fTokenAdaptor), callData: adaptorCalls });
         }
 
         vm.expectRevert(
@@ -324,12 +319,12 @@ contract FraxLendFTokenAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
                 )
             )
         );
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
         {
             bytes[] memory adaptorCalls = new bytes[](1);
             adaptorCalls[0] = _createBytesDataToWithdrawFromFraxLend(maliciousContract, assets);
-            data[0] = Cellar.AdaptorCall({ adaptor: address(fTokenAdaptor), callData: adaptorCalls });
+            data[0] = Fund.AdaptorCall({ adaptor: address(fTokenAdaptor), callData: adaptorCalls });
         }
 
         vm.expectRevert(
@@ -340,24 +335,24 @@ contract FraxLendFTokenAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
                 )
             )
         );
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
     }
 
     // Check that FRAX in multiple different pairs is correctly accounted for in totalAssets().
     function testMultiplePositionsTotalAssets(uint256 assets) external {
-        // Have user deposit into cellar
+        // Have user deposit into fund
         assets = bound(assets, 0.01e18, 100_000_000e18);
         uint256 expectedAssets = assets;
         uint256 dividedAssetPerMultiPair = assets / 3; // amount of FRAX to distribute between different fraxLendPairs
         deal(address(FRAX), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
         // Test that users can withdraw from multiple pairs at once.
         _setupMultiplePositions(dividedAssetPerMultiPair);
 
         assertApproxEqAbs(
             expectedAssets + initialAssets,
-            cellar.totalAssets(),
+            fund.totalAssets(),
             10,
             "Total assets should have been lent out"
         );
@@ -365,18 +360,18 @@ contract FraxLendFTokenAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
 
     // Check that user able to withdraw from multiple lending positions outright
     function testMultiplePositionsUserWithdraw(uint256 assets) external {
-        // Have user deposit into cellar
+        // Have user deposit into fund
         assets = bound(assets, 0.01e18, 100_000_000e18);
         uint256 dividedAssetPerMultiPair = assets / 3; // amount of FRAX to distribute between different fraxLendPairs
         deal(address(FRAX), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
         // Test that users can withdraw from multiple pairs at once.
         _setupMultiplePositions(dividedAssetPerMultiPair);
 
         deal(address(FRAX), address(this), 0);
-        uint256 toWithdraw = cellar.maxWithdraw(address(this));
-        cellar.withdraw(toWithdraw, address(this), address(this));
+        uint256 toWithdraw = fund.maxWithdraw(address(this));
+        fund.withdraw(toWithdraw, address(this), address(this));
 
         assertApproxEqAbs(
             FRAX.balanceOf(address(this)),
@@ -387,30 +382,30 @@ contract FraxLendFTokenAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
     }
 
     function testWithdrawableFrom() external {
-        cellar.addPosition(0, wEthFraxPairPosition, abi.encode(0), false);
+        fund.addPosition(0, wEthFraxPairPosition, abi.encode(0), false);
 
         // Strategist rebalances to withdraw FRAX, and lend in a different pair.
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](2);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](2);
         // Withdraw FRAX from FraxLend.
         {
             bytes[] memory adaptorCalls = new bytes[](1);
             adaptorCalls[0] = _createBytesDataToRedeemFromFraxLend(FXS_FRAX_PAIR, type(uint256).max);
-            data[0] = Cellar.AdaptorCall({ adaptor: address(fTokenAdaptor), callData: adaptorCalls });
+            data[0] = Fund.AdaptorCall({ adaptor: address(fTokenAdaptor), callData: adaptorCalls });
         }
         {
             bytes[] memory adaptorCalls = new bytes[](1);
             adaptorCalls[0] = _createBytesDataToLendOnFraxLend(WETH_FRAX_PAIR, type(uint256).max);
-            data[1] = Cellar.AdaptorCall({ adaptor: address(fTokenAdaptor), callData: adaptorCalls });
+            data[1] = Fund.AdaptorCall({ adaptor: address(fTokenAdaptor), callData: adaptorCalls });
         }
         // Perform callOnAdaptor.
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
-        // Make cellar deposits lend FRAX into WETH Pair.
-        cellar.setHoldingPosition(wEthFraxPairPosition);
+        // Make fund deposits lend FRAX into WETH Pair.
+        fund.setHoldingPosition(wEthFraxPairPosition);
 
         uint256 assets = 10_000e18;
         deal(address(FRAX), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
         address whaleBorrower = vm.addr(777);
 
@@ -427,7 +422,7 @@ contract FraxLendFTokenAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
         fToken.borrowAsset(assetsToBorrow, assetsToSupply, whaleBorrower);
         vm.stopPrank();
 
-        uint256 assetsWithdrawable = cellar.totalAssetsWithdrawable();
+        uint256 assetsWithdrawable = fund.totalAssetsWithdrawable();
 
         assertEq(assetsWithdrawable, 0, "There should be no assets withdrawable.");
 
@@ -441,13 +436,13 @@ contract FraxLendFTokenAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
         (totalFraxSupplied, , totalFraxBorrowed, , ) = fToken.getPairAccounting();
         uint256 liquidFrax = totalFraxSupplied - totalFraxBorrowed;
 
-        assetsWithdrawable = cellar.totalAssetsWithdrawable();
+        assetsWithdrawable = fund.totalAssetsWithdrawable();
 
         assertEq(assetsWithdrawable, liquidFrax, "Should be able to withdraw liquid FRAX.");
 
         // Have user withdraw the FRAX.
         deal(address(FRAX), address(this), 0);
-        cellar.withdraw(liquidFrax, address(this), address(this));
+        fund.withdraw(liquidFrax, address(this), address(this));
         assertEq(FRAX.balanceOf(address(this)), liquidFrax, "User should have received liquid FRAX.");
     }
 
@@ -458,13 +453,13 @@ contract FraxLendFTokenAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
         address userB = vm.addr(222);
         uint256 expectedInterestEarnedAfter7Days;
 
-        Cellar v1PositionAccountingForInterest = _createSimpleCellar(
+        Fund v1PositionAccountingForInterest = _createSimpleFund(
             "1",
             fxsFraxPairPosition,
             FXS_FRAX_PAIR,
             address(fTokenAdaptor)
         );
-        Cellar v1PositionNotAccountingForInterest = _createSimpleCellar(
+        Fund v1PositionNotAccountingForInterest = _createSimpleFund(
             "2",
             mockFxsFraxPairPosition,
             FXS_FRAX_PAIR,
@@ -478,7 +473,7 @@ contract FraxLendFTokenAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
 
         uint256 snapshot = vm.snapshot();
 
-        // Start by depositing into first cellar and saving gas values.
+        // Start by depositing into first fund and saving gas values.
         vm.startPrank(userA);
         deal(address(FRAX), userA, assets);
         FRAX.approve(address(v1PositionAccountingForInterest), assets);
@@ -521,7 +516,7 @@ contract FraxLendFTokenAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
         vm.stopPrank();
 
         // Since no one interacted with FraxLend between the users deposit and their withdraw,
-        // the interest was NOT accounted for in cellar share price.
+        // the interest was NOT accounted for in fund share price.
         assertApproxEqAbs(
             FRAX.balanceOf(userA),
             assets,
@@ -529,11 +524,11 @@ contract FraxLendFTokenAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
             "Since no one interacted with FraxLend between the users deposit and their withdraw, the interest was"
         );
 
-        // When the user withdraws, the cellar share price is still 1:1 bc
+        // When the user withdraws, the fund share price is still 1:1 bc
         // no one has interacted with FraxLend, so the positions balanceOf does not change
-        // but during position withdraw, this cellar calls `addInterest`
-        // BEFORE calculating the shares needed to redeem to get the assets out the cellar requested.
-        // Because of this, the unaccounted for interest is left in the cellar.
+        // but during position withdraw, this fund calls `addInterest`
+        // BEFORE calculating the shares needed to redeem to get the assets out the fund requested.
+        // Because of this, the unaccounted for interest is left in the fund.
         totalAssets = v1PositionAccountingForInterest.totalAssets();
         assertApproxEqAbs(
             totalAssets,
@@ -545,7 +540,7 @@ contract FraxLendFTokenAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
         // --------------------- Revert to state before interacting with FraxLend Pair ---------------------
         vm.revertTo(snapshot);
 
-        // Now deposit into other cellar, saving gas values.
+        // Now deposit into other fund, saving gas values.
         vm.startPrank(userB);
         deal(address(FRAX), userB, assets);
         FRAX.approve(address(v1PositionNotAccountingForInterest), assets);
@@ -587,9 +582,9 @@ contract FraxLendFTokenAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
         );
 
         // Since no one interacted with FraxLend between the users deposit and their withdraw,
-        // the interest was NOT accounted for in cellar share price.
+        // the interest was NOT accounted for in fund share price.
         // But on withdraw we do NOT call `addInterest` before calculating shares to redeem to get the
-        // assets out the cellar requested, so we underestimate frax share price, and redeem more shares than are needed.
+        // assets out the fund requested, so we underestimate frax share price, and redeem more shares than are needed.
         assertApproxEqAbs(
             FRAX.balanceOf(userB),
             assets + expectedInterestEarnedAfter7Days,
@@ -631,9 +626,9 @@ contract FraxLendFTokenAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
         vm.stopPrank();
 
         // Since no one interacted with FraxLend between the users deposit and their withdraw,
-        // the interest was NOT accounted for in cellar share price.
+        // the interest was NOT accounted for in fund share price.
         // But on withdraw we do NOT call `addInterest` before calculating shares to redeem to get the
-        // assets out the cellar requested, so we underestimate frax share price, and redeem more shares than are needed.
+        // assets out the fund requested, so we underestimate frax share price, and redeem more shares than are needed.
         uint256 userBFraxBalance = FRAX.balanceOf(userB);
         uint256 userAFraxBalance = FRAX.balanceOf(userA);
 
@@ -667,10 +662,10 @@ contract FraxLendFTokenAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
         // --------------------- TLDR ---------------------
         // If you account for interest, gas cost is increased by 4.5k for withdrawals, and in the edge case where
         // there are no contract interactions with the FraxLend pair between when the user deposits
-        // into the cellar, and when the user withdraws, that user will not get their share of the yield.
+        // into the fund, and when the user withdraws, that user will not get their share of the yield.
 
         // For the v1 fTokenAdaptor it is best to NOT ACCOUNT FOR INTEREST, since the
-        // cellar share price does not update, and the FraxLend share price does not update,
+        // fund share price does not update, and the FraxLend share price does not update,
         // they cancel out, and we actually withdraw the appropriate amount from FraxLend.
     }
 
@@ -680,13 +675,13 @@ contract FraxLendFTokenAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
         address userB = vm.addr(222);
         uint256 expectedInterestEarnedAfter7Days;
 
-        Cellar v2PositionAccountingForInterest = _createSimpleCellar(
+        Fund v2PositionAccountingForInterest = _createSimpleFund(
             "1",
             sfrxEthFraxPairPosition,
             SFRXETH_FRAX_PAIR,
             address(fTokenAdaptorV2)
         );
-        Cellar v2PositionNotAccountingForInterest = _createSimpleCellar(
+        Fund v2PositionNotAccountingForInterest = _createSimpleFund(
             "2",
             mockSfrxEthFraxPairPosition,
             SFRXETH_FRAX_PAIR,
@@ -700,7 +695,7 @@ contract FraxLendFTokenAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
 
         uint256 snapshot = vm.snapshot();
 
-        // Start by depositing into first cellar and saving gas values.
+        // Start by depositing into first fund and saving gas values.
         vm.startPrank(userA);
         deal(address(FRAX), userA, assets);
         FRAX.approve(address(v2PositionAccountingForInterest), assets);
@@ -722,7 +717,7 @@ contract FraxLendFTokenAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
             assertGt(
                 v2PositionAccountingForInterest.totalAssets(),
                 totalAssets,
-                "Cellar totalAssets should increase over time since we are accounting for interest."
+                "Fund totalAssets should increase over time since we are accounting for interest."
             );
         }
 
@@ -750,7 +745,7 @@ contract FraxLendFTokenAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
         // --------------------- Revert to state before interacting with FraxLend Pair ---------------------
         vm.revertTo(snapshot);
 
-        // Now deposit into other cellar, saving gas values.
+        // Now deposit into other fund, saving gas values.
         vm.startPrank(userB);
         deal(address(FRAX), userB, assets);
         FRAX.approve(address(v2PositionNotAccountingForInterest), assets);
@@ -782,11 +777,11 @@ contract FraxLendFTokenAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
         gasWithoutAccountingForInterest.withdrawGas = gasWithoutAccountingForInterest.withdrawGas - gasleft();
         vm.stopPrank();
 
-        // Since the cellar share price is not updated until after the cellar interacts with FraxLend,
-        // the users Cellar shares are undervalued, and they only get their initial capital out, but no yield.
+        // Since the fund share price is not updated until after the fund interacts with FraxLend,
+        // the users Fund shares are undervalued, and they only get their initial capital out, but no yield.
         assertApproxEqAbs(FRAX.balanceOf(userB), assets, 2, "User FRAX balance should equal assets.");
 
-        // The yield is left in the cellar.
+        // The yield is left in the fund.
         assertGt(v2PositionNotAccountingForInterest.totalAssets(), initialAssets, "There should be assets left.");
 
         // --------------------- Compare gas values ---------------------
@@ -829,35 +824,35 @@ contract FraxLendFTokenAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
         // The gas increase is fairly minimal in exchange for more accurate share price calculations.
         // It is generally better to account for interest earned, so that users do not run the
         // possibility of either getting the share price arbed(in the case of divergence between
-        // cellar share price and FraxLend pair share price, which happens when the pair is not
-        // interacted with for a long time.), or the user leaves the cellar without getting the yield
+        // fund share price and FraxLend pair share price, which happens when the pair is not
+        // interacted with for a long time.), or the user leaves the fund without getting the yield
         // their capital generated.
         //
-        // This being said if the Cellar is rebalancing its FraxLend positions regularly (3-7 days) the
-        // divergence between the two share prices will be minimal, and cellar interactions will be cheaper.
+        // This being said if the Fund is rebalancing its FraxLend positions regularly (3-7 days) the
+        // divergence between the two share prices will be minimal, and fund interactions will be cheaper.
         // Also the strategist would be able to move assets into reserves without lowering share price.
     }
 
     function testAddInterest() external {
-        // Add v2 FraxLend Pair position to Cellar.
-        cellar.addPosition(0, sfrxEthFraxPairPosition, abi.encode(0), false);
+        // Add v2 FraxLend Pair position to Fund.
+        fund.addPosition(0, sfrxEthFraxPairPosition, abi.encode(0), false);
 
         // Strategist rebalances to withdraw FRAX, and lend in a different pair.
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](2);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](2);
         // Withdraw FRAX from FraxLend.
         {
             bytes[] memory adaptorCalls = new bytes[](1);
             adaptorCalls[0] = _createBytesDataToCallAddInterestOnFraxLend(FXS_FRAX_PAIR);
-            data[0] = Cellar.AdaptorCall({ adaptor: address(fTokenAdaptor), callData: adaptorCalls });
+            data[0] = Fund.AdaptorCall({ adaptor: address(fTokenAdaptor), callData: adaptorCalls });
         }
         {
             bytes[] memory adaptorCalls = new bytes[](1);
             adaptorCalls[0] = _createBytesDataToCallAddInterestOnFraxLend(SFRXETH_FRAX_PAIR);
-            data[1] = Cellar.AdaptorCall({ adaptor: address(fTokenAdaptorV2), callData: adaptorCalls });
+            data[1] = Fund.AdaptorCall({ adaptor: address(fTokenAdaptorV2), callData: adaptorCalls });
         }
 
         // Perform callOnAdaptor.
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
     }
 
     // ========================================= HELPER FUNCTIONS =========================================
@@ -871,57 +866,57 @@ contract FraxLendFTokenAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
     // setup multiple lending positions
     function _setupMultiplePositions(uint256 dividedAssetPerMultiPair) internal {
         // add numerous frax pairs atop of holdingPosition (fxs)
-        cellar.addPosition(0, sfrxEthFraxPairPosition, abi.encode(0), false);
-        cellar.addPosition(0, fpiFraxPairPosition, abi.encode(0), false);
+        fund.addPosition(0, sfrxEthFraxPairPosition, abi.encode(0), false);
+        fund.addPosition(0, fpiFraxPairPosition, abi.encode(0), false);
 
         // Strategist rebalances to withdraw set amount of FRAX, and lend in a different pair.
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](3);
-        // Withdraw 2/3 of cellar FRAX from FraxLend.
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](3);
+        // Withdraw 2/3 of fund FRAX from FraxLend.
         {
             bytes[] memory adaptorCalls = new bytes[](1);
             adaptorCalls[0] = _createBytesDataToRedeemFromFraxLend(FXS_FRAX_PAIR, dividedAssetPerMultiPair * 2);
-            data[0] = Cellar.AdaptorCall({ adaptor: address(fTokenAdaptor), callData: adaptorCalls });
+            data[0] = Fund.AdaptorCall({ adaptor: address(fTokenAdaptor), callData: adaptorCalls });
         }
         {
             bytes[] memory adaptorCalls = new bytes[](1);
             adaptorCalls[0] = _createBytesDataToLendOnFraxLend(SFRXETH_FRAX_PAIR, dividedAssetPerMultiPair);
-            data[1] = Cellar.AdaptorCall({ adaptor: address(fTokenAdaptorV2), callData: adaptorCalls });
+            data[1] = Fund.AdaptorCall({ adaptor: address(fTokenAdaptorV2), callData: adaptorCalls });
         }
         {
             bytes[] memory adaptorCalls = new bytes[](1);
             adaptorCalls[0] = _createBytesDataToLendOnFraxLend(FPI_FRAX_PAIR, type(uint256).max);
-            data[2] = Cellar.AdaptorCall({ adaptor: address(fTokenAdaptor), callData: adaptorCalls });
+            data[2] = Fund.AdaptorCall({ adaptor: address(fTokenAdaptor), callData: adaptorCalls });
         }
 
         // Perform callOnAdaptor.
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
     }
 
-    function _createSimpleCellar(
-        string memory cellarName,
+    function _createSimpleFund(
+        string memory fundName,
         uint32 holdingPosition,
         address pair,
         address adaptorToUse
-    ) internal returns (Cellar simpleCellar) {
+    ) internal returns (Fund simpleFund) {
         uint256 initialDeposit = 1e18;
 
-        simpleCellar = _createCellar(cellarName, FRAX, fraxPosition, abi.encode(0), initialDeposit);
+        simpleFund = _createFund(fundName, FRAX, fraxPosition, abi.encode(0), initialDeposit);
 
-        simpleCellar.addAdaptorToCatalogue(address(adaptorToUse));
-        simpleCellar.addPositionToCatalogue(holdingPosition);
+        simpleFund.addAdaptorToCatalogue(address(adaptorToUse));
+        simpleFund.addPositionToCatalogue(holdingPosition);
 
-        simpleCellar.addPosition(0, holdingPosition, abi.encode(0), false);
+        simpleFund.addPosition(0, holdingPosition, abi.encode(0), false);
 
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         // Lend FRAX on FraxLend.
         {
             bytes[] memory adaptorCalls = new bytes[](1);
             adaptorCalls[0] = _createBytesDataToLendOnFraxLend(pair, initialDeposit);
-            data[0] = Cellar.AdaptorCall({ adaptor: address(adaptorToUse), callData: adaptorCalls });
+            data[0] = Fund.AdaptorCall({ adaptor: address(adaptorToUse), callData: adaptorCalls });
         }
 
-        simpleCellar.callOnAdaptor(data);
+        simpleFund.callOnAdaptor(data);
 
-        simpleCellar.setHoldingPosition(holdingPosition);
+        simpleFund.setHoldingPosition(holdingPosition);
     }
 }

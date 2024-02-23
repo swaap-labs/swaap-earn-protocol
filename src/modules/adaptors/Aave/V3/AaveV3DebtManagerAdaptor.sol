@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.21;
 
-import { BaseAdaptor, ERC20, SafeTransferLib, Cellar, Registry } from "src/modules/adaptors/BaseAdaptor.sol";
+import { BaseAdaptor, ERC20, SafeTransferLib, Fund, Registry } from "src/modules/adaptors/BaseAdaptor.sol";
 import { IPoolV3 } from "src/interfaces/external/IPoolV3.sol";
 import { IAaveToken } from "src/interfaces/external/IAaveToken.sol";
 import { AaveV3AccountHelper } from "./AaveV3AccountHelper.sol";
@@ -10,7 +10,7 @@ import { AaveV3AccountExtension } from "./AaveV3AccountExtension.sol";
 
 /**
  * @title Aave debtToken Adaptor
- * @notice Allows Cellars to interact with Aave debtToken positions.
+ * @notice Allows Funds to interact with Aave debtToken positions.
  */
 contract AaveV3DebtManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
     using SafeTransferLib for ERC20;
@@ -24,7 +24,7 @@ contract AaveV3DebtManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
     //====================================================================
 
     /**
-     @notice Attempted borrow would lower Cellar health factor too low.
+     @notice Attempted borrow would lower Fund health factor too low.
      */
     error AaveV3DebtManagerAdaptor__HealthFactorTooLow();
 
@@ -43,7 +43,7 @@ contract AaveV3DebtManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
     /**
      * @dev Identifier unique to this adaptor for a shared registry.
      * Normally the identifier would just be the address of this contract, but this
-     * Identifier is needed during Cellar Delegate Call Operations, so getting the address
+     * Identifier is needed during Fund Delegate Call Operations, so getting the address
      * of the adaptor is more difficult.
      */
     function identifier() public pure override returns (bytes32) {
@@ -75,7 +75,7 @@ contract AaveV3DebtManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
     }
 
     /**
-     * @notice Returns the cellars balance of the positions debtToken.
+     * @notice Returns the funds balance of the positions debtToken.
      */
     function balanceOf(bytes memory adaptorData) public view override returns (uint256) {
         (address accountAddress, address token) = _extractAdaptorData(adaptorData, msg.sender);
@@ -135,9 +135,9 @@ contract AaveV3DebtManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
      * @param amountToRepay the amount of `tokenToRepay` to repay with.
      */
     function repayAaveDebt(uint8 accountId, ERC20 underlyingToken, uint256 amountToRepay) public {
-        // we don't need to check if the debt token exists or if the adaptor data is valid, 
+        // we don't need to check if the debt token exists or if the adaptor data is valid,
         // as the debt is not transferable and there is no way to obtain it without borrowing it beforehand
-        // by validating that the adaptor data is tracked by the cellar
+        // by validating that the adaptor data is tracked by the fund
         // _validateDebtToken(accountId, IAaveToken(address(tokenToRepay))
 
         // should revert if account extension does not exist
@@ -158,7 +158,7 @@ contract AaveV3DebtManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
     }
 
     /**
-     * @notice allows strategist to have Cellars take out flash loans.
+     * @notice allows strategist to have Funds take out flash loans.
      * @param loanToken address array of tokens to take out loans
      * @param loanAmount uint256 array of loan amounts for each `loanToken`
      * @dev `modes` is always a zero array meaning that this flash loan can NOT take on new debt positions, it must be paid in full.
@@ -171,7 +171,7 @@ contract AaveV3DebtManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
 
     function _requestAaveDebtDelegationIfNecessary(address accountAddress, address debtToken, uint256 amount) internal {
         if (ICreditDelegationToken(debtToken).borrowAllowance(accountAddress, address(this)) < amount) {
-            AaveV3AccountExtension(accountAddress).approveDebtDelegationToCellar(debtToken);
+            AaveV3AccountExtension(accountAddress).approveDebtDelegationToFund(debtToken);
         }
     }
 

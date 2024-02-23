@@ -5,10 +5,9 @@ import { AggregatorBaseAdaptor, ERC20 } from "src/modules/adaptors/AggregatorBas
 
 /**
  * @title Paraswap Adaptor
- * @notice Allows Cellars to swap with Paraswap.
+ * @notice Allows Funds to swap with Paraswap.
  */
 contract ParaswapAdaptor is AggregatorBaseAdaptor {
-    
     //==================== Adaptor Data Specification ====================
     // NOT USED
     //================= Configuration Data Specification =================
@@ -23,7 +22,7 @@ contract ParaswapAdaptor is AggregatorBaseAdaptor {
      * @notice For mainnet use 0xDEF171Fe48CF0115B1d80b88dc8eAB59176FEe57.
      */
     address public immutable target;
-    
+
     /**
      * @notice The paraswap spender contract on current network that should be approved.
      * @notice For mainnet use 0x216B4B4Ba9F3e719726886d34a177484278Bfcae.
@@ -39,7 +38,7 @@ contract ParaswapAdaptor is AggregatorBaseAdaptor {
     /**
      * @dev Identifier unique to this adaptor for a shared registry.
      * Normally the identifier would just be the address of this contract, but this
-     * Identifier is needed during Cellar Delegate Call Operations, so getting the address
+     * Identifier is needed during Fund Delegate Call Operations, so getting the address
      * of the adaptor is more difficult.
      */
     function identifier() public pure virtual override returns (bytes32) {

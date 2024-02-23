@@ -20,14 +20,14 @@ import "test/resources/MainnetStarter.t.sol";
 
 import { AdaptorHelperFunctions } from "test/resources/AdaptorHelperFunctions.sol";
 
-// Will test the swapping and cellar position management using adaptors
+// Will test the swapping and fund position management using adaptors
 contract SushiswapV3AdaptorTest is MainnetStarterTest, AdaptorHelperFunctions, ERC721Holder {
     using SafeTransferLib for ERC20;
     using Math for uint256;
     using stdStorage for StdStorage;
     using Address for address;
 
-    Cellar private cellar;
+    Fund private fund;
 
     IUniswapV3Factory internal factory = IUniswapV3Factory(0xbACEB8eC6b9355Dfc0269C18bac9d6E2Bdc29C4F);
     INonfungiblePositionManager internal positionManager =
@@ -81,163 +81,163 @@ contract SushiswapV3AdaptorTest is MainnetStarterTest, AdaptorHelperFunctions, E
         registry.trustPosition(usdcDaiPosition, address(uniswapV3Adaptor), abi.encode(DAI, USDC));
         registry.trustPosition(usdcWethPosition, address(uniswapV3Adaptor), abi.encode(USDC, WETH));
 
-        string memory cellarName = "UniswapV3 Cellar V0.0";
+        string memory fundName = "UniswapV3 Fund V0.0";
         uint256 initialDeposit = 1e6;
 
-        cellar = _createCellar(cellarName, USDC, usdcPosition, abi.encode(0), initialDeposit);
+        fund = _createFund(fundName, USDC, usdcPosition, abi.encode(0), initialDeposit);
 
-        vm.label(address(cellar), "cellar");
+        vm.label(address(fund), "fund");
         vm.label(strategist, "strategist");
 
-        cellar.addPositionToCatalogue(daiPosition);
-        cellar.addPositionToCatalogue(wethPosition);
-        cellar.addPositionToCatalogue(usdcDaiPosition);
-        cellar.addPositionToCatalogue(usdcWethPosition);
+        fund.addPositionToCatalogue(daiPosition);
+        fund.addPositionToCatalogue(wethPosition);
+        fund.addPositionToCatalogue(usdcDaiPosition);
+        fund.addPositionToCatalogue(usdcWethPosition);
 
-        cellar.addPosition(1, daiPosition, abi.encode(0), false);
-        cellar.addPosition(1, wethPosition, abi.encode(0), false);
-        cellar.addPosition(1, usdcDaiPosition, abi.encode(0), false);
-        cellar.addPosition(1, usdcWethPosition, abi.encode(0), false);
+        fund.addPosition(1, daiPosition, abi.encode(0), false);
+        fund.addPosition(1, wethPosition, abi.encode(0), false);
+        fund.addPosition(1, usdcDaiPosition, abi.encode(0), false);
+        fund.addPosition(1, usdcWethPosition, abi.encode(0), false);
 
-        cellar.addAdaptorToCatalogue(address(uniswapV3Adaptor));
-        cellar.addAdaptorToCatalogue(address(swapWithUniswapAdaptor));
+        fund.addAdaptorToCatalogue(address(uniswapV3Adaptor));
+        fund.addAdaptorToCatalogue(address(swapWithUniswapAdaptor));
 
-        cellar.setRebalanceDeviation(0.003e18);
+        fund.setRebalanceDeviation(0.003e18);
 
-        // Approve cellar to spend all assets.
-        USDC.approve(address(cellar), type(uint256).max);
+        // Approve fund to spend all assets.
+        USDC.approve(address(fund), type(uint256).max);
     }
 
     // ========================================== POSITION MANAGEMENT TEST ==========================================
     function testOpenUSDC_DAIPosition() external {
         deal(address(USDC), address(this), 101_000e6);
-        cellar.deposit(101_000e6, address(this));
+        fund.deposit(101_000e6, address(this));
 
-        deal(address(DAI), address(cellar), 50_500e18);
-        deal(address(USDC), address(cellar), 50_500e6);
+        deal(address(DAI), address(fund), 50_500e18);
+        deal(address(USDC), address(fund), 50_500e6);
 
         // Use `callOnAdaptor` to swap 50,000 USDC for DAI, and enter UniV3 position.
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         {
             bytes[] memory adaptorCalls = new bytes[](1);
             adaptorCalls[0] = _createBytesDataToOpenLP(DAI, USDC, 100, 50_000e18, 50_000e6, 10);
-            data[0] = Cellar.AdaptorCall({ adaptor: address(uniswapV3Adaptor), callData: adaptorCalls });
+            data[0] = Fund.AdaptorCall({ adaptor: address(uniswapV3Adaptor), callData: adaptorCalls });
         }
 
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
-        uint256[] memory positions = tracker.getTokens(address(cellar), DAI, USDC);
+        uint256[] memory positions = tracker.getTokens(address(fund), DAI, USDC);
 
         assertEq(positions.length, 1, "Tracker should only have 1 position.");
         assertEq(
             positions[0],
-            positionManager.tokenOfOwnerByIndex(address(cellar), 0),
-            "Tracker should be tracking cellars first Uni NFT."
+            positionManager.tokenOfOwnerByIndex(address(fund), 0),
+            "Tracker should be tracking funds first Uni NFT."
         );
     }
 
     function testOpeningAndClosingUniV3Position() external {
         deal(address(USDC), address(this), 101_000e6);
-        cellar.deposit(101_000e6, address(this));
+        fund.deposit(101_000e6, address(this));
 
         // Use `callOnAdaptor` to swap 50,000 USDC for DAI, and enter UniV3 position.
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](2);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](2);
         {
             bytes[] memory adaptorCalls = new bytes[](1);
             adaptorCalls[0] = _createBytesDataForSwapWithUniv3(USDC, DAI, 100, 50_500e6);
-            data[0] = Cellar.AdaptorCall({ adaptor: address(swapWithUniswapAdaptor), callData: adaptorCalls });
+            data[0] = Fund.AdaptorCall({ adaptor: address(swapWithUniswapAdaptor), callData: adaptorCalls });
         }
 
         {
             bytes[] memory adaptorCalls = new bytes[](1);
             adaptorCalls[0] = _createBytesDataToOpenLP(DAI, USDC, 100, 50_000e18, 50_000e6, 2);
-            data[1] = Cellar.AdaptorCall({ adaptor: address(uniswapV3Adaptor), callData: adaptorCalls });
+            data[1] = Fund.AdaptorCall({ adaptor: address(uniswapV3Adaptor), callData: adaptorCalls });
         }
 
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
-        data = new Cellar.AdaptorCall[](1);
+        data = new Fund.AdaptorCall[](1);
         {
             bytes[] memory adaptorCalls = new bytes[](1);
-            adaptorCalls[0] = _createBytesDataToCloseLP(address(cellar), 0);
-            data[0] = Cellar.AdaptorCall({ adaptor: address(uniswapV3Adaptor), callData: adaptorCalls });
-            cellar.callOnAdaptor(data);
+            adaptorCalls[0] = _createBytesDataToCloseLP(address(fund), 0);
+            data[0] = Fund.AdaptorCall({ adaptor: address(uniswapV3Adaptor), callData: adaptorCalls });
+            fund.callOnAdaptor(data);
         }
 
-        uint256[] memory positions = tracker.getTokens(address(cellar), DAI, USDC);
+        uint256[] memory positions = tracker.getTokens(address(fund), DAI, USDC);
         assertEq(positions.length, 0, "Tracker should have zero positions.");
     }
 
     function testAddingToExistingPosition() external {
         deal(address(USDC), address(this), 201_000e6);
-        cellar.deposit(201_000e6, address(this));
+        fund.deposit(201_000e6, address(this));
 
         // Use `callOnAdaptor` to swap 50,000 USDC for DAI, and enter UniV3 position.
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](2);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](2);
         {
             bytes[] memory adaptorCalls = new bytes[](1);
             adaptorCalls[0] = _createBytesDataForSwapWithUniv3(USDC, DAI, 100, 100_500e6);
-            data[0] = Cellar.AdaptorCall({ adaptor: address(swapWithUniswapAdaptor), callData: adaptorCalls });
+            data[0] = Fund.AdaptorCall({ adaptor: address(swapWithUniswapAdaptor), callData: adaptorCalls });
         }
 
         {
             bytes[] memory adaptorCalls = new bytes[](1);
             adaptorCalls[0] = _createBytesDataToOpenLP(DAI, USDC, 100, 50_000e18, 50_000e6, 100_000);
-            data[1] = Cellar.AdaptorCall({ adaptor: address(uniswapV3Adaptor), callData: adaptorCalls });
+            data[1] = Fund.AdaptorCall({ adaptor: address(uniswapV3Adaptor), callData: adaptorCalls });
         }
 
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
-        uint256[] memory positions = tracker.getTokens(address(cellar), DAI, USDC);
+        uint256[] memory positions = tracker.getTokens(address(fund), DAI, USDC);
 
         assertEq(positions.length, 1, "Tracker should only have 1 position.");
         assertEq(
             positions[0],
-            positionManager.tokenOfOwnerByIndex(address(cellar), 0),
-            "Tracker should be tracking cellars first Uni NFT."
+            positionManager.tokenOfOwnerByIndex(address(fund), 0),
+            "Tracker should be tracking funds first Uni NFT."
         );
 
         {
             bytes[] memory adaptorCalls = new bytes[](1);
-            adaptorCalls[0] = _createBytesDataToAddLP(address(cellar), 0, 50_000e18, 50_000e6);
-            data = new Cellar.AdaptorCall[](1);
-            data[0] = Cellar.AdaptorCall({ adaptor: address(uniswapV3Adaptor), callData: adaptorCalls });
-            cellar.callOnAdaptor(data);
+            adaptorCalls[0] = _createBytesDataToAddLP(address(fund), 0, 50_000e18, 50_000e6);
+            data = new Fund.AdaptorCall[](1);
+            data[0] = Fund.AdaptorCall({ adaptor: address(uniswapV3Adaptor), callData: adaptorCalls });
+            fund.callOnAdaptor(data);
         }
 
-        positions = tracker.getTokens(address(cellar), DAI, USDC);
+        positions = tracker.getTokens(address(fund), DAI, USDC);
 
         assertEq(positions.length, 1, "Tracker should only have 1 position.");
     }
 
     function testTakingFromExistingPosition() external {
         deal(address(USDC), address(this), 101_000e6);
-        cellar.deposit(101_000e6, address(this));
+        fund.deposit(101_000e6, address(this));
 
         // Use `callOnAdaptor` to swap 50,000 USDC for DAI, and enter UniV3 position.
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](2);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](2);
         {
             bytes[] memory adaptorCalls = new bytes[](1);
             adaptorCalls[0] = _createBytesDataForSwapWithUniv3(USDC, DAI, 100, 50_500e6);
-            data[0] = Cellar.AdaptorCall({ adaptor: address(swapWithUniswapAdaptor), callData: adaptorCalls });
+            data[0] = Fund.AdaptorCall({ adaptor: address(swapWithUniswapAdaptor), callData: adaptorCalls });
         }
         {
             bytes[] memory adaptorCalls = new bytes[](1);
             adaptorCalls[0] = _createBytesDataToOpenLP(DAI, USDC, 100, 50_000e18, 50_000e6, 10);
-            data[1] = Cellar.AdaptorCall({ adaptor: address(uniswapV3Adaptor), callData: adaptorCalls });
+            data[1] = Fund.AdaptorCall({ adaptor: address(uniswapV3Adaptor), callData: adaptorCalls });
         }
 
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
-        data = new Cellar.AdaptorCall[](1);
+        data = new Fund.AdaptorCall[](1);
         {
             bytes[] memory adaptorCalls = new bytes[](1);
-            adaptorCalls[0] = _createBytesDataToTakeLP(address(cellar), 0, 0.5e18, true);
-            data[0] = Cellar.AdaptorCall({ adaptor: address(uniswapV3Adaptor), callData: adaptorCalls });
-            cellar.callOnAdaptor(data);
+            adaptorCalls[0] = _createBytesDataToTakeLP(address(fund), 0, 0.5e18, true);
+            data[0] = Fund.AdaptorCall({ adaptor: address(uniswapV3Adaptor), callData: adaptorCalls });
+            fund.callOnAdaptor(data);
         }
 
-        uint256[] memory positions = tracker.getTokens(address(cellar), DAI, USDC);
+        uint256[] memory positions = tracker.getTokens(address(fund), DAI, USDC);
 
         assertEq(positions.length, 1, "Tracker should not have removed the position.");
     }
@@ -245,17 +245,17 @@ contract SushiswapV3AdaptorTest is MainnetStarterTest, AdaptorHelperFunctions, E
     function testRangeOrders() external {
         uint256 assets = 100_000e6;
         deal(address(USDC), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
         // Use `callOnAdaptor` to swap 50,000 USDC for DAI, and enter UniV3 position.
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
         adaptorCalls[0] = _createBytesDataToOpenRangeOrder(DAI, USDC, 100, 0, type(uint256).max);
 
-        data[0] = Cellar.AdaptorCall({ adaptor: address(uniswapV3Adaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(uniswapV3Adaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
 
-        assertEq(USDC.balanceOf(address(cellar)), 0, "Cellar should have put all USDC in a UniV3 range order.");
+        assertEq(USDC.balanceOf(address(fund)), 0, "Fund should have put all USDC in a UniV3 range order.");
     }
 
     // ========================================= HELPER FUNCTIONS =========================================
@@ -445,7 +445,7 @@ contract SushiswapV3AdaptorTest is MainnetStarterTest, AdaptorHelperFunctions, E
             );
     }
 
-    // Used to spoof adaptor into thinkig this is a cellar contract.
+    // Used to spoof adaptor into thinkig this is a fund contract.
     function isPositionUsed(uint256) public pure returns (bool) {
         return true;
     }

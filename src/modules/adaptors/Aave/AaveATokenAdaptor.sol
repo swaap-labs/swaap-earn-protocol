@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.21;
 
-import { BaseAdaptor, ERC20, SafeTransferLib, Cellar, PriceRouter, Math } from "src/modules/adaptors/BaseAdaptor.sol";
+import { BaseAdaptor, ERC20, SafeTransferLib, Fund, PriceRouter, Math } from "src/modules/adaptors/BaseAdaptor.sol";
 import { IPool } from "src/interfaces/external/IPool.sol";
 import { IAaveToken } from "src/interfaces/external/IAaveToken.sol";
 
 /**
  * @title Aave aToken Adaptor
- * @notice Allows Cellars to interact with Aave aToken positions.
+ * @notice Allows Funds to interact with Aave aToken positions.
  * @author crispymangoes
  */
 contract AaveATokenAdaptor is BaseAdaptor {
@@ -29,13 +29,13 @@ contract AaveATokenAdaptor is BaseAdaptor {
     //      position reverts if a user withdraw lowers health factor below minimum
     //
     // **************************** IMPORTANT ****************************
-    // Cellars with multiple aToken positions MUST only specify minimum
+    // Funds with multiple aToken positions MUST only specify minimum
     // health factor on ONE of the positions. Failing to do so will result
     // in user withdraws temporarily being blocked.
     //====================================================================
 
     /**
-     * @notice Attempted withdraw would lower Cellar health factor too low.
+     * @notice Attempted withdraw would lower Fund health factor too low.
      */
     error AaveATokenAdaptor__HealthFactorTooLow();
 
@@ -68,7 +68,7 @@ contract AaveATokenAdaptor is BaseAdaptor {
     /**
      * @dev Identifier unique to this adaptor for a shared registry.
      * Normally the identifier would just be the address of this contract, but this
-     * Identifier is needed during Cellar Delegate Call Operations, so getting the address
+     * Identifier is needed during Fund Delegate Call Operations, so getting the address
      * of the adaptor is more difficult.
      */
     function identifier() public pure override returns (bytes32) {
@@ -77,7 +77,7 @@ contract AaveATokenAdaptor is BaseAdaptor {
 
     //============================================ Implement Base Functions ===========================================
     /**
-     * @notice Cellar must approve Pool to spend its assets, then call deposit to lend its assets.
+     * @notice Fund must approve Pool to spend its assets, then call deposit to lend its assets.
      * @param assets the amount of assets to lend on Aave
      * @param adaptorData adaptor data containining the abi encoded aToken
      * @dev configurationData is NOT used because this action will only increase the health factor
@@ -94,9 +94,9 @@ contract AaveATokenAdaptor is BaseAdaptor {
     }
 
     /**
-     @notice Cellars must withdraw from Aave, check if a minimum health factor is specified
+     @notice Funds must withdraw from Aave, check if a minimum health factor is specified
      *       then transfer assets to receiver.
-     * @dev Important to verify that external receivers are allowed if receiver is not Cellar address.
+     * @dev Important to verify that external receivers are allowed if receiver is not Fund address.
      * @param assets the amount of assets to withdraw from Aave
      * @param receiver the address to send withdrawn assets to
      * @param adaptorData adaptor data containining the abi encoded aToken
@@ -159,7 +159,7 @@ contract AaveATokenAdaptor is BaseAdaptor {
             uint256 healthFactor
         ) = pool.getUserAccountData(msg.sender);
 
-        // If Cellar has no Aave debt, then return the cellars balance of the aToken.
+        // If Fund has no Aave debt, then return the funds balance of the aToken.
         if (totalDebtETH == 0) return ERC20(address(token)).balanceOf(msg.sender);
 
         // Otherwise we need to look at minimum health factor.
@@ -193,7 +193,7 @@ contract AaveATokenAdaptor is BaseAdaptor {
         if (underlying == WETH) return maxBorrowableWithMin;
 
         // Else convert `maxBorrowableWithMin` from WETH to position underlying asset.
-        PriceRouter priceRouter = Cellar(msg.sender).priceRouter();
+        PriceRouter priceRouter = Fund(msg.sender).priceRouter();
         uint256 withdrawable = priceRouter.getValue(WETH, maxBorrowableWithMin, underlying);
         uint256 balance = ERC20(address(token)).balanceOf(msg.sender);
         // Check if withdrawable is greater than the position balance and if so return the balance instead of withdrawable.
@@ -201,7 +201,7 @@ contract AaveATokenAdaptor is BaseAdaptor {
     }
 
     /**
-     * @notice Returns the cellars balance of the positions aToken.
+     * @notice Returns the funds balance of the positions aToken.
      */
     function balanceOf(bytes memory adaptorData) public view override returns (uint256) {
         address token = abi.decode(adaptorData, (address));

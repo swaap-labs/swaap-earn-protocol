@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.21;
 
-import { BaseAdaptor, ERC20, SafeTransferLib, Cellar, Registry } from "src/modules/adaptors/BaseAdaptor.sol";
+import { BaseAdaptor, ERC20, SafeTransferLib, Fund, Registry } from "src/modules/adaptors/BaseAdaptor.sol";
 import { IPoolV3 } from "src/interfaces/external/IPoolV3.sol";
 import { IAaveToken } from "src/interfaces/external/IAaveToken.sol";
 
 /**
  * @title Aave debtToken Adaptor
- * @notice Allows Cellars to interact with Aave debtToken positions.
+ * @notice Allows Funds to interact with Aave debtToken positions.
  * @author crispymangoes
  */
 contract AaveV3DebtTokenAdaptor is BaseAdaptor {
@@ -22,7 +22,7 @@ contract AaveV3DebtTokenAdaptor is BaseAdaptor {
     //====================================================================
 
     /**
-     @notice Attempted borrow would lower Cellar health factor too low.
+     @notice Attempted borrow would lower Fund health factor too low.
      */
     error AaveV3DebtTokenAdaptor__HealthFactorTooLow();
 
@@ -54,7 +54,7 @@ contract AaveV3DebtTokenAdaptor is BaseAdaptor {
     /**
      * @dev Identifier unique to this adaptor for a shared registry.
      * Normally the identifier would just be the address of this contract, but this
-     * Identifier is needed during Cellar Delegate Call Operations, so getting the address
+     * Identifier is needed during Fund Delegate Call Operations, so getting the address
      * of the adaptor is more difficult.
      */
     function identifier() public pure override returns (bytes32) {
@@ -86,7 +86,7 @@ contract AaveV3DebtTokenAdaptor is BaseAdaptor {
     }
 
     /**
-     * @notice Returns the cellars balance of the positions debtToken.
+     * @notice Returns the funds balance of the positions debtToken.
      */
     function balanceOf(bytes memory adaptorData) public view override returns (uint256) {
         address token = abi.decode(adaptorData, (address));
@@ -117,10 +117,10 @@ contract AaveV3DebtTokenAdaptor is BaseAdaptor {
      * @param amountToBorrow the amount of `debtTokenToBorrow` to borrow on Aave.
      */
     function borrowFromAave(ERC20 debtTokenToBorrow, uint256 amountToBorrow) public {
-        // Check that debt position is properly set up to be tracked in the Cellar.
+        // Check that debt position is properly set up to be tracked in the Fund.
         bytes32 positionHash = keccak256(abi.encode(identifier(), true, abi.encode(address(debtTokenToBorrow))));
-        uint32 positionId = Cellar(address(this)).registry().getPositionHashToPositionId(positionHash);
-        if (!Cellar(address(this)).isPositionUsed(positionId))
+        uint32 positionId = Fund(address(this)).registry().getPositionHashToPositionId(positionHash);
+        if (!Fund(address(this)).isPositionUsed(positionId))
             revert AaveV3DebtTokenAdaptor__DebtPositionsMustBeTracked(address(debtTokenToBorrow));
 
         // Open up new variable debt position on Aave.
@@ -159,7 +159,7 @@ contract AaveV3DebtTokenAdaptor is BaseAdaptor {
     }
 
     /**
-     * @notice allows strategist to have Cellars take out flash loans.
+     * @notice allows strategist to have Funds take out flash loans.
      * @param loanToken address array of tokens to take out loans
      * @param loanAmount uint256 array of loan amounts for each `loanToken`
      * @dev `modes` is always a zero array meaning that this flash loan can NOT take on new debt positions, it must be paid in full.

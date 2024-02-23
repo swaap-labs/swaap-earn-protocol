@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.21;
 
-import { Cellar, Registry, ERC20, Math, SafeTransferLib } from "src/base/Cellar.sol";
+import { Fund, Registry, ERC20, Math, SafeTransferLib } from "src/base/Fund.sol";
 import { IFlashLoanRecipient, IERC20 } from "@balancer/interfaces/contracts/vault/IFlashLoanRecipient.sol";
 
-contract CellarWithBalancerFlashLoans is Cellar, IFlashLoanRecipient {
+contract FundWithBalancerFlashLoans is Fund, IFlashLoanRecipient {
     using Math for uint256;
     using SafeTransferLib for ERC20;
 
@@ -26,7 +26,7 @@ contract CellarWithBalancerFlashLoans is Cellar, IFlashLoanRecipient {
         uint192 _shareSupplyCap,
         address _balancerVault
     )
-        Cellar(
+        Fund(
             _owner,
             _registry,
             _asset,
@@ -45,15 +45,15 @@ contract CellarWithBalancerFlashLoans is Cellar, IFlashLoanRecipient {
     /**
      * @notice External contract attempted to initiate a flash loan.
      */
-    error Cellar__ExternalInitiator();
+    error Fund__ExternalInitiator();
 
     /**
      * @notice receiveFlashLoan was not called by Balancer Vault.
      */
-    error Cellar__CallerNotBalancerVault();
+    error Fund__CallerNotBalancerVault();
 
     /**
-     * @notice Allows strategist to utilize balancer flashloans while rebalancing the cellar.
+     * @notice Allows strategist to utilize balancer flashloans while rebalancing the fund.
      * @dev Balancer does not provide an initiator, so instead insure we are in the `callOnAdaptor` context
      *      by reverting if `blockExternalReceiver` is false.
      */
@@ -63,8 +63,8 @@ contract CellarWithBalancerFlashLoans is Cellar, IFlashLoanRecipient {
         uint256[] calldata feeAmounts,
         bytes calldata userData
     ) external {
-        if (msg.sender != balancerVault) revert Cellar__CallerNotBalancerVault();
-        if (!blockExternalReceiver) revert Cellar__ExternalInitiator();
+        if (msg.sender != balancerVault) revert Fund__CallerNotBalancerVault();
+        if (!blockExternalReceiver) revert Fund__ExternalInitiator();
 
         AdaptorCall[] memory data = abi.decode(userData, (AdaptorCall[]));
 

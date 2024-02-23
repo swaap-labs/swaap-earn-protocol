@@ -7,7 +7,7 @@ import { MorphoRewardHandler } from "src/modules/adaptors/Morpho/MorphoRewardHan
 
 /**
  * @title Morpho Aave V3 aToken Adaptor
- * @notice Allows Cellars to interact with Morpho Aave V3 positions.
+ * @notice Allows Funds to interact with Morpho Aave V3 positions.
  * @author crispymangoes
  */
 contract MorphoAaveV3ATokenP2PAdaptor is BaseAdaptor, MorphoRewardHandler {
@@ -41,7 +41,7 @@ contract MorphoAaveV3ATokenP2PAdaptor is BaseAdaptor, MorphoRewardHandler {
     /**
      * @dev Identifier unique to this adaptor for a shared registry.
      * Normally the identifier would just be the address of this contract, but this
-     * Identifier is needed during Cellar Delegate Call Operations, so getting the address
+     * Identifier is needed during Fund Delegate Call Operations, so getting the address
      * of the adaptor is more difficult.
      */
     function identifier() public pure override returns (bytes32) {
@@ -50,7 +50,7 @@ contract MorphoAaveV3ATokenP2PAdaptor is BaseAdaptor, MorphoRewardHandler {
 
     //============================================ Implement Base Functions ===========================================
     /**
-     * @notice Cellar must approve Morpho to spend its assets, then call supply to lend its assets.
+     * @notice Fund must approve Morpho to spend its assets, then call supply to lend its assets.
      * @param assets the amount of assets to lend on Morpho
      * @param adaptorData adaptor data containining the abi encoded aToken
      * @param configurationData abi encoded maxIterations
@@ -69,8 +69,8 @@ contract MorphoAaveV3ATokenP2PAdaptor is BaseAdaptor, MorphoRewardHandler {
     }
 
     /**
-     @notice Allows cellars to withdraw Morpho.
-     * @dev Important to verify that external receivers are allowed if receiver is not Cellar address.
+     @notice Allows funds to withdraw Morpho.
+     * @dev Important to verify that external receivers are allowed if receiver is not Fund address.
      * @param assets the amount of assets to withdraw from Morpho
      * @param receiver the address to send withdrawn assets to
      * @param adaptorData adaptor data containining the abi encoded ERC20 token
@@ -93,7 +93,7 @@ contract MorphoAaveV3ATokenP2PAdaptor is BaseAdaptor, MorphoRewardHandler {
     }
 
     /**
-     * @notice Returns the p2p balance of the cellar.
+     * @notice Returns the p2p balance of the fund.
      */
     function withdrawableFrom(bytes memory adaptorData, bytes memory) public view override returns (uint256) {
         address underlying = abi.decode(adaptorData, (address));
@@ -101,7 +101,7 @@ contract MorphoAaveV3ATokenP2PAdaptor is BaseAdaptor, MorphoRewardHandler {
     }
 
     /**
-     * @notice Returns the cellars p2p balance.
+     * @notice Returns the funds p2p balance.
      */
     function balanceOf(bytes memory adaptorData) public view override returns (uint256) {
         address underlying = abi.decode(adaptorData, (address));

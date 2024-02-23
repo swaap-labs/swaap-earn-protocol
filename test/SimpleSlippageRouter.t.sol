@@ -2,7 +2,7 @@
 pragma solidity 0.8.21;
 
 import { ReentrancyERC4626 } from "src/mocks/ReentrancyERC4626.sol";
-import { CellarAdaptor } from "src/modules/adaptors/Swaap/CellarAdaptor.sol";
+import { SwaapFundAdaptor } from "src/modules/adaptors/Swaap/SwaapFundAdaptor.sol";
 import { ERC20DebtAdaptor } from "src/mocks/ERC20DebtAdaptor.sol";
 import { MockDataFeed } from "src/mocks/MockDataFeed.sol";
 import { SimpleSlippageRouter } from "src/modules/SimpleSlippageRouter.sol";
@@ -16,7 +16,7 @@ contract SimpleSlippageRouterTest is MainnetStarterTest, AdaptorHelperFunctions 
     using Math for uint256;
     using stdStorage for StdStorage;
 
-    Cellar private cellar;
+    Fund private fund;
 
     SimpleSlippageRouter private simpleSlippageRouter;
 
@@ -46,7 +46,7 @@ contract SimpleSlippageRouterTest is MainnetStarterTest, AdaptorHelperFunctions 
         _startFork(rpcKey, blockNumber);
 
         // Run Starter setUp code.
-        // Get a cellar w/ usdc holding position, deploy a SlippageRouter to work with it.
+        // Get a fund w/ usdc holding position, deploy a SlippageRouter to work with it.
         _setUp();
 
         mockUsdcUsd = new MockDataFeed(USDC_USD_FEED);
@@ -64,23 +64,23 @@ contract SimpleSlippageRouterTest is MainnetStarterTest, AdaptorHelperFunctions 
         // Add adaptors and ERC20 positions to the registry.
         registry.trustPosition(usdcPosition, address(erc20Adaptor), abi.encode(USDC));
 
-        // Create Dummy Cellars.
-        string memory cellarName = "Dummy Cellar V0.0";
+        // Create Dummy Funds.
+        string memory fundName = "Dummy Fund V0.0";
         uint256 initialDeposit = 1e6;
 
-        cellarName = "Cellar V0.0";
+        fundName = "Fund V0.0";
         initialDeposit = 1e6;
 
-        cellar = _createCellar(cellarName, USDC, usdcPosition, abi.encode(true), initialDeposit);
+        fund = _createFund(fundName, USDC, usdcPosition, abi.encode(true), initialDeposit);
 
-        vm.label(address(cellar), "cellar");
+        vm.label(address(fund), "fund");
 
-        // Approve cellar to spend all assets.
-        USDC.approve(address(cellar), type(uint256).max);
+        // Approve fund to spend all assets.
+        USDC.approve(address(fund), type(uint256).max);
         USDC.approve(address(simpleSlippageRouter), type(uint256).max);
 
-        initialAssets = cellar.totalAssets();
-        initialShares = cellar.totalSupply();
+        initialAssets = fund.totalAssets();
+        initialShares = fund.totalSupply();
     }
 
     // ========================================= HAPPY PATH TEST =========================================
@@ -95,17 +95,17 @@ contract SimpleSlippageRouterTest is MainnetStarterTest, AdaptorHelperFunctions 
         deadline1 = uint64(block.timestamp + 1 days);
 
         // deposit half using the SSR
-        simpleSlippageRouter.deposit(cellar, deposit1, minShares1, deadline1);
+        simpleSlippageRouter.deposit(fund, deposit1, minShares1, deadline1);
 
-        shareBalance1 = cellar.balanceOf(address(this));
+        shareBalance1 = fund.balanceOf(address(this));
 
         assertEq(shareBalance1, minShares1);
         assertEq(USDC.balanceOf(address(this)), assets - deposit1);
 
         // deposit the other half using the SSR
-        simpleSlippageRouter.deposit(cellar, deposit1, minShares1, deadline1);
+        simpleSlippageRouter.deposit(fund, deposit1, minShares1, deadline1);
 
-        shareBalance2 = cellar.balanceOf(address(this));
+        shareBalance2 = fund.balanceOf(address(this));
 
         assertApproxEqAbs(
             shareBalance2 / assetToSharesDecimalsFactor,
@@ -113,14 +113,14 @@ contract SimpleSlippageRouterTest is MainnetStarterTest, AdaptorHelperFunctions 
             2,
             "deposit(): Test contract USDC should be all shares"
         );
-        assertApproxEqAbs(USDC.balanceOf(address(this)), 0, 2, "deposit(): All USDC deposited to Cellar");
+        assertApproxEqAbs(USDC.balanceOf(address(this)), 0, 2, "deposit(): All USDC deposited to Fund");
 
-        // check allowance SSR given to cellar is zeroed out
-        ERC20 cellarERC20 = ERC20(address(cellar));
+        // check allowance SSR given to fund is zeroed out
+        ERC20 fundERC20 = ERC20(address(fund));
         assertEq(
-            cellarERC20.allowance(address(simpleSlippageRouter), address(cellar)),
+            fundERC20.allowance(address(simpleSlippageRouter), address(fund)),
             0,
-            "cellar's approval to spend SSR cellarToken should be zeroed out."
+            "fund's approval to spend SSR fundToken should be zeroed out."
         );
     }
 
@@ -133,15 +133,15 @@ contract SimpleSlippageRouterTest is MainnetStarterTest, AdaptorHelperFunctions 
         minShares1 = deposit1 * assetToSharesDecimalsFactor;
         deadline1 = uint64(block.timestamp + 1 days);
         // deposit half using the SSR
-        simpleSlippageRouter.deposit(cellar, deposit1, minShares1, deadline1);
+        simpleSlippageRouter.deposit(fund, deposit1, minShares1, deadline1);
 
         // withdraw a quarter using the SSR
         uint256 withdraw1 = assets / 4;
         uint256 maxShares1 = withdraw1 * assetToSharesDecimalsFactor; // assume 1:1 USDC:Shares shareprice (modulo the decimals diff)
-        cellar.approve(address(simpleSlippageRouter), maxShares1);
-        simpleSlippageRouter.withdraw(cellar, withdraw1, maxShares1, deadline1);
+        fund.approve(address(simpleSlippageRouter), maxShares1);
+        simpleSlippageRouter.withdraw(fund, withdraw1, maxShares1, deadline1);
 
-        shareBalance1 = cellar.balanceOf(address(this));
+        shareBalance1 = fund.balanceOf(address(this));
 
         assertApproxEqAbs(
             shareBalance1 / assetToSharesDecimalsFactor,
@@ -157,13 +157,13 @@ contract SimpleSlippageRouterTest is MainnetStarterTest, AdaptorHelperFunctions 
         );
 
         // withdraw the rest using the SSR
-        uint256 maxShares2 = cellar.balanceOf(address(this));
+        uint256 maxShares2 = fund.balanceOf(address(this));
         uint256 withdraw2 = maxShares2 / assetToSharesDecimalsFactor; // assume 1:1 USDC:Shares shareprice (modulo the decimals diff)
-        cellar.approve(address(simpleSlippageRouter), type(uint256).max);
+        fund.approve(address(simpleSlippageRouter), type(uint256).max);
 
-        simpleSlippageRouter.withdraw(cellar, withdraw2, maxShares2, deadline1);
+        simpleSlippageRouter.withdraw(fund, withdraw2, maxShares2, deadline1);
 
-        shareBalance2 = cellar.balanceOf(address(this));
+        shareBalance2 = fund.balanceOf(address(this));
 
         assertApproxEqAbs(shareBalance2, 0, 2, "withdraw(): Test contract should have redeemed all of its shares");
         assertApproxEqAbs(
@@ -184,17 +184,17 @@ contract SimpleSlippageRouterTest is MainnetStarterTest, AdaptorHelperFunctions 
         deadline1 = uint64(block.timestamp + 1 days);
 
         // mint with half of the assets using the SSR
-        simpleSlippageRouter.mint(cellar, minShares1, deposit1, deadline1);
+        simpleSlippageRouter.mint(fund, minShares1, deposit1, deadline1);
 
-        shareBalance1 = cellar.balanceOf(address(this));
+        shareBalance1 = fund.balanceOf(address(this));
 
         assertEq(shareBalance1, minShares1);
         assertEq(USDC.balanceOf(address(this)), assets - deposit1);
 
         // mint using the other half using the SSR
-        simpleSlippageRouter.mint(cellar, minShares1, deposit1, deadline1);
+        simpleSlippageRouter.mint(fund, minShares1, deposit1, deadline1);
 
-        shareBalance2 = cellar.balanceOf(address(this));
+        shareBalance2 = fund.balanceOf(address(this));
 
         assertApproxEqAbs(
             shareBalance2 / assetToSharesDecimalsFactor,
@@ -202,14 +202,14 @@ contract SimpleSlippageRouterTest is MainnetStarterTest, AdaptorHelperFunctions 
             2,
             "mint(): Test contract USDC should be all shares"
         );
-        assertApproxEqAbs(USDC.balanceOf(address(this)), 0, 2, "mint(): All USDC deposited to Cellar");
+        assertApproxEqAbs(USDC.balanceOf(address(this)), 0, 2, "mint(): All USDC deposited to Fund");
 
-        // check allowance SSR given to cellar is zeroed out
-        ERC20 cellarERC20 = ERC20(address(cellar));
+        // check allowance SSR given to fund is zeroed out
+        ERC20 fundERC20 = ERC20(address(fund));
         assertEq(
-            cellarERC20.allowance(address(simpleSlippageRouter), address(cellar)),
+            fundERC20.allowance(address(simpleSlippageRouter), address(fund)),
             0,
-            "cellar's approval to spend SSR cellarToken should be zeroed out."
+            "fund's approval to spend SSR fundToken should be zeroed out."
         );
     }
 
@@ -222,16 +222,16 @@ contract SimpleSlippageRouterTest is MainnetStarterTest, AdaptorHelperFunctions 
         minShares1 = deposit1 * assetToSharesDecimalsFactor;
         deadline1 = uint64(block.timestamp + 1 days);
         // deposit half using the SSR
-        simpleSlippageRouter.deposit(cellar, deposit1, minShares1, deadline1);
+        simpleSlippageRouter.deposit(fund, deposit1, minShares1, deadline1);
 
         // redeem half of the shares test contract has using the SSR
         uint256 minAssets1 = deposit1 / 2;
         uint256 redeem1 = minAssets1 * assetToSharesDecimalsFactor; // assume 1:1 USDC:Shares shareprice (modulo the decimals diff)
-        cellar.approve(address(simpleSlippageRouter), redeem1);
+        fund.approve(address(simpleSlippageRouter), redeem1);
 
-        simpleSlippageRouter.redeem(cellar, redeem1, minAssets1, deadline1);
+        simpleSlippageRouter.redeem(fund, redeem1, minAssets1, deadline1);
 
-        shareBalance1 = cellar.balanceOf(address(this));
+        shareBalance1 = fund.balanceOf(address(this));
 
         assertApproxEqAbs(
             shareBalance1 / assetToSharesDecimalsFactor,
@@ -247,13 +247,13 @@ contract SimpleSlippageRouterTest is MainnetStarterTest, AdaptorHelperFunctions 
         );
 
         // redeem the rest using the SSR
-        uint256 redeem2 = cellar.balanceOf(address(this));
+        uint256 redeem2 = fund.balanceOf(address(this));
         uint256 minAsets2 = redeem2 / assetToSharesDecimalsFactor; // assume 1:1 USDC:Shares shareprice (modulo the decimals diff)
-        cellar.approve(address(simpleSlippageRouter), redeem2);
+        fund.approve(address(simpleSlippageRouter), redeem2);
 
-        simpleSlippageRouter.redeem(cellar, redeem2, minAsets2, deadline1);
+        simpleSlippageRouter.redeem(fund, redeem2, minAsets2, deadline1);
 
-        shareBalance2 = cellar.balanceOf(address(this));
+        shareBalance2 = fund.balanceOf(address(this));
 
         assertApproxEqAbs(shareBalance2, 0, 2, "redeem(): Test contract should have redeemed all of its shares");
         assertApproxEqAbs(
@@ -285,25 +285,25 @@ contract SimpleSlippageRouterTest is MainnetStarterTest, AdaptorHelperFunctions 
                 abi.encodeWithSelector(SimpleSlippageRouter.SimpleSlippageRouter__ExpiredDeadline.selector, deadline1)
             )
         );
-        simpleSlippageRouter.deposit(cellar, deposit1, minShares1, deadline1);
+        simpleSlippageRouter.deposit(fund, deposit1, minShares1, deadline1);
         vm.expectRevert(
             bytes(
                 abi.encodeWithSelector(SimpleSlippageRouter.SimpleSlippageRouter__ExpiredDeadline.selector, deadline1)
             )
         );
-        simpleSlippageRouter.withdraw(cellar, deposit1, minShares1, deadline1);
+        simpleSlippageRouter.withdraw(fund, deposit1, minShares1, deadline1);
         vm.expectRevert(
             bytes(
                 abi.encodeWithSelector(SimpleSlippageRouter.SimpleSlippageRouter__ExpiredDeadline.selector, deadline1)
             )
         );
-        simpleSlippageRouter.mint(cellar, minShares1, deposit1, deadline1);
+        simpleSlippageRouter.mint(fund, minShares1, deposit1, deadline1);
         vm.expectRevert(
             bytes(
                 abi.encodeWithSelector(SimpleSlippageRouter.SimpleSlippageRouter__ExpiredDeadline.selector, deadline1)
             )
         );
-        simpleSlippageRouter.redeem(cellar, minShares1, deposit1, deadline1);
+        simpleSlippageRouter.redeem(fund, minShares1, deposit1, deadline1);
     }
 
     function testDepositMinimumSharesUnmet(uint256 assets) external {
@@ -316,7 +316,7 @@ contract SimpleSlippageRouterTest is MainnetStarterTest, AdaptorHelperFunctions 
         minShares1 = (assets + 1) * assetToSharesDecimalsFactor; // input param so it will revert
         deadline1 = uint64(block.timestamp + 1 days);
 
-        uint256 quoteShares = cellar.previewDeposit(assets);
+        uint256 quoteShares = fund.previewDeposit(assets);
 
         vm.expectRevert(
             bytes(
@@ -327,11 +327,11 @@ contract SimpleSlippageRouterTest is MainnetStarterTest, AdaptorHelperFunctions 
                 )
             )
         );
-        simpleSlippageRouter.deposit(cellar, deposit1, minShares1, deadline1);
+        simpleSlippageRouter.deposit(fund, deposit1, minShares1, deadline1);
 
         // manipulate back so the deposit should resolve.
         minShares1 = assets;
-        simpleSlippageRouter.deposit(cellar, deposit1, minShares1, deadline1);
+        simpleSlippageRouter.deposit(fund, deposit1, minShares1, deadline1);
     }
 
     function testWithdrawMaxSharesSurpassed(uint256 assets) external {
@@ -343,14 +343,14 @@ contract SimpleSlippageRouterTest is MainnetStarterTest, AdaptorHelperFunctions 
         minShares1 = deposit1 * assetToSharesDecimalsFactor;
         deadline1 = uint64(block.timestamp + 1 days);
         // deposit half using the SSR
-        simpleSlippageRouter.deposit(cellar, deposit1, minShares1, deadline1);
+        simpleSlippageRouter.deposit(fund, deposit1, minShares1, deadline1);
 
         // withdraw a quarter using the SSR
         uint256 withdraw1 = deposit1 / 2;
         uint256 maxShares1 = withdraw1 * assetToSharesDecimalsFactor; // assume 1:1 USDC:Shares shareprice (modulo the decimals diff)
-        cellar.approve(address(simpleSlippageRouter), maxShares1);
+        fund.approve(address(simpleSlippageRouter), maxShares1);
 
-        uint256 quoteShares = cellar.previewWithdraw(withdraw1);
+        uint256 quoteShares = fund.previewWithdraw(withdraw1);
         vm.expectRevert(
             bytes(
                 abi.encodeWithSelector(
@@ -360,10 +360,10 @@ contract SimpleSlippageRouterTest is MainnetStarterTest, AdaptorHelperFunctions 
                 )
             )
         );
-        simpleSlippageRouter.withdraw(cellar, withdraw1, maxShares1 - 1, deadline1);
+        simpleSlippageRouter.withdraw(fund, withdraw1, maxShares1 - 1, deadline1);
 
         // Use a value for maxShare that will pass the conditional logic
-        simpleSlippageRouter.withdraw(cellar, withdraw1, maxShares1, deadline1);
+        simpleSlippageRouter.withdraw(fund, withdraw1, maxShares1, deadline1);
     }
 
     function testMintMaxAssetsRqdSurpassed(uint256 assets) external {
@@ -376,10 +376,10 @@ contract SimpleSlippageRouterTest is MainnetStarterTest, AdaptorHelperFunctions 
         minShares1 = deposit1 * assetToSharesDecimalsFactor;
         deadline1 = uint64(block.timestamp + 1 days);
 
-        // manipulate cellar to have lots of USDC and thus not a 1:1 ratio anymore for shares
-        uint256 originalBalance = USDC.balanceOf(address(cellar));
-        deal(address(USDC), address(cellar), assets * 10);
-        uint256 quotedAssetAmount = cellar.previewMint(minShares1);
+        // manipulate fund to have lots of USDC and thus not a 1:1 ratio anymore for shares
+        uint256 originalBalance = USDC.balanceOf(address(fund));
+        deal(address(USDC), address(fund), assets * 10);
+        uint256 quotedAssetAmount = fund.previewMint(minShares1);
 
         // mint with half of the assets using the SSR
         vm.expectRevert(
@@ -392,17 +392,17 @@ contract SimpleSlippageRouterTest is MainnetStarterTest, AdaptorHelperFunctions 
                 )
             )
         );
-        simpleSlippageRouter.mint(cellar, minShares1, deposit1, deadline1);
+        simpleSlippageRouter.mint(fund, minShares1, deposit1, deadline1);
 
         // manipulate back so the mint should resolve.
-        deal(address(USDC), address(cellar), originalBalance);
-        simpleSlippageRouter.mint(cellar, minShares1, deposit1, deadline1);
+        deal(address(USDC), address(fund), originalBalance);
+        simpleSlippageRouter.mint(fund, minShares1, deposit1, deadline1);
     }
 
     function testRedeemMinAssetsUnmet(uint256 assets) external {
         // test revert in redeem()
         assets = bound(assets, 1e6, 100_000e6);
-        uint192 assetsToShares = uint192(cellar.totalSupply() / cellar.totalAssets());
+        uint192 assetsToShares = uint192(fund.totalSupply() / fund.totalAssets());
 
         // deal USDC assets to test contract
         deal(address(USDC), address(this), assets);
@@ -410,9 +410,9 @@ contract SimpleSlippageRouterTest is MainnetStarterTest, AdaptorHelperFunctions 
         minShares1 = deposit1 * assetsToShares;
         deadline1 = uint64(block.timestamp + 1 days);
         // deposit half using the SSR
-        uint256 receivedShares = cellar.balanceOf(address(this));
-        simpleSlippageRouter.deposit(cellar, deposit1, minShares1, deadline1);
-        receivedShares = cellar.balanceOf(address(this)) - receivedShares;
+        uint256 receivedShares = fund.balanceOf(address(this));
+        simpleSlippageRouter.deposit(fund, deposit1, minShares1, deadline1);
+        receivedShares = fund.balanceOf(address(this)) - receivedShares;
 
         assertEq(
             receivedShares,
@@ -424,8 +424,8 @@ contract SimpleSlippageRouterTest is MainnetStarterTest, AdaptorHelperFunctions 
         uint256 maxShares1 = receivedShares / 2;
         uint256 withdrawAssets1 = maxShares1 / assetsToShares;
 
-        cellar.approve(address(simpleSlippageRouter), maxShares1);
-        uint256 quotedAssetAmount = cellar.previewRedeem(maxShares1);
+        fund.approve(address(simpleSlippageRouter), maxShares1);
+        uint256 quotedAssetAmount = fund.previewRedeem(maxShares1);
         vm.expectRevert(
             bytes(
                 abi.encodeWithSelector(
@@ -436,9 +436,9 @@ contract SimpleSlippageRouterTest is MainnetStarterTest, AdaptorHelperFunctions 
                 )
             )
         );
-        simpleSlippageRouter.redeem(cellar, maxShares1, withdrawAssets1 + 1, deadline1);
+        simpleSlippageRouter.redeem(fund, maxShares1, withdrawAssets1 + 1, deadline1);
 
         // Use a value for withdraw1 that will pass the conditional logic.
-        simpleSlippageRouter.redeem(cellar, maxShares1, withdrawAssets1, deadline1);
+        simpleSlippageRouter.redeem(fund, maxShares1, withdrawAssets1, deadline1);
     }
 }

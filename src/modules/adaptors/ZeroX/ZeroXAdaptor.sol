@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.21;
 
-import { ERC20, SafeTransferLib, Cellar, PriceRouter, Registry, Math } from "src/modules/adaptors/BaseAdaptor.sol";
+import { ERC20, SafeTransferLib, Fund, PriceRouter, Registry, Math } from "src/modules/adaptors/BaseAdaptor.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { PositionlessAdaptor } from "src/modules/adaptors/PositionlessAdaptor.sol";
 
 /**
  * @title 0x Adaptor
- * @notice Allows Cellars to swap with 0x.
+ * @notice Allows Funds to swap with 0x.
  * @author crispymangoes
  */
 contract ZeroXAdaptor is PositionlessAdaptor {
@@ -38,7 +38,7 @@ contract ZeroXAdaptor is PositionlessAdaptor {
     /**
      * @dev Identifier unique to this adaptor for a shared registry.
      * Normally the identifier would just be the address of this contract, but this
-     * Identifier is needed during Cellar Delegate Call Operations, so getting the address
+     * Identifier is needed during Fund Delegate Call Operations, so getting the address
      * of the adaptor is more difficult.
      */
     function identifier() public pure virtual override returns (bytes32) {
@@ -51,7 +51,7 @@ contract ZeroXAdaptor is PositionlessAdaptor {
      * @notice Allows strategists to make ERC20 swaps using 0x.
      */
     function swapWith0x(ERC20 tokenIn, ERC20 tokenOut, uint256 amount, bytes memory swapCallData) public {
-        PriceRouter priceRouter = Cellar(address(this)).priceRouter();
+        PriceRouter priceRouter = Fund(address(this)).priceRouter();
 
         tokenIn.safeApprove(target, amount);
 
@@ -72,7 +72,7 @@ contract ZeroXAdaptor is PositionlessAdaptor {
 
             if (tokenInValueOut < tokenInAmountIn.mulDivDown(slippage(), 1e4)) revert BaseAdaptor__Slippage();
         } else {
-            // Token In is not supported by price router, so we know it is at least not the Cellars Reserves,
+            // Token In is not supported by price router, so we know it is at least not the Funds Reserves,
             // or a prominent asset, so skip value in vs value out check.
             target.functionCall(swapCallData);
         }

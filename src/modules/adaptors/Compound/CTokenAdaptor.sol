@@ -6,7 +6,7 @@ import { ComptrollerG7 as Comptroller, CErc20 } from "src/interfaces/external/IC
 
 /**
  * @title Compound CToken Adaptor
- * @notice Allows Cellars to interact with Compound CToken positions.
+ * @notice Allows Funds to interact with Compound CToken positions.
  * @author crispymangoes
  */
 contract CTokenAdaptor is BaseAdaptor {
@@ -20,7 +20,7 @@ contract CTokenAdaptor is BaseAdaptor {
     //================= Configuration Data Specification =================
     // NOT USED
     // **************************** IMPORTANT ****************************
-    // There is no way for a Cellar to take out loans on Compound, so there
+    // There is no way for a Fund to take out loans on Compound, so there
     // are NO health factor checks done for `withdraw` or `withdrawableFrom`
     // In the future if a Compound debt adaptor is created, then this adaptor
     // must be changed to include some health factor checks like the
@@ -58,7 +58,7 @@ contract CTokenAdaptor is BaseAdaptor {
     /**
      * @dev Identifier unique to this adaptor for a shared registry.
      * Normally the identifier would just be the address of this contract, but this
-     * Identifier is needed during Cellar Delegate Call Operations, so getting the address
+     * Identifier is needed during Fund Delegate Call Operations, so getting the address
      * of the adaptor is more difficult.
      */
     function identifier() public pure override returns (bytes32) {
@@ -67,7 +67,7 @@ contract CTokenAdaptor is BaseAdaptor {
 
     //============================================ Implement Base Functions ===========================================
     /**
-     * @notice Cellar must approve market to spend its assets, then call mint to lend its assets.
+     * @notice Fund must approve market to spend its assets, then call mint to lend its assets.
      * @param assets the amount of assets to lend on Compound
      * @param adaptorData adaptor data containing the abi encoded cToken
      * @dev configurationData is NOT used
@@ -88,14 +88,14 @@ contract CTokenAdaptor is BaseAdaptor {
     }
 
     /**
-     @notice Cellars must withdraw from Compound.
-     * @dev Important to verify that external receivers are allowed if receiver is not Cellar address.
+     @notice Funds must withdraw from Compound.
+     * @dev Important to verify that external receivers are allowed if receiver is not Fund address.
      * @param assets the amount of assets to withdraw from Compound
      * @param receiver the address to send withdrawn assets to
      * @param adaptorData adaptor data containing the abi encoded cToken
      * @dev configurationData is NOT used
      * @dev There are NO health factor checks done in `withdraw`, or `withdrawableFrom`.
-     *      If cellars ever take on Compound Debt it is crucial these checks are added,
+     *      If funds ever take on Compound Debt it is crucial these checks are added,
      *      see "IMPORTANT" above.
      */
     function withdraw(uint256 assets, address receiver, bytes memory adaptorData, bytes memory) public override {
@@ -117,7 +117,7 @@ contract CTokenAdaptor is BaseAdaptor {
     /**
      * @notice Identical to `balanceOf`.
      * @dev There are NO health factor checks done in `withdraw`, or `withdrawableFrom`.
-     *      If cellars ever take on Compound Debt it is crucial these checks are added,
+     *      If funds ever take on Compound Debt it is crucial these checks are added,
      *      see "IMPORTANT" above.
      */
     function withdrawableFrom(bytes memory adaptorData, bytes memory) public view override returns (uint256) {
@@ -127,10 +127,10 @@ contract CTokenAdaptor is BaseAdaptor {
     }
 
     /**
-     * @notice Returns the cellars balance of the positions cToken underlying.
+     * @notice Returns the funds balance of the positions cToken underlying.
      * @dev Relies on `exchangeRateStored`, so if the stored exchange rate diverges
      *      from the current exchange rate, an arbitrage opportunity is created for
-     *      people to enter the cellar right before the stored value is updated, then
+     *      people to enter the fund right before the stored value is updated, then
      *      leave immediately after. This is mitigated by the shareLockPeriod,
      *      and because it is rare for the exchange rates to diverge significantly.
      */

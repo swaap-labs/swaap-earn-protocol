@@ -3,7 +3,7 @@ pragma solidity 0.8.21;
 
 // Import Protocol Resources
 import { Deployer } from "src/Deployer.sol";
-import { CellarWithShareLockFlashLoansWhitelisting } from "src/base/permutations/CellarWithShareLockFlashLoansWhitelisting.sol";
+import { FundWithShareLockFlashLoansWhitelisting } from "src/base/permutations/FundWithShareLockFlashLoansWhitelisting.sol";
 import { Registry } from "src/Registry.sol";
 import { PriceRouter } from "src/modules/price-router/PriceRouter.sol";
 
@@ -85,28 +85,28 @@ contract MainnetStarterTest is Test, MainnetAddresses {
         vm.selectFork(forkId);
     }
 
-    function _createCellarWithShareLockFlashLoansWhitelisting(
-        string memory cellarName,
+    function _createFundWithShareLockFlashLoansWhitelisting(
+        string memory fundName,
         ERC20 holdingAsset,
         uint32 holdingPosition,
         bytes memory holdingPositionConfig,
         uint256 initialDeposit,
         address vault // flashloan vault
-    ) internal returns (CellarWithShareLockFlashLoansWhitelisting) {
-        // Approve new cellar to spend assets.
-        address cellarAddress = deployer.getAddress(cellarName);
+    ) internal returns (FundWithShareLockFlashLoansWhitelisting) {
+        // Approve new fund to spend assets.
+        address fundAddress = deployer.getAddress(fundName);
         deal(address(holdingAsset), address(this), initialDeposit);
-        holdingAsset.approve(cellarAddress, initialDeposit);
+        holdingAsset.approve(fundAddress, initialDeposit);
 
         bytes memory creationCode;
         bytes memory constructorArgs;
-        creationCode = type(CellarWithShareLockFlashLoansWhitelisting).creationCode;
+        creationCode = type(FundWithShareLockFlashLoansWhitelisting).creationCode;
         constructorArgs = abi.encode(
             address(this),
             registry,
             holdingAsset,
-            cellarName,
-            cellarName,
+            fundName,
+            fundName,
             holdingPosition,
             holdingPositionConfig,
             initialDeposit,
@@ -115,8 +115,8 @@ contract MainnetStarterTest is Test, MainnetAddresses {
         );
 
         return
-            CellarWithShareLockFlashLoansWhitelisting(
-                deployer.deployContract(cellarName, creationCode, constructorArgs, 0)
+            FundWithShareLockFlashLoansWhitelisting(
+                deployer.deployContract(fundName, creationCode, constructorArgs, 0)
             );
     }
 }

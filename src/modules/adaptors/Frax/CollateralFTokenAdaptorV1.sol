@@ -18,7 +18,7 @@ interface V1FToken {
 
 /**
  * @title FraxLend Collateral Adaptor
- * @notice Allows addition and removal of collateralAssets to Fraxlend pairs for a Cellar.
+ * @notice Allows addition and removal of collateralAssets to Fraxlend pairs for a Fund.
  * @author crispymangoes, 0xEinCodes
  */
 contract CollateralFTokenAdaptorV1 is CollateralFTokenAdaptor {
@@ -52,7 +52,7 @@ contract CollateralFTokenAdaptorV1 is CollateralFTokenAdaptor {
     /**
      * @dev Identifier unique to this adaptor for a shared registry.
      * Normally the identifier would just be the address of this contract, but this
-     * Identifier is needed during Cellar Delegate Call Operations, so getting the address
+     * Identifier is needed during Fund Delegate Call Operations, so getting the address
      * of the adaptor is more difficult.
      */
     function identifier() public pure virtual override returns (bytes32) {

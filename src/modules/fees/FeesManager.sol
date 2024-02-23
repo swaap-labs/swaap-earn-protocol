@@ -3,13 +3,13 @@ pragma solidity ^0.8.0;
 
 import { ManagementFeesLib } from "src/modules/fees/ManagementFeesLib.sol";
 import { PerformanceFeesLib } from "src/modules/fees/PerformanceFeesLib.sol";
-import { Cellar } from "src/base/Cellar.sol";
+import { Fund } from "src/base/Fund.sol";
 import { Registry } from "src/Registry.sol";
 import { Math } from "src/utils/Math.sol";
 import { SafeTransferLib, ERC20 } from "@solmate/utils/SafeTransferLib.sol";
 
 /**
- * @title Handles Fees collection and distribution for Cellars
+ * @title Handles Fees collection and distribution for Funds
  */
 contract FeesManager {
     using Math for uint256;
@@ -35,15 +35,15 @@ contract FeesManager {
     event ProtocolPayoutAddressChanged(address newPayoutAddress);
 
     /**
-     * @notice Emitted when a cellar's fees are paid out.
-     * @param cellar the cellar that had fees paid out
+     * @notice Emitted when a fund's fees are paid out.
+     * @param fund the fund that had fees paid out
      * @param strategistPayoutAddress the address that the strategist's fees were paid to
      * @param protocolPayoutAddress the address that the protocol's fees were paid to
      * @param strategistPayout the amount of fees paid to the strategist
      * @param protocolPayout the amount of fees paid to the protocol
      */
     event Payout(
-        address indexed cellar,
+        address indexed fund,
         address indexed strategistPayoutAddress,
         uint256 strategistPayout,
         address indexed protocolPayoutAddress,
@@ -52,38 +52,38 @@ contract FeesManager {
 
     /**
      * @notice Emitted when management fees are claimed.
-     * @param cellar the cellar that had management fees claimed
+     * @param fund the fund that had management fees claimed
      * @param fees the amount of management fees claimed
      */
-    event ManagementFeesClaimed(address indexed cellar, uint256 fees);
+    event ManagementFeesClaimed(address indexed fund, uint256 fees);
 
     /**
      * @notice Emitted when management fees rate is updated.
-     * @param cellar the cellar that had management fees rate updated
+     * @param fund the fund that had management fees rate updated
      * @param managementFeesPerYear the new management fees yearly fees (1e18 = 100% per year)
      * @param managementFeesRate the new management fees rate
      */
-    event ManagementFeesRateUpdated(address indexed cellar, uint256 managementFeesPerYear, uint256 managementFeesRate);
+    event ManagementFeesRateUpdated(address indexed fund, uint256 managementFeesPerYear, uint256 managementFeesRate);
 
     /**
      * @notice Emitted when performance fees are claimed.
-     * @param cellar the cellar that had performance fees claimed
+     * @param fund the fund that had performance fees claimed
      * @param fees the amount of performance fees claimed
      */
-    event PerformanceFeesClaimed(address indexed cellar, uint256 fees, uint256 highWaterMarkPrice);
+    event PerformanceFeesClaimed(address indexed fund, uint256 fees, uint256 highWaterMarkPrice);
 
     /**
      * @notice Emitted when performance fees rate is updated.
-     * @param cellar the cellar that had performance fees rate updated
+     * @param fund the fund that had performance fees rate updated
      * @param performanceFeesRate the new performance fees rate
      * @param highWaterMarkPrice the high-water mark price at the time of the update
      */
-    event PerformanceFeesRateUpdated(address indexed cellar, uint256 performanceFeesRate, uint256 highWaterMarkPrice);
+    event PerformanceFeesRateUpdated(address indexed fund, uint256 performanceFeesRate, uint256 highWaterMarkPrice);
 
     // =============================================== ERRORS ===============================================
 
-    /// @notice Throws when the caller is not the cellar owner.
-    error FeesManager__OnlyCellarOwner();
+    /// @notice Throws when the caller is not the fund owner.
+    error FeesManager__OnlyFundOwner();
 
     /// @notice Throws when the caller is not the registry owner.
     error FeesManager__OnlyRegistryOwner();
@@ -102,35 +102,35 @@ contract FeesManager {
 
     // =============================================== CONSTANTS ===============================================
 
-    /// @notice Sets the max possible fee cut for cellars.
+    /// @notice Sets the max possible fee cut for funds.
     uint256 public constant MAX_FEE_CUT = 1e18;
 
-    /// @notice Sets the max possible management fees for cellars.
+    /// @notice Sets the max possible management fees for funds.
     uint256 public constant MAX_MANAGEMENT_FEES = 50e16; // 50%
 
-    /// @notice Sets the max possible performance fees for cellars.
+    /// @notice Sets the max possible performance fees for funds.
     uint256 public constant MAX_PERFORMANCE_FEES = 50e16; // 50%
 
     // Enter and exit fees are expressed in basis points (1e4 = 100%)
     uint256 internal constant _BPS_ONE_HUNDRED_PER_CENT = 1e4;
 
-    /// @notice Sets the max possible enter fees for cellars.
+    /// @notice Sets the max possible enter fees for funds.
     uint256 public constant MAX_ENTER_FEES = _BPS_ONE_HUNDRED_PER_CENT / 10; // 10%
 
-    /// @notice Sets the max possible exit fees for cellars.
+    /// @notice Sets the max possible exit fees for funds.
     uint256 public constant MAX_EXIT_FEES = _BPS_ONE_HUNDRED_PER_CENT / 10; // 10%
 
-    /// @notice Sets the high-water mark reset interval for cellars.
+    /// @notice Sets the high-water mark reset interval for funds.
     uint256 public constant HIGH_WATERMARK_RESET_INTERVAL = 1 * 30 days; // 1 months
 
-    /// @notice Sets the high-water mark reset interval for cellars.
+    /// @notice Sets the high-water mark reset interval for funds.
     uint256 public constant HIGH_WATERMARK_RESET_ASSET_THRESHOLD = Math.WAD + Math.WAD / 2; // 50%
 
     // =============================================== MODIFIERS ===============================================
 
-    modifier onlyCellarOwner(address cellar) {
-        if (msg.sender != Cellar(cellar).owner()) {
-            revert FeesManager__OnlyCellarOwner();
+    modifier onlyFundOwner(address fund) {
+        if (msg.sender != Fund(fund).owner()) {
+            revert FeesManager__OnlyFundOwner();
         }
         _;
     }
@@ -172,16 +172,16 @@ contract FeesManager {
         address strategistPayoutAddress; // the address to send the strategist's fees to
     }
 
-    mapping(address => FeesData) internal cellarFeesData;
+    mapping(address => FeesData) internal fundFeesData;
 
-    function getCellarFeesData(address cellar) external view returns (FeesData memory) {
-        return cellarFeesData[cellar];
+    function getFundFeesData(address fund) external view returns (FeesData memory) {
+        return fundFeesData[fund];
     }
 
     /**
-     * @notice Called by cellars to compute the fees to apply before depositing assets (or minting shares).
-     * @param totalAssets total assets in the cellar
-     * @param totalSupply total shares in the cellar
+     * @notice Called by funds to compute the fees to apply before depositing assets (or minting shares).
+     * @param totalAssets total assets in the fund
+     * @param totalSupply total shares in the fund
      * @return enterOrExitFeesRate enter or exit fees rate
      * @return mintFeesAsShares minted shares to be used as fees
      */
@@ -205,7 +205,7 @@ contract FeesManager {
         uint256 totalSupply,
         bool isEntering
     ) internal view returns (uint16, uint256, uint256, uint256, FeesData storage) {
-        FeesData storage feeData = cellarFeesData[msg.sender];
+        FeesData storage feeData = fundFeesData[msg.sender];
 
         (uint256 managementFees, uint256 performanceFees, uint256 highWaterMarkPrice) = _getUnclaimedFees(
             feeData,
@@ -219,9 +219,9 @@ contract FeesManager {
     }
 
     /**
-     * @notice Called by cellars to compute the fees to apply before depositing assets (or minting shares).
-     * @param totalAssets total assets in the cellar
-     * @param totalSupply total shares in the cellar
+     * @notice Called by funds to compute the fees to apply before depositing assets (or minting shares).
+     * @param totalAssets total assets in the fund
+     * @param totalSupply total shares in the fund
      * @return enterOrExitFeesRate enter or exit fees rate
      * @return mintFeesAsShares minted shares to be used as fees
      */
@@ -255,11 +255,11 @@ contract FeesManager {
      * @notice Get total supply after applying unclaimed fees.
      */
     function getTotalSupplyAfterFees(
-        address cellar,
+        address fund,
         uint256 totalAssets,
         uint256 totalSupply
     ) external view returns (uint256) {
-        FeesData storage feeData = cellarFeesData[cellar];
+        FeesData storage feeData = fundFeesData[fund];
 
         (uint256 managementFees, uint256 performanceFees, ) = _getUnclaimedFees(feeData, totalAssets, totalSupply);
 
@@ -294,16 +294,16 @@ contract FeesManager {
 
     /**
      * @notice Payout the fees to the protocol and the strategist (permissionless, anyone can call it)
-     * @param cellar the cellar to payout the fees for
+     * @param fund the fund to payout the fees for
      */
-    function payoutFees(address cellar) public {
-        uint256 totalFees = ERC20(cellar).balanceOf(address(this));
+    function payoutFees(address fund) public {
+        uint256 totalFees = ERC20(fund).balanceOf(address(this));
 
         if (totalFees == 0) {
             return;
         }
 
-        FeesData storage feeData = cellarFeesData[cellar];
+        FeesData storage feeData = fundFeesData[fund];
 
         // if the strategist payout address is not set, the strategist doesn't get any fees
         address strategistPayoutAddress = feeData.strategistPayoutAddress;
@@ -315,16 +315,16 @@ contract FeesManager {
 
         // Send the strategist's cut
         if (strategistPayout > 0) {
-            ERC20(cellar).safeTransfer(strategistPayoutAddress, strategistPayout);
+            ERC20(fund).safeTransfer(strategistPayoutAddress, strategistPayout);
         }
 
         // Send the protocol's cut
         uint256 protocolPayout = totalFees - strategistPayout;
         if (protocolPayout > 0) {
-            ERC20(cellar).safeTransfer(protocolPayoutAddress, protocolPayout);
+            ERC20(fund).safeTransfer(protocolPayoutAddress, protocolPayout);
         }
 
-        emit Payout(cellar, strategistPayoutAddress, strategistPayout, protocolPayoutAddress, protocolPayout);
+        emit Payout(fund, strategistPayoutAddress, strategistPayout, protocolPayoutAddress, protocolPayout);
     }
 
     /**
@@ -346,9 +346,9 @@ contract FeesManager {
      * @param newPayoutAddress the new strategist payout address
      * @dev Callable by Swaap Strategist.
      */
-    function setStrategistPayoutAddress(address cellar, address newPayoutAddress) external onlyCellarOwner(cellar) {
+    function setStrategistPayoutAddress(address fund, address newPayoutAddress) external onlyFundOwner(fund) {
         emit StrategistPayoutAddressChanged(newPayoutAddress);
-        FeesData storage feeData = cellarFeesData[cellar];
+        FeesData storage feeData = fundFeesData[fund];
         // no need to check if the address is not valid, the owner can set it to any address
         feeData.strategistPayoutAddress = newPayoutAddress;
     }
@@ -360,28 +360,28 @@ contract FeesManager {
      * @param cut the platform cut for the strategist
      * @dev Callable by Swaap Governance.
      */
-    function setStrategistPlatformCut(address cellar, uint64 cut) external onlyCellarOwner(cellar) {
+    function setStrategistPlatformCut(address fund, uint64 cut) external onlyFundOwner(fund) {
         if (cut > MAX_FEE_CUT) revert FeesManager__InvalidFeesCut();
 
-        payoutFees(cellar);
+        payoutFees(fund);
 
-        FeesData storage feeData = cellarFeesData[cellar];
+        FeesData storage feeData = fundFeesData[fund];
 
         emit StrategistPlatformCutChanged(cut);
         feeData.strategistPlatformCut = cut;
     }
 
     /**
-     * @notice Sets the management fees per year for this cellar.
-     * @param cellar the cellar to set the management fees for
+     * @notice Sets the management fees per year for this fund.
+     * @param fund the fund to set the management fees for
      * @param managementFeesPerYear the management fees per year (1e18 = 100% per year)
      */
-    function setManagementFeesPerYear(address cellar, uint256 managementFeesPerYear) external onlyCellarOwner(cellar) {
+    function setManagementFeesPerYear(address fund, uint256 managementFeesPerYear) external onlyFundOwner(fund) {
         if (managementFeesPerYear > MAX_MANAGEMENT_FEES) revert FeesManager__InvalidFeesRate();
 
-        Cellar(cellar).collectFees(); // collectFees is nonReetrant, which makes setManagementFeesPerYear nonReetrant
+        Fund(fund).collectFees(); // collectFees is nonReetrant, which makes setManagementFeesPerYear nonReetrant
 
-        FeesData storage feeData = cellarFeesData[cellar];
+        FeesData storage feeData = fundFeesData[fund];
         uint256 managementFeesRate = ManagementFeesLib._calcYearlyRate(managementFeesPerYear);
         feeData.managementFeesRate = uint48(managementFeesRate);
 
@@ -389,75 +389,75 @@ contract FeesManager {
         // so we update it here to make sure it's always up to date when changing the rate
         feeData.previousManagementFeesClaimTime = uint40(block.timestamp);
 
-        emit ManagementFeesRateUpdated(cellar, managementFeesPerYear, managementFeesRate);
+        emit ManagementFeesRateUpdated(fund, managementFeesPerYear, managementFeesRate);
     }
 
     /**
-     * @notice Sets the performance fees for this cellar.
-     * @param cellar the cellar to set the performance fees for
+     * @notice Sets the performance fees for this fund.
+     * @param fund the fund to set the performance fees for
      * @param performanceFeesRate the performance fees (1e18 = 100%)
      */
-    function setPerformanceFees(address cellar, uint256 performanceFeesRate) external onlyCellarOwner(cellar) {
+    function setPerformanceFees(address fund, uint256 performanceFeesRate) external onlyFundOwner(fund) {
         if (performanceFeesRate > MAX_PERFORMANCE_FEES) revert FeesManager__InvalidFeesRate();
 
-        FeesData storage feeData = cellarFeesData[cellar];
+        FeesData storage feeData = fundFeesData[fund];
 
         // if the high-water mark is not set, set it and do not collect fees potential pending management fees
-        // as the function is most likely called during the setup of the cellar.
+        // as the function is most likely called during the setup of the fund.
         if (feeData.highWaterMarkPrice == 0) {
             feeData.performanceFeesRate = uint64(performanceFeesRate);
             // initialize the high-water mark
-            // note that the cellar will revert if we are calling totalAssets() when it's locked (nonReentrantView)
-            uint256 totalAssets = Cellar(cellar).totalAssets();
-            uint256 highWaterMarkPrice = PerformanceFeesLib._calcSharePrice(totalAssets, Cellar(cellar).totalSupply());
-            cellarFeesData[cellar].highWaterMarkPrice = uint72(highWaterMarkPrice);
-            cellarFeesData[cellar].highWaterMarkResetTime = uint40(block.timestamp);
-            cellarFeesData[cellar].highWaterMarkResetAssets = uint256(totalAssets);
+            // note that the fund will revert if we are calling totalAssets() when it's locked (nonReentrantView)
+            uint256 totalAssets = Fund(fund).totalAssets();
+            uint256 highWaterMarkPrice = PerformanceFeesLib._calcSharePrice(totalAssets, Fund(fund).totalSupply());
+            fundFeesData[fund].highWaterMarkPrice = uint72(highWaterMarkPrice);
+            fundFeesData[fund].highWaterMarkResetTime = uint40(block.timestamp);
+            fundFeesData[fund].highWaterMarkResetAssets = uint256(totalAssets);
 
-            emit PerformanceFeesRateUpdated(cellar, performanceFeesRate, highWaterMarkPrice);
+            emit PerformanceFeesRateUpdated(fund, performanceFeesRate, highWaterMarkPrice);
             return;
         }
 
         // collect fees before updating the rate
-        Cellar(cellar).collectFees(); // collectFees is nonReetrant, which makes setPerformanceFees nonReetrant
+        Fund(fund).collectFees(); // collectFees is nonReetrant, which makes setPerformanceFees nonReetrant
 
-        emit PerformanceFeesRateUpdated(cellar, performanceFeesRate, feeData.highWaterMarkPrice);
+        emit PerformanceFeesRateUpdated(fund, performanceFeesRate, feeData.highWaterMarkPrice);
         feeData.performanceFeesRate = uint64(performanceFeesRate);
     }
 
     /**
-     * @notice Sets the enter fees for this cellar.
-     * @param cellar the cellar to set the performance fees for
+     * @notice Sets the enter fees for this fund.
+     * @param fund the fund to set the performance fees for
      * @param enterFeesRate the enter fees (10000 = 100%)
      */
-    function setEnterFees(address cellar, uint16 enterFeesRate) external onlyCellarOwner(cellar) {
+    function setEnterFees(address fund, uint16 enterFeesRate) external onlyFundOwner(fund) {
         if (enterFeesRate > MAX_ENTER_FEES) {
             revert FeesManager__InvalidFeesRate();
         }
 
-        cellarFeesData[cellar].enterFeesRate = enterFeesRate;
+        fundFeesData[fund].enterFeesRate = enterFeesRate;
     }
 
     /**
-     * @notice Sets the exit fees for this cellar.
-     * @param cellar the cellar to set the performance fees for
+     * @notice Sets the exit fees for this fund.
+     * @param fund the fund to set the performance fees for
      * @param exitFeesRate the exit fees (10000 = 100%)
      */
-    function setExitFees(address cellar, uint16 exitFeesRate) external onlyCellarOwner(cellar) {
+    function setExitFees(address fund, uint16 exitFeesRate) external onlyFundOwner(fund) {
         if (exitFeesRate > MAX_EXIT_FEES) {
             revert FeesManager__InvalidFeesRate();
         }
 
-        cellarFeesData[cellar].exitFeesRate = exitFeesRate;
+        fundFeesData[fund].exitFeesRate = exitFeesRate;
     }
 
     /**
-     * @notice Resets the high-water mark for this cellar.
-     * @param cellar the cellar to reset the high-water mark state for
+     * @notice Resets the high-water mark for this fund.
+     * @param fund the fund to reset the high-water mark state for
      */
-    function resetHighWaterMark(address cellar) external onlyRegistryOwner {
-        Cellar c = Cellar(cellar);
-        FeesData storage feeData = cellarFeesData[cellar];
+    function resetHighWaterMark(address fund) external onlyRegistryOwner {
+        Fund c = Fund(fund);
+        FeesData storage feeData = fundFeesData[fund];
         uint256 totalAssets = c.totalAssets();
 
         // checks high-water mark reset conditions

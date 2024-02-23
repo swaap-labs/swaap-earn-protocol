@@ -13,12 +13,12 @@ import "test/resources/MainnetStarter.t.sol";
  * @author 0xEinCodes, crispymangoes
  * @dev test with blocknumber = 18414005 bc of fraxlend pair conditions at this block otherwise modify fuzz test limits
  */
-contract CellarFraxLendCollateralAndDebtTestV2 is MainnetStarterTest, AdaptorHelperFunctions {
+contract FundFraxLendCollateralAndDebtTestV2 is MainnetStarterTest, AdaptorHelperFunctions {
     using SafeTransferLib for ERC20;
     using Math for uint256;
     CollateralFTokenAdaptor public collateralFTokenAdaptor;
     DebtFTokenAdaptor public debtFTokenAdaptor;
-    Cellar public cellar;
+    Fund public fund;
     IFToken mkrFraxLendPair = IFToken(MKR_FRAX_PAIR);
 
     uint32 public fraxlendCollateralMKRPosition = 1_000_001; // fraxlendV2
@@ -103,7 +103,7 @@ contract CellarFraxLendCollateralAndDebtTestV2 is MainnetStarterTest, AdaptorHel
         settings = PriceRouter.AssetSettings(CHAINLINK_DERIVATIVE, address(mockUniEth));
         priceRouter.addAsset(UNI, settings, abi.encode(stor), price);
 
-        // Setup Cellar:
+        // Setup Fund:
 
         // Add adaptors and positions to the registry.
         registry.trustAdaptor(address(collateralFTokenAdaptor));
@@ -128,83 +128,78 @@ contract CellarFraxLendCollateralAndDebtTestV2 is MainnetStarterTest, AdaptorHel
         );
         registry.trustPosition(fraxlendDebtAPEPosition, address(debtFTokenAdaptor), abi.encode(APE_FRAX_PAIR));
 
-        string memory cellarName = "Fraxlend Collateral & Debt Cellar V0.0";
+        string memory fundName = "Fraxlend Collateral & Debt Fund V0.0";
         uint256 initialDeposit = 1e18;
 
-        // Approve new cellar to spend assets.
-        address cellarAddress = deployer.getAddress(cellarName);
+        // Approve new fund to spend assets.
+        address fundAddress = deployer.getAddress(fundName);
         deal(address(MKR), address(this), initialDeposit);
-        MKR.approve(cellarAddress, initialDeposit);
+        MKR.approve(fundAddress, initialDeposit);
 
-        creationCode = type(Cellar).creationCode;
+        creationCode = type(Fund).creationCode;
         constructorArgs = abi.encode(
             address(this),
             registry,
             MKR,
-            cellarName,
-            cellarName,
+            fundName,
+            fundName,
             mkrPosition,
             abi.encode(true),
             initialDeposit,
             type(uint192).max
         );
 
-        cellar = Cellar(deployer.deployContract(cellarName, creationCode, constructorArgs, 0));
+        fund = Fund(deployer.deployContract(fundName, creationCode, constructorArgs, 0));
 
-        cellar.addAdaptorToCatalogue(address(collateralFTokenAdaptor));
-        cellar.addAdaptorToCatalogue(address(debtFTokenAdaptor));
+        fund.addAdaptorToCatalogue(address(collateralFTokenAdaptor));
+        fund.addAdaptorToCatalogue(address(debtFTokenAdaptor));
 
-        cellar.addPositionToCatalogue(wethPosition);
-        cellar.addPositionToCatalogue(fraxlendCollateralMKRPosition);
-        cellar.addPositionToCatalogue(fraxlendDebtMKRPosition);
-        cellar.addPositionToCatalogue(fraxPosition);
-        cellar.addPositionToCatalogue(apePosition);
+        fund.addPositionToCatalogue(wethPosition);
+        fund.addPositionToCatalogue(fraxlendCollateralMKRPosition);
+        fund.addPositionToCatalogue(fraxlendDebtMKRPosition);
+        fund.addPositionToCatalogue(fraxPosition);
+        fund.addPositionToCatalogue(apePosition);
 
-        cellar.addPosition(1, wethPosition, abi.encode(true), false);
-        cellar.addPosition(2, fraxlendCollateralMKRPosition, abi.encode(0), false);
-        cellar.addPosition(3, fraxPosition, abi.encode(true), false);
-        cellar.addPosition(4, apePosition, abi.encode(true), false);
+        fund.addPosition(1, wethPosition, abi.encode(true), false);
+        fund.addPosition(2, fraxlendCollateralMKRPosition, abi.encode(0), false);
+        fund.addPosition(3, fraxPosition, abi.encode(true), false);
+        fund.addPosition(4, apePosition, abi.encode(true), false);
 
-        cellar.addPosition(0, fraxlendDebtMKRPosition, abi.encode(0), true);
+        fund.addPosition(0, fraxlendDebtMKRPosition, abi.encode(0), true);
 
-        MKR.safeApprove(address(cellar), type(uint256).max);
-        FRAX.safeApprove(address(cellar), type(uint256).max);
-        WETH.safeApprove(address(cellar), type(uint256).max);
+        MKR.safeApprove(address(fund), type(uint256).max);
+        FRAX.safeApprove(address(fund), type(uint256).max);
+        WETH.safeApprove(address(fund), type(uint256).max);
 
         // Manipulate test contracts storage so that minimum shareLockPeriod is zero blocks.
-        // stdstore.target(address(cellar)).sig(cellar.shareLockPeriod.selector).checked_write(uint256(0));
+        // stdstore.target(address(fund)).sig(fund.shareLockPeriod.selector).checked_write(uint256(0));
     }
 
     // test that holding position for adding collateral is being tracked properly and works upon user deposits
     function testDeposit(uint256 assets) external {
         assets = bound(assets, 0.1e18, 100_000e18);
-        initialAssets = cellar.totalAssets();
-        console.log("Cellar MKR balance: %s, initialAssets: %s", MKR.balanceOf(address(cellar)), initialAssets);
+        initialAssets = fund.totalAssets();
+        console.log("Fund MKR balance: %s, initialAssets: %s", MKR.balanceOf(address(fund)), initialAssets);
         deal(address(MKR), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
         assertApproxEqAbs(
-            MKR.balanceOf(address(cellar)),
+            MKR.balanceOf(address(fund)),
             assets + initialAssets,
             1,
-            "Cellar should have all deposited MKR assets"
+            "Fund should have all deposited MKR assets"
         );
 
         // carry out a proper addCollateral() call
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
         adaptorCalls[0] = _createBytesDataToAddCollateralWithFraxlendV2(MKR_FRAX_PAIR, assets);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
-        assertApproxEqAbs(
-            MKR.balanceOf(address(cellar)),
-            initialAssets,
-            1,
-            "Only initialAssets should be within Cellar."
-        );
+        data[0] = Fund.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
+        assertApproxEqAbs(MKR.balanceOf(address(fund)), initialAssets, 1, "Only initialAssets should be within Fund.");
 
-        uint256 newCellarCollateralBalance = mkrFToken.userCollateralBalance(address(cellar));
+        uint256 newFundCollateralBalance = mkrFToken.userCollateralBalance(address(fund));
         assertEq(
-            newCellarCollateralBalance,
+            newFundCollateralBalance,
             assets,
             "`fraxlendPairCore.userCollateralBalance()` check: Assets should be collateral provided to Fraxlend Pair."
         );
@@ -213,75 +208,70 @@ contract CellarFraxLendCollateralAndDebtTestV2 is MainnetStarterTest, AdaptorHel
     // carry out a total assets test checking that balanceOf works for adaptors.
     function testTotalAssets(uint256 assets) external {
         assets = bound(assets, 0.1e18, 100_000e18);
-        initialAssets = cellar.totalAssets();
-        console.log("Cellar MKR balance: %s, initialAssets: %s", MKR.balanceOf(address(cellar)), initialAssets);
+        initialAssets = fund.totalAssets();
+        console.log("Fund MKR balance: %s, initialAssets: %s", MKR.balanceOf(address(fund)), initialAssets);
         deal(address(MKR), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
         // addCollateral() call
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
         adaptorCalls[0] = _createBytesDataToAddCollateralWithFraxlendV2(MKR_FRAX_PAIR, assets);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
 
         assertApproxEqAbs(
-            cellar.totalAssets(),
+            fund.totalAssets(),
             (assets + initialAssets),
             1,
-            "Cellar.totalAssets() && CollateralFTokenAdaptor.balanceOf() check: Total assets should not have changed."
+            "Fund.totalAssets() && CollateralFTokenAdaptor.balanceOf() check: Total assets should not have changed."
         );
     }
 
     // test taking loans w/ v2 fraxlend pairs
     function testTakingOutLoansV2(uint256 assets) external {
         assets = bound(assets, 1e18, 100e18);
-        initialAssets = cellar.totalAssets();
-        console.log("Cellar MKR balance: %s, initialAssets: %s", MKR.balanceOf(address(cellar)), initialAssets);
+        initialAssets = fund.totalAssets();
+        console.log("Fund MKR balance: %s, initialAssets: %s", MKR.balanceOf(address(fund)), initialAssets);
         deal(address(MKR), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
         // addCollateral() call
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
         adaptorCalls[0] = _createBytesDataToAddCollateralWithFraxlendV2(MKR_FRAX_PAIR, assets);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
 
         // Take out a FRAX loan.
         uint256 fraxToBorrow = priceRouter.getValue(MKR, assets / 2, FRAX);
         adaptorCalls[0] = _createBytesDataToBorrowWithFraxlendV2(MKR_FRAX_PAIR, fraxToBorrow);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(debtFTokenAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(debtFTokenAdaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
         bytes memory adaptorData = abi.encode(MKR_FRAX_PAIR);
 
-        vm.prank(address(cellar));
+        vm.prank(address(fund));
         uint256 newBalance = debtFTokenAdaptor.balanceOf(adaptorData);
         assertApproxEqAbs(
             newBalance,
             fraxToBorrow,
             1,
-            "Cellar should have debt recorded within Fraxlend Pair of assets / 2"
+            "Fund should have debt recorded within Fraxlend Pair of assets / 2"
         );
-        assertApproxEqAbs(
-            FRAX.balanceOf(address(cellar)),
-            fraxToBorrow,
-            1,
-            "Cellar should have FRAX equal to assets / 2"
-        );
+        assertApproxEqAbs(FRAX.balanceOf(address(fund)), fraxToBorrow, 1, "Fund should have FRAX equal to assets / 2");
     }
 
     // test taking loan w/ providing collateral to the wrong pair
     function testTakingOutLoanInUntrackedPositionV2(uint256 assets) external {
         assets = bound(assets, 0.1e18, 100e18);
-        initialAssets = cellar.totalAssets();
+        initialAssets = fund.totalAssets();
         deal(address(MKR), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
         adaptorCalls[0] = _createBytesDataToBorrowWithFraxlendV2(APE_FRAX_PAIR, assets / 2);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(debtFTokenAdaptor), callData: adaptorCalls });
+        data[0] = Fund.AdaptorCall({ adaptor: address(debtFTokenAdaptor), callData: adaptorCalls });
         vm.expectRevert(
             bytes(
                 abi.encodeWithSelector(
@@ -290,45 +280,45 @@ contract CellarFraxLendCollateralAndDebtTestV2 is MainnetStarterTest, AdaptorHel
                 )
             )
         );
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
     }
 
     function testRepayingLoans(uint256 assets) external {
         assets = bound(assets, 0.1e18, 100e18);
-        initialAssets = cellar.totalAssets();
+        initialAssets = fund.totalAssets();
         deal(address(MKR), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
         // addCollateral() call
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
         adaptorCalls[0] = _createBytesDataToAddCollateralWithFraxlendV2(MKR_FRAX_PAIR, assets);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
 
         // Take out a FRAX loan.
         uint256 fraxToBorrow = priceRouter.getValue(MKR, assets / 2, FRAX);
         adaptorCalls[0] = _createBytesDataToBorrowWithFraxlendV2(MKR_FRAX_PAIR, fraxToBorrow);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(debtFTokenAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(debtFTokenAdaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
 
         // start repayment sequence
         mkrFraxLendPair.addInterest(false);
-        uint256 maxAmountToRepay = type(uint256).max; // set up repayment amount to be cellar's total FRAX.
-        deal(address(FRAX), address(cellar), fraxToBorrow * 2);
+        uint256 maxAmountToRepay = type(uint256).max; // set up repayment amount to be fund's total FRAX.
+        deal(address(FRAX), address(fund), fraxToBorrow * 2);
 
         // Repay the loan.
         adaptorCalls[0] = _createBytesDataToRepayWithFraxlendV2(mkrFToken, maxAmountToRepay);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(debtFTokenAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(debtFTokenAdaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
 
         assertApproxEqAbs(
-            getFraxlendDebtBalance(MKR_FRAX_PAIR, address(cellar)),
+            getFraxlendDebtBalance(MKR_FRAX_PAIR, address(fund)),
             0,
             1,
-            "Cellar should have zero debt recorded within Fraxlend Pair"
+            "Fund should have zero debt recorded within Fraxlend Pair"
         );
-        assertLt(FRAX.balanceOf(address(cellar)), fraxToBorrow * 2, "Cellar should have zero debtAsset");
+        assertLt(FRAX.balanceOf(address(fund)), fraxToBorrow * 2, "Fund should have zero debtAsset");
     }
 
     // okay just seeing if we can handle multiple fraxlend positions
@@ -345,12 +335,12 @@ contract CellarFraxLendCollateralAndDebtTestV2 is MainnetStarterTest, AdaptorHel
             abi.encode(UNI_FRAX_PAIR)
         );
         registry.trustPosition(fraxlendDebtUNIPosition, address(debtFTokenAdaptor), abi.encode(UNI_FRAX_PAIR));
-        cellar.addPositionToCatalogue(uniPosition);
-        cellar.addPositionToCatalogue(fraxlendCollateralUNIPosition);
-        cellar.addPositionToCatalogue(fraxlendDebtUNIPosition);
-        cellar.addPosition(5, fraxlendCollateralUNIPosition, abi.encode(0), false);
-        cellar.addPosition(6, uniPosition, abi.encode(true), false);
-        cellar.addPosition(1, fraxlendDebtUNIPosition, abi.encode(0), true);
+        fund.addPositionToCatalogue(uniPosition);
+        fund.addPositionToCatalogue(fraxlendCollateralUNIPosition);
+        fund.addPositionToCatalogue(fraxlendDebtUNIPosition);
+        fund.addPosition(5, fraxlendCollateralUNIPosition, abi.encode(0), false);
+        fund.addPosition(6, uniPosition, abi.encode(true), false);
+        fund.addPosition(1, fraxlendDebtUNIPosition, abi.encode(0), true);
 
         // multiple adaptor calls
         // deposit MKR
@@ -358,218 +348,218 @@ contract CellarFraxLendCollateralAndDebtTestV2 is MainnetStarterTest, AdaptorHel
         // deposit UNI
         // borrow FRAX
         deal(address(MKR), address(this), assets);
-        cellar.deposit(assets, address(this)); // holding position == collateralPosition w/ MKR FraxlendPair
-        deal(address(UNI), address(cellar), assets);
+        fund.deposit(assets, address(this)); // holding position == collateralPosition w/ MKR FraxlendPair
+        deal(address(UNI), address(fund), assets);
         uint256 mkrFraxToBorrow = priceRouter.getValue(MKR, assets / 2, FRAX);
         // uint256 uniFraxToBorrow = priceRouter.getValue(UNI, assets / 2, FRAX);
         // console.log("uniFraxToBorrow: %s && assets/2: %s", uniFraxToBorrow, assets / 2);
         uint256 uniFraxToBorrow = 1e18;
 
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](2);
-        bytes[] memory adaptorCallsFirstAdaptor = new bytes[](2); // collateralAdaptor, MKR already deposited due to cellar holding position
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](2);
+        bytes[] memory adaptorCallsFirstAdaptor = new bytes[](2); // collateralAdaptor, MKR already deposited due to fund holding position
         bytes[] memory adaptorCallsSecondAdaptor = new bytes[](2); // debtAdaptor
         adaptorCallsFirstAdaptor[0] = _createBytesDataToAddCollateralWithFraxlendV2(MKR_FRAX_PAIR, assets);
         adaptorCallsFirstAdaptor[1] = _createBytesDataToAddCollateralWithFraxlendV2(UNI_FRAX_PAIR, assets);
         adaptorCallsSecondAdaptor[0] = _createBytesDataToBorrowWithFraxlendV2(MKR_FRAX_PAIR, mkrFraxToBorrow);
         adaptorCallsSecondAdaptor[1] = _createBytesDataToBorrowWithFraxlendV2(UNI_FRAX_PAIR, uniFraxToBorrow);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCallsFirstAdaptor });
-        data[1] = Cellar.AdaptorCall({ adaptor: address(debtFTokenAdaptor), callData: adaptorCallsSecondAdaptor });
-        cellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCallsFirstAdaptor });
+        data[1] = Fund.AdaptorCall({ adaptor: address(debtFTokenAdaptor), callData: adaptorCallsSecondAdaptor });
+        fund.callOnAdaptor(data);
 
         // Check that we have the right amount of FRAX borrowed
         assertApproxEqAbs(
-            (getFraxlendDebtBalance(MKR_FRAX_PAIR, address(cellar))) +
-                getFraxlendDebtBalance(UNI_FRAX_PAIR, address(cellar)),
+            (getFraxlendDebtBalance(MKR_FRAX_PAIR, address(fund))) +
+                getFraxlendDebtBalance(UNI_FRAX_PAIR, address(fund)),
             mkrFraxToBorrow + uniFraxToBorrow,
             1
         );
 
-        assertApproxEqAbs(FRAX.balanceOf(address(cellar)), mkrFraxToBorrow + uniFraxToBorrow, 1);
+        assertApproxEqAbs(FRAX.balanceOf(address(fund)), mkrFraxToBorrow + uniFraxToBorrow, 1);
 
         mkrFraxLendPair.addInterest(false);
-        uint256 maxAmountToRepay = type(uint256).max; // set up repayment amount to be cellar's total FRAX.
-        deal(address(FRAX), address(cellar), (mkrFraxToBorrow + uniFraxToBorrow) * 2);
+        uint256 maxAmountToRepay = type(uint256).max; // set up repayment amount to be fund's total FRAX.
+        deal(address(FRAX), address(fund), (mkrFraxToBorrow + uniFraxToBorrow) * 2);
 
         // Repay the loan in one of the fraxlend pairs
-        Cellar.AdaptorCall[] memory newData2 = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory newData2 = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls2 = new bytes[](1);
         adaptorCalls2[0] = _createBytesDataToRepayWithFraxlendV2(mkrFToken, maxAmountToRepay);
-        newData2[0] = Cellar.AdaptorCall({ adaptor: address(debtFTokenAdaptor), callData: adaptorCalls2 });
-        cellar.callOnAdaptor(newData2);
+        newData2[0] = Fund.AdaptorCall({ adaptor: address(debtFTokenAdaptor), callData: adaptorCalls2 });
+        fund.callOnAdaptor(newData2);
 
         assertApproxEqAbs(
-            getFraxlendDebtBalance(MKR_FRAX_PAIR, address(cellar)),
+            getFraxlendDebtBalance(MKR_FRAX_PAIR, address(fund)),
             0,
             1,
-            "Cellar should have zero debt recorded within Fraxlend Pair"
+            "Fund should have zero debt recorded within Fraxlend Pair"
         );
 
         assertApproxEqAbs(
-            getFraxlendDebtBalance(UNI_FRAX_PAIR, address(cellar)),
+            getFraxlendDebtBalance(UNI_FRAX_PAIR, address(fund)),
             uniFraxToBorrow,
             1,
-            "Cellar should still have debt for UNI Fraxlend Pair"
+            "Fund should still have debt for UNI Fraxlend Pair"
         );
 
-        deal(address(MKR), address(cellar), 0);
+        deal(address(MKR), address(fund), 0);
 
         adaptorCalls2[0] = _createBytesDataToRemoveCollateralWithFraxlendV2(assets, mkrFToken);
-        newData2[0] = Cellar.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCalls2 });
-        cellar.callOnAdaptor(newData2);
+        newData2[0] = Fund.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCalls2 });
+        fund.callOnAdaptor(newData2);
 
         // Check that we no longer have any MKR in the collateralPosition
-        assertEq(MKR.balanceOf(address(cellar)), assets);
+        assertEq(MKR.balanceOf(address(fund)), assets);
 
-        // have user withdraw from cellar
-        cellar.withdraw(assets, address(this), address(this));
+        // have user withdraw from fund
+        fund.withdraw(assets, address(this), address(this));
         assertEq(MKR.balanceOf(address(this)), assets);
     }
 
     function testRemoveCollateral(uint256 assets) external {
         assets = bound(assets, 0.1e18, 100e18);
-        initialAssets = cellar.totalAssets();
+        initialAssets = fund.totalAssets();
         deal(address(MKR), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
         // carry out a proper addCollateral() call
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
         adaptorCalls[0] = _createBytesDataToAddCollateralWithFraxlendV2(MKR_FRAX_PAIR, assets);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
 
-        assertEq(MKR.balanceOf(address(cellar)), initialAssets);
+        assertEq(MKR.balanceOf(address(fund)), initialAssets);
 
         // no collateral interest or anything has accrued, should be able to withdraw everything and have nothing left in it.
         adaptorCalls[0] = _createBytesDataToRemoveCollateralWithFraxlendV2(assets, mkrFToken);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
 
-        assertEq(MKR.balanceOf(address(cellar)), assets + initialAssets);
-        assertEq(mkrFToken.userCollateralBalance(address(cellar)), 0);
+        assertEq(MKR.balanceOf(address(fund)), assets + initialAssets);
+        assertEq(mkrFToken.userCollateralBalance(address(fund)), 0);
     }
 
     function testRemoveSomeCollateral(uint256 assets) external {
         assets = bound(assets, 0.1e18, 100_000e18);
-        initialAssets = cellar.totalAssets();
+        initialAssets = fund.totalAssets();
         deal(address(MKR), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
         // carry out a proper addCollateral() call
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
         adaptorCalls[0] = _createBytesDataToAddCollateralWithFraxlendV2(MKR_FRAX_PAIR, assets);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
 
-        assertEq(MKR.balanceOf(address(cellar)), initialAssets);
+        assertEq(MKR.balanceOf(address(fund)), initialAssets);
 
         adaptorCalls[0] = _createBytesDataToRemoveCollateralWithFraxlendV2(assets / 2, mkrFToken);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
 
-        assertEq(MKR.balanceOf(address(cellar)), (assets / 2) + initialAssets);
-        assertApproxEqAbs(mkrFToken.userCollateralBalance(address(cellar)), assets / 2, 1);
+        assertEq(MKR.balanceOf(address(fund)), (assets / 2) + initialAssets);
+        assertApproxEqAbs(mkrFToken.userCollateralBalance(address(fund)), assets / 2, 1);
     }
 
     // test strategist input param for _collateralAmount to be type(uint256).max
     function testRemoveAllCollateralWithTypeUINT256Max(uint256 assets) external {
         assets = bound(assets, 0.1e18, 100_000e18);
-        initialAssets = cellar.totalAssets();
+        initialAssets = fund.totalAssets();
         deal(address(MKR), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
         // carry out a proper addCollateral() call
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
         adaptorCalls[0] = _createBytesDataToAddCollateralWithFraxlendV2(MKR_FRAX_PAIR, assets);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
 
-        assertEq(MKR.balanceOf(address(cellar)), initialAssets);
+        assertEq(MKR.balanceOf(address(fund)), initialAssets);
 
         // no collateral interest or anything has accrued, should be able to withdraw everything and have nothing left in it.
         adaptorCalls[0] = _createBytesDataToRemoveCollateralWithFraxlendV2(type(uint256).max, mkrFToken);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
 
-        assertEq(MKR.balanceOf(address(cellar)), assets + initialAssets);
-        assertEq(mkrFToken.userCollateralBalance(address(cellar)), 0);
+        assertEq(MKR.balanceOf(address(fund)), assets + initialAssets);
+        assertEq(mkrFToken.userCollateralBalance(address(fund)), 0);
     }
 
     // Test removal of collateral but with taking a loan out and repaying it in full first. Also tests type(uint256).max with removeCollateral.
     function testRemoveCollateralWithTypeUINT256MaxAfterRepay(uint256 assets) external {
         assets = bound(assets, 0.1e18, 100e18);
-        initialAssets = cellar.totalAssets();
+        initialAssets = fund.totalAssets();
         deal(address(MKR), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
         // addCollateral() call
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
         adaptorCalls[0] = _createBytesDataToAddCollateralWithFraxlendV2(MKR_FRAX_PAIR, assets);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
 
         // Take out a FRAX loan.
         uint256 fraxToBorrow = priceRouter.getValue(MKR, assets / 2, FRAX);
         adaptorCalls[0] = _createBytesDataToBorrowWithFraxlendV2(MKR_FRAX_PAIR, fraxToBorrow);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(debtFTokenAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(debtFTokenAdaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
 
         // start repayment sequence
         mkrFraxLendPair.addInterest(false);
-        uint256 maxAmountToRepay = type(uint256).max; // set up repayment amount to be cellar's total FRAX.
-        deal(address(FRAX), address(cellar), fraxToBorrow * 2);
+        uint256 maxAmountToRepay = type(uint256).max; // set up repayment amount to be fund's total FRAX.
+        deal(address(FRAX), address(fund), fraxToBorrow * 2);
 
         // Repay the loan.
         adaptorCalls[0] = _createBytesDataToRepayWithFraxlendV2(mkrFToken, maxAmountToRepay);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(debtFTokenAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(debtFTokenAdaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
 
         assertApproxEqAbs(
-            getFraxlendDebtBalance(MKR_FRAX_PAIR, address(cellar)),
+            getFraxlendDebtBalance(MKR_FRAX_PAIR, address(fund)),
             0,
             1,
-            "Cellar should have zero debt recorded within Fraxlend Pair"
+            "Fund should have zero debt recorded within Fraxlend Pair"
         );
-        assertLt(FRAX.balanceOf(address(cellar)), fraxToBorrow * 2, "Cellar should have zero debtAsset");
+        assertLt(FRAX.balanceOf(address(fund)), fraxToBorrow * 2, "Fund should have zero debtAsset");
 
         // no collateral interest or anything has accrued, should be able to withdraw everything and have nothing left in it.
         adaptorCalls[0] = _createBytesDataToRemoveCollateralWithFraxlendV2(type(uint256).max, mkrFToken);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
 
-        assertEq(MKR.balanceOf(address(cellar)), assets + initialAssets);
-        assertEq(mkrFToken.userCollateralBalance(address(cellar)), 0);
+        assertEq(MKR.balanceOf(address(fund)), assets + initialAssets);
+        assertEq(mkrFToken.userCollateralBalance(address(fund)), 0);
     }
 
     // test attempting to removeCollateral() when the LTV would be too high as a result
     function testFailRemoveCollateralBecauseLTV(uint256 assets) external {
         assets = bound(assets, 0.1e18, 100_000e18);
-        initialAssets = cellar.totalAssets();
+        initialAssets = fund.totalAssets();
         deal(address(MKR), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
         // carry out a proper addCollateral() call
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
         adaptorCalls[0] = _createBytesDataToAddCollateralWithFraxlendV2(MKR_FRAX_PAIR, assets);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
 
-        assertEq(MKR.balanceOf(address(cellar)), 0);
+        assertEq(MKR.balanceOf(address(fund)), 0);
 
         // Take out a FRAX loan.
         uint256 fraxToBorrow = priceRouter.getValue(MKR, assets / 2, FRAX);
         adaptorCalls[0] = _createBytesDataToBorrowWithFraxlendV2(MKR_FRAX_PAIR, fraxToBorrow);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(debtFTokenAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(debtFTokenAdaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
 
         mkrFraxLendPair.addInterest(false);
         // try to removeCollateral but more than should be allowed
         adaptorCalls[0] = _createBytesDataToRemoveCollateralWithFraxlendV2(assets, mkrFToken);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCalls });
+        data[0] = Fund.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCalls });
 
         vm.expectRevert(
             bytes(
@@ -579,11 +569,11 @@ contract CellarFraxLendCollateralAndDebtTestV2 is MainnetStarterTest, AdaptorHel
                 )
             )
         );
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
         // try again with type(uint256).max as specified amount
         adaptorCalls[0] = _createBytesDataToRemoveCollateralWithFraxlendV2(type(uint256).max, mkrFToken);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCalls });
+        data[0] = Fund.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCalls });
 
         vm.expectRevert(
             bytes(
@@ -593,89 +583,89 @@ contract CellarFraxLendCollateralAndDebtTestV2 is MainnetStarterTest, AdaptorHel
                 )
             )
         );
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
     }
 
     function testLTV(uint256 assets) external {
         assets = bound(assets, 0.1e18, 100e18);
-        initialAssets = cellar.totalAssets();
+        initialAssets = fund.totalAssets();
         deal(address(MKR), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
         // carry out a proper addCollateral() call
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
         adaptorCalls[0] = _createBytesDataToAddCollateralWithFraxlendV2(MKR_FRAX_PAIR, assets);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
-        uint256 newCellarCollateralBalance = mkrFToken.userCollateralBalance(address(cellar));
+        data[0] = Fund.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
+        uint256 newFundCollateralBalance = mkrFToken.userCollateralBalance(address(fund));
 
-        assertEq(MKR.balanceOf(address(cellar)), initialAssets);
+        assertEq(MKR.balanceOf(address(fund)), initialAssets);
 
         // Take out a FRAX loan.
         uint256 fraxToBorrow = priceRouter.getValue(MKR, assets.mulDivDown(1e4, 1.35e4), FRAX);
         adaptorCalls[0] = _createBytesDataToBorrowWithFraxlendV2(MKR_FRAX_PAIR, fraxToBorrow);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(debtFTokenAdaptor), callData: adaptorCalls });
+        data[0] = Fund.AdaptorCall({ adaptor: address(debtFTokenAdaptor), callData: adaptorCalls });
 
         vm.expectRevert(
             bytes(
                 abi.encodeWithSelector(DebtFTokenAdaptor.DebtFTokenAdaptor__HealthFactorTooLow.selector, MKR_FRAX_PAIR)
             )
         );
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
         // add collateral to be able to borrow amount desired
-        deal(address(MKR), address(cellar), 3 * assets);
+        deal(address(MKR), address(fund), 3 * assets);
         adaptorCalls[0] = _createBytesDataToAddCollateralWithFraxlendV2(MKR_FRAX_PAIR, assets);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
 
-        assertEq(MKR.balanceOf(address(cellar)), assets * 2);
+        assertEq(MKR.balanceOf(address(fund)), assets * 2);
 
-        newCellarCollateralBalance = mkrFToken.userCollateralBalance(address(cellar));
-        assertEq(newCellarCollateralBalance, 2 * assets);
+        newFundCollateralBalance = mkrFToken.userCollateralBalance(address(fund));
+        assertEq(newFundCollateralBalance, 2 * assets);
 
         // Try taking out more FRAX now
         uint256 moreFraxToBorrow = priceRouter.getValue(MKR, assets / 2, FRAX);
         adaptorCalls[0] = _createBytesDataToBorrowWithFraxlendV2(MKR_FRAX_PAIR, moreFraxToBorrow);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(debtFTokenAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data); // should transact now
+        data[0] = Fund.AdaptorCall({ adaptor: address(debtFTokenAdaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data); // should transact now
     }
 
     function testRepayPartialDebt(uint256 assets) external {
         assets = bound(assets, 0.1e18, 195e18);
-        initialAssets = cellar.totalAssets();
+        initialAssets = fund.totalAssets();
         deal(address(MKR), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
         // carry out a proper addCollateral() call
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
         adaptorCalls[0] = _createBytesDataToAddCollateralWithFraxlendV2(MKR_FRAX_PAIR, assets);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
 
         // Take out a FRAX loan.
         uint256 fraxToBorrow = priceRouter.getValue(MKR, assets / 2, FRAX);
         adaptorCalls[0] = _createBytesDataToBorrowWithFraxlendV2(MKR_FRAX_PAIR, fraxToBorrow);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(debtFTokenAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(debtFTokenAdaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
 
         // start repayment sequence
         mkrFraxLendPair.addInterest(false);
 
-        uint256 debtBefore = getFraxlendDebtBalance(MKR_FRAX_PAIR, address(cellar));
+        uint256 debtBefore = getFraxlendDebtBalance(MKR_FRAX_PAIR, address(fund));
         // Repay the loan.
         adaptorCalls[0] = _createBytesDataToRepayWithFraxlendV2(mkrFToken, fraxToBorrow / 2);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(debtFTokenAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
-        uint256 debtNow = getFraxlendDebtBalance(MKR_FRAX_PAIR, address(cellar));
+        data[0] = Fund.AdaptorCall({ adaptor: address(debtFTokenAdaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
+        uint256 debtNow = getFraxlendDebtBalance(MKR_FRAX_PAIR, address(fund));
         assertLt(debtNow, debtBefore);
         assertApproxEqAbs(
-            FRAX.balanceOf(address(cellar)),
+            FRAX.balanceOf(address(fund)),
             fraxToBorrow / 2,
             1e18,
-            "Cellar should have approximately half debtAsset"
+            "Fund should have approximately half debtAsset"
         );
     }
 
@@ -688,19 +678,19 @@ contract CellarFraxLendCollateralAndDebtTestV2 is MainnetStarterTest, AdaptorHel
             abi.encode(UNI_FRAX_PAIR)
         );
         // purposely do not trust a fraxlendDebtUNIPosition
-        cellar.addPositionToCatalogue(fraxlendCollateralUNIPosition);
-        cellar.addPosition(5, fraxlendCollateralUNIPosition, abi.encode(0), false);
+        fund.addPositionToCatalogue(fraxlendCollateralUNIPosition);
+        fund.addPosition(5, fraxlendCollateralUNIPosition, abi.encode(0), false);
         assets = bound(assets, 0.1e18, 100e18);
         uint256 uniFraxToBorrow = priceRouter.getValue(UNI, assets / 2, FRAX);
 
-        deal(address(UNI), address(cellar), assets);
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](2);
+        deal(address(UNI), address(fund), assets);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](2);
         bytes[] memory adaptorCallsFirstAdaptor = new bytes[](1); // collateralAdaptor
         bytes[] memory adaptorCallsSecondAdaptor = new bytes[](1); // debtAdaptor
         adaptorCallsFirstAdaptor[0] = _createBytesDataToAddCollateralWithFraxlendV2(UNI_FRAX_PAIR, assets);
         adaptorCallsSecondAdaptor[0] = _createBytesDataToBorrowWithFraxlendV2(UNI_FRAX_PAIR, uniFraxToBorrow);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCallsFirstAdaptor });
-        data[1] = Cellar.AdaptorCall({ adaptor: address(debtFTokenAdaptor), callData: adaptorCallsSecondAdaptor });
+        data[0] = Fund.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCallsFirstAdaptor });
+        data[1] = Fund.AdaptorCall({ adaptor: address(debtFTokenAdaptor), callData: adaptorCallsSecondAdaptor });
         vm.expectRevert(
             bytes(
                 abi.encodeWithSelector(
@@ -709,35 +699,35 @@ contract CellarFraxLendCollateralAndDebtTestV2 is MainnetStarterTest, AdaptorHel
                 )
             )
         );
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
     }
 
     // have strategist call repay function when no debt owed. Expect revert.
     function testRepayingDebtThatIsNotOwed(uint256 assets) external {
         assets = bound(assets, 0.1e18, 100e18);
         deal(address(MKR), address(this), assets);
-        cellar.deposit(assets, address(this));
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        fund.deposit(assets, address(this));
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
 
         adaptorCalls[0] = _createBytesDataToRepayWithFraxlendV2(mkrFraxLendPair, assets / 2);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(debtFTokenAdaptor), callData: adaptorCalls });
+        data[0] = Fund.AdaptorCall({ adaptor: address(debtFTokenAdaptor), callData: adaptorCalls });
         vm.expectRevert(
             bytes(
                 abi.encodeWithSelector(DebtFTokenAdaptor.DebtFTokenAdaptor__CannotRepayNoDebt.selector, MKR_FRAX_PAIR)
             )
         );
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
     }
 
     // externalReceiver triggers when doing Strategist Function calls via adaptorCall.
     function testBlockExternalReceiver(uint256 assets) external {
         assets = bound(assets, 0.1e18, 100e18);
         deal(address(MKR), address(this), assets);
-        cellar.deposit(assets, address(this)); // holding position == collateralPosition w/ MKR FraxlendPair
+        fund.deposit(assets, address(this)); // holding position == collateralPosition w/ MKR FraxlendPair
         // Strategist tries to withdraw USDC to their own wallet using Adaptor's `withdraw` function.
         address maliciousStrategist = vm.addr(10);
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
         adaptorCalls[0] = abi.encodeWithSelector(
             CollateralFTokenAdaptor.withdraw.selector,
@@ -746,9 +736,9 @@ contract CellarFraxLendCollateralAndDebtTestV2 is MainnetStarterTest, AdaptorHel
             abi.encode(MKR_FRAX_PAIR, MKR),
             abi.encode(0)
         );
-        data[0] = Cellar.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCalls });
+        data[0] = Fund.AdaptorCall({ adaptor: address(collateralFTokenAdaptor), callData: adaptorCalls });
         vm.expectRevert(bytes(abi.encodeWithSelector(BaseAdaptor.BaseAdaptor__UserWithdrawsNotAllowed.selector)));
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
     }
 
     /// Fraxlend Collateral and Debt Specific Helpers

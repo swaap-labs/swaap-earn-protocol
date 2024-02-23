@@ -6,7 +6,7 @@ import { INonfungiblePositionManager } from "@uniswapV3P/interfaces/INonfungible
 
 /**
  * @title Uniswap V3 Position Tracker
- * @notice Tracks Uniswap V3 positions Cellars have entered.
+ * @notice Tracks Uniswap V3 positions Funds have entered.
  * @author crispymangoes
  */
 contract UniswapV3PositionTracker {

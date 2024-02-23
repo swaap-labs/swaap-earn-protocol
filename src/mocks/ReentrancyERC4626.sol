@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.21;
 
-import { Cellar, ERC20, ERC4626, SafeTransferLib, ERC20 } from "src/base/Cellar.sol";
+import { Fund, ERC20, ERC4626, SafeTransferLib, ERC20 } from "src/base/Fund.sol";
 import { Test, stdStorage, StdStorage, stdError } from "@forge-std/Test.sol";
 import { SafeTransferLib } from "@solmate/utils/SafeTransferLib.sol";
 import { FixedPointMathLib } from "@solmate/utils/FixedPointMathLib.sol";
@@ -35,14 +35,14 @@ contract ReentrancyERC4626 is ERC4626, Test {
 
             asset.safeApprove(msg.sender, assets);
 
-            // Try to re-enter into cellar via deposit
+            // Try to re-enter into fund via deposit
             ERC4626(msg.sender).deposit(assets, receiver);
 
             // This return should never be hit because the above deposit calls fails from re-entrancy.
             return 0;
         } else {
-            Cellar cellar = Cellar(msg.sender);
-            stdstore.target(address(cellar)).sig(cellar.totalSupply.selector).checked_write(cellar.totalSupply() + 1);
+            Fund fund = Fund(msg.sender);
+            stdstore.target(address(fund)).sig(fund.totalSupply.selector).checked_write(fund.totalSupply() + 1);
             return 0;
         }
     }

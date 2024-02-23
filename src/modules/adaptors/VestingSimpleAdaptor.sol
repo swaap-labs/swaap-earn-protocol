@@ -3,12 +3,12 @@ pragma solidity 0.8.21;
 
 import { BaseAdaptor, ERC20, SafeTransferLib, Math } from "src/modules/adaptors/BaseAdaptor.sol";
 import { Registry } from "src/Registry.sol";
-import { Cellar } from "src/base/Cellar.sol";
+import { Fund } from "src/base/Fund.sol";
 import { VestingSimple } from "src/modules/vesting/VestingSimple.sol";
 
 /**
  * @title VestingSimpleAdaptor
- * @notice Allows cellars to linearly release earned rewards.
+ * @notice Allows funds to linearly release earned rewards.
  * @author Kevin Kennis
  */
 contract VestingSimpleAdaptor is BaseAdaptor {
@@ -24,7 +24,7 @@ contract VestingSimpleAdaptor is BaseAdaptor {
     /**
      * @dev Identifier unique to this adaptor for a shared registry.
      * Normally the identifier would just be the address of this contract, but this
-     * Identifier is needed during Cellar Delegate Call Operations, so getting the address
+     * Identifier is needed during Fund Delegate Call Operations, so getting the address
      * of the adaptor is more difficult.
      */
     function identifier() public pure override returns (bytes32) {
@@ -33,7 +33,7 @@ contract VestingSimpleAdaptor is BaseAdaptor {
 
     //============================================ Implement Base Functions ===========================================
     //==================== Base Function Specification ====================
-    // Base functions are functions designed to help the Cellar interact with
+    // Base functions are functions designed to help the Fund interact with
     // an adaptor position, strategists are not intended to use these functions.
     // Base functions MUST be implemented in adaptor contracts, even if that is just
     // adding a revert statement to make them uncallable by normal user operations.
@@ -49,8 +49,8 @@ contract VestingSimpleAdaptor is BaseAdaptor {
     }
 
     /**
-     * @notice Cellar just needs to transfer ERC20 token to `receiver`.
-     * @dev Important to verify that external receivers are allowed if receiver is not Cellar address.
+     * @notice Fund just needs to transfer ERC20 token to `receiver`.
+     * @dev Important to verify that external receivers are allowed if receiver is not Fund address.
      * @param assets amount of `token` to send to receiver
      * @param receiver address to send assets to
      * @param adaptorData data needed to withdraw from this position
@@ -72,7 +72,7 @@ contract VestingSimpleAdaptor is BaseAdaptor {
     }
 
     /**
-     * @notice Function Cellars use to determine `assetOf` balance of an adaptor position.
+     * @notice Function Funds use to determine `assetOf` balance of an adaptor position.
      * @param adaptorData data needed to interact with the position
      * @return balance of the position in terms of `assetOf`
      */
@@ -82,7 +82,7 @@ contract VestingSimpleAdaptor is BaseAdaptor {
     }
 
     /**
-     * @notice Function Cellars use to determine the underlying ERC20 asset of a position.
+     * @notice Function Funds use to determine the underlying ERC20 asset of a position.
      * @param adaptorData data needed to withdraw from a position
      * @return the underlying ERC20 asset of a position
      */
@@ -100,22 +100,22 @@ contract VestingSimpleAdaptor is BaseAdaptor {
 
     //============================================ Strategist Functions ===========================================
     //==================== Strategist Function Specification ====================
-    // Strategist functions are only callable by strategists through the Cellars
-    // `callOnAdaptor` function. A cellar will never call any of these functions,
-    // when a normal user interacts with a cellar(depositing/withdrawing)
+    // Strategist functions are only callable by strategists through the Funds
+    // `callOnAdaptor` function. A fund will never call any of these functions,
+    // when a normal user interacts with a fund(depositing/withdrawing)
     //
     // All strategist functions will be called using delegatecall.
-    // Strategist functions are intentionally "blind" to what positions the cellar
+    // Strategist functions are intentionally "blind" to what positions the fund
     // is currently holding. This allows strategists to enter temporary positions
     // while rebalancing.
     // To mitigate strategist from abusing this and moving funds in untracked
-    // positions, the cellar will enforce a Total Value Locked check that
+    // positions, the fund will enforce a Total Value Locked check that
     // insures TVL has not deviated too much from `callOnAdaptor`.
     //===========================================================================
 
     /**
      * @notice Allows strategists to deposit tokens to the vesting contract. By passing
-     *         a max uint256 for amountToDeposit, the cellar will deposit its entire
+     *         a max uint256 for amountToDeposit, the fund will deposit its entire
      *         balance (appropriate in most cases).
      *
      * @param vestingContract The vesting contract to interact with.
@@ -135,7 +135,7 @@ contract VestingSimpleAdaptor is BaseAdaptor {
     }
 
     /**
-     * @notice Withdraw a single deposit from vesting. This will not affect the cellar's TVL
+     * @notice Withdraw a single deposit from vesting. This will not affect the fund's TVL
      *         because any deposit must already have vested, and will be reported in balanceOf.
      *         Will revert if not enough tokens are available based on amountToWithdraw.
      *
@@ -150,7 +150,7 @@ contract VestingSimpleAdaptor is BaseAdaptor {
 
     /**
      * @notice Withdraw a certain amount of tokens from vesting, from any deposit. This will
-     *         not affect the cellar's TVL because any deposit must already have vested, and
+     *         not affect the fund's TVL because any deposit must already have vested, and
      *         will be reported in balanceOf. Will revert if not enough tokens are available
      *         based on amountToWithdraw.
      *
@@ -163,7 +163,7 @@ contract VestingSimpleAdaptor is BaseAdaptor {
     }
 
     /**
-     * @notice Withdraw all available tokens from vesting. This will not affect the cellar's TVL
+     * @notice Withdraw all available tokens from vesting. This will not affect the fund's TVL
      *         because all withdrawn deposits must already have vested, and will be reported in balanceOf.
      *
      * @param vestingContract The vesting contract to interact with.
@@ -176,10 +176,10 @@ contract VestingSimpleAdaptor is BaseAdaptor {
     //============================================ Helper Functions ===========================================
 
     function _verifyVestingPositionIsUsed(address vestingContract) internal view {
-        // Check that vesting position is setup to be used in the cellar.
+        // Check that vesting position is setup to be used in the fund.
         bytes32 positionHash = keccak256(abi.encode(identifier(), false, abi.encode(vestingContract)));
-        uint32 positionId = Cellar(address(this)).registry().getPositionHashToPositionId(positionHash);
-        if (!Cellar(address(this)).isPositionUsed(positionId))
+        uint32 positionId = Fund(address(this)).registry().getPositionHashToPositionId(positionHash);
+        if (!Fund(address(this)).isPositionUsed(positionId))
             revert VestingSimpleAdaptor__VestingPositionNotUsed(vestingContract);
     }
 }

@@ -12,7 +12,7 @@ import "test/resources/MainnetStarter.t.sol";
 
 import { AdaptorHelperFunctions } from "test/resources/AdaptorHelperFunctions.sol";
 
-contract CellarCompoundTest is MainnetStarterTest, AdaptorHelperFunctions {
+contract FundCompoundTest is MainnetStarterTest, AdaptorHelperFunctions {
     using SafeTransferLib for ERC20;
     using Math for uint256;
     using stdStorage for StdStorage;
@@ -20,7 +20,7 @@ contract CellarCompoundTest is MainnetStarterTest, AdaptorHelperFunctions {
     CTokenAdaptor private cTokenAdaptor;
     VestingSimpleAdaptor private vestingAdaptor;
     VestingSimple private vesting;
-    Cellar private cellar;
+    Fund private fund;
 
     Comptroller private comptroller = Comptroller(0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B);
 
@@ -58,7 +58,7 @@ contract CellarCompoundTest is MainnetStarterTest, AdaptorHelperFunctions {
         settings = PriceRouter.AssetSettings(CHAINLINK_DERIVATIVE, COMP_USD_FEED);
         priceRouter.addAsset(COMP, settings, abi.encode(stor), price);
 
-        // Setup Cellar:
+        // Setup Fund:
         // Add adaptors and positions to the registry.
         registry.trustAdaptor(address(cTokenAdaptor));
         registry.trustAdaptor(address(vestingAdaptor));
@@ -69,36 +69,36 @@ contract CellarCompoundTest is MainnetStarterTest, AdaptorHelperFunctions {
         registry.trustPosition(cUSDCPosition, address(cTokenAdaptor), abi.encode(cUSDC));
         registry.trustPosition(daiVestingPosition, address(vestingAdaptor), abi.encode(vesting));
 
-        string memory cellarName = "Compound Cellar V0.0";
+        string memory fundName = "Compound Fund V0.0";
         uint256 initialDeposit = 1e18;
 
-        cellar = _createCellar(cellarName, DAI, cDAIPosition, abi.encode(0), initialDeposit);
+        fund = _createFund(fundName, DAI, cDAIPosition, abi.encode(0), initialDeposit);
 
-        cellar.setRebalanceDeviation(0.003e18);
-        cellar.addAdaptorToCatalogue(address(cTokenAdaptor));
-        cellar.addAdaptorToCatalogue(address(vestingAdaptor));
-        cellar.addAdaptorToCatalogue(address(swapWithUniswapAdaptor));
+        fund.setRebalanceDeviation(0.003e18);
+        fund.addAdaptorToCatalogue(address(cTokenAdaptor));
+        fund.addAdaptorToCatalogue(address(vestingAdaptor));
+        fund.addAdaptorToCatalogue(address(swapWithUniswapAdaptor));
 
-        cellar.addPositionToCatalogue(daiPosition);
-        cellar.addPositionToCatalogue(usdcPosition);
-        cellar.addPositionToCatalogue(cUSDCPosition);
-        cellar.addPositionToCatalogue(daiVestingPosition);
+        fund.addPositionToCatalogue(daiPosition);
+        fund.addPositionToCatalogue(usdcPosition);
+        fund.addPositionToCatalogue(cUSDCPosition);
+        fund.addPositionToCatalogue(daiVestingPosition);
 
-        cellar.addPosition(1, daiPosition, abi.encode(0), false);
-        cellar.addPosition(1, usdcPosition, abi.encode(0), false);
-        cellar.addPosition(1, cUSDCPosition, abi.encode(0), false);
-        cellar.addPosition(1, daiVestingPosition, abi.encode(0), false);
+        fund.addPosition(1, daiPosition, abi.encode(0), false);
+        fund.addPosition(1, usdcPosition, abi.encode(0), false);
+        fund.addPosition(1, cUSDCPosition, abi.encode(0), false);
+        fund.addPosition(1, daiVestingPosition, abi.encode(0), false);
 
-        DAI.safeApprove(address(cellar), type(uint256).max);
+        DAI.safeApprove(address(fund), type(uint256).max);
     }
 
     function testDeposit(uint256 assets) external {
-        uint256 initialAssets = cellar.totalAssets();
+        uint256 initialAssets = fund.totalAssets();
         assets = bound(assets, 0.1e18, 1_000_000e18);
         deal(address(DAI), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
         assertApproxEqRel(
-            cDAI.balanceOf(address(cellar)).mulDivDown(cDAI.exchangeRateStored(), 1e18),
+            cDAI.balanceOf(address(fund)).mulDivDown(cDAI.exchangeRateStored(), 1e18),
             assets + initialAssets,
             0.001e18,
             "Assets should have been deposited into Compound."
@@ -108,52 +108,52 @@ contract CellarCompoundTest is MainnetStarterTest, AdaptorHelperFunctions {
     function testWithdraw(uint256 assets) external {
         assets = bound(assets, 0.1e18, 1_000_000e18);
         deal(address(DAI), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
         deal(address(DAI), address(this), 0);
-        uint256 amountToWithdraw = cellar.maxWithdraw(address(this));
-        cellar.withdraw(amountToWithdraw, address(this), address(this));
+        uint256 amountToWithdraw = fund.maxWithdraw(address(this));
+        fund.withdraw(amountToWithdraw, address(this), address(this));
 
         assertEq(DAI.balanceOf(address(this)), amountToWithdraw, "Amount withdrawn should equal callers DAI balance.");
     }
 
     function testTotalAssets() external {
-        uint256 initialAssets = cellar.totalAssets();
+        uint256 initialAssets = fund.totalAssets();
         uint256 assets = 1_000e18;
         deal(address(DAI), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
         assertApproxEqRel(
-            cellar.totalAssets(),
+            fund.totalAssets(),
             assets + initialAssets,
             0.0002e18,
             "Total assets should equal assets deposited."
         );
 
         // Swap from DAI to USDC and lend USDC on Compound.
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](3);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](3);
         {
             bytes[] memory adaptorCalls = new bytes[](1);
             adaptorCalls[0] = _createBytesDataToWithdrawFromCompoundV2(cDAI, assets / 2);
-            data[0] = Cellar.AdaptorCall({ adaptor: address(cTokenAdaptor), callData: adaptorCalls });
+            data[0] = Fund.AdaptorCall({ adaptor: address(cTokenAdaptor), callData: adaptorCalls });
         }
         {
             bytes[] memory adaptorCalls = new bytes[](1);
             adaptorCalls[0] = _createBytesDataForSwapWithUniv3(DAI, USDC, 100, assets / 2);
-            data[1] = Cellar.AdaptorCall({ adaptor: address(swapWithUniswapAdaptor), callData: adaptorCalls });
+            data[1] = Fund.AdaptorCall({ adaptor: address(swapWithUniswapAdaptor), callData: adaptorCalls });
         }
         {
             bytes[] memory adaptorCalls = new bytes[](1);
             adaptorCalls[0] = _createBytesDataToLendOnComnpoundV2(cUSDC, type(uint256).max);
-            data[2] = Cellar.AdaptorCall({ adaptor: address(cTokenAdaptor), callData: adaptorCalls });
+            data[2] = Fund.AdaptorCall({ adaptor: address(cTokenAdaptor), callData: adaptorCalls });
         }
 
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
         // Account for 0.1% Swap Fee.
         assets = assets - assets.mulDivDown(0.001e18, 2e18);
         // Make sure Total Assets is reasonable.
         assertApproxEqRel(
-            cellar.totalAssets(),
+            fund.totalAssets(),
             assets + initialAssets,
             0.001e18,
             "Total assets should equal assets deposited minus swap fees."
@@ -161,20 +161,20 @@ contract CellarCompoundTest is MainnetStarterTest, AdaptorHelperFunctions {
     }
 
     function testClaimCompAndVest() external {
-        uint256 initialAssets = cellar.totalAssets();
+        uint256 initialAssets = fund.totalAssets();
         uint256 assets = 10_000e18;
         deal(address(DAI), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
-        // Manipulate Comptroller storage to give Cellar some pending COMP.
+        // Manipulate Comptroller storage to give Fund some pending COMP.
         uint256 compReward = 10e18;
         stdstore
             .target(address(comptroller))
             .sig(comptroller.compAccrued.selector)
-            .with_key(address(cellar))
+            .with_key(address(fund))
             .checked_write(compReward);
 
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](3);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](3);
         // Create data to claim COMP and swap it for USDC.
         address[] memory path = new address[](3);
         path[0] = address(COMP);
@@ -186,7 +186,7 @@ contract CellarCompoundTest is MainnetStarterTest, AdaptorHelperFunctions {
         {
             bytes[] memory adaptorCalls = new bytes[](1);
             adaptorCalls[0] = abi.encodeWithSelector(CTokenAdaptor.claimComp.selector);
-            data[0] = Cellar.AdaptorCall({ adaptor: address(cTokenAdaptor), callData: adaptorCalls });
+            data[0] = Fund.AdaptorCall({ adaptor: address(cTokenAdaptor), callData: adaptorCalls });
         }
 
         {
@@ -198,7 +198,7 @@ contract CellarCompoundTest is MainnetStarterTest, AdaptorHelperFunctions {
                 type(uint256).max,
                 0
             );
-            data[1] = Cellar.AdaptorCall({ adaptor: address(swapWithUniswapAdaptor), callData: adaptorCalls });
+            data[1] = Fund.AdaptorCall({ adaptor: address(swapWithUniswapAdaptor), callData: adaptorCalls });
         }
         {
             bytes[] memory adaptorCalls = new bytes[](1);
@@ -208,18 +208,18 @@ contract CellarCompoundTest is MainnetStarterTest, AdaptorHelperFunctions {
                 vesting,
                 type(uint256).max
             );
-            data[2] = Cellar.AdaptorCall({ adaptor: address(vestingAdaptor), callData: adaptorCalls });
+            data[2] = Fund.AdaptorCall({ adaptor: address(vestingAdaptor), callData: adaptorCalls });
         }
 
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
-        uint256 totalAssets = cellar.totalAssets();
+        uint256 totalAssets = fund.totalAssets();
 
         // Pass time to fully vest the USDC.
         vm.warp(block.timestamp + 1 days / 4);
 
         assertApproxEqRel(
-            cellar.totalAssets(),
+            fund.totalAssets(),
             totalAssets + priceRouter.getValue(COMP, compReward, USDC) + initialAssets,
             0.05e18,
             "New totalAssets should equal previous plus vested USDC."
@@ -227,38 +227,38 @@ contract CellarCompoundTest is MainnetStarterTest, AdaptorHelperFunctions {
     }
 
     function testMaliciousStrategistMovingFundsIntoUntrackedCompoundPosition() external {
-        uint256 initialAssets = cellar.totalAssets();
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        uint256 initialAssets = fund.totalAssets();
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
         {
             adaptorCalls[0] = _createBytesDataToWithdrawFromCompoundV2(cDAI, type(uint256).max);
-            data[0] = Cellar.AdaptorCall({ adaptor: address(cTokenAdaptor), callData: adaptorCalls });
+            data[0] = Fund.AdaptorCall({ adaptor: address(cTokenAdaptor), callData: adaptorCalls });
         }
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
-        // Remove cDAI as a position from Cellar.
-        cellar.setHoldingPosition(daiPosition);
-        cellar.removePosition(0, false);
+        // Remove cDAI as a position from Fund.
+        fund.setHoldingPosition(daiPosition);
+        fund.removePosition(0, false);
 
-        // Add DAI to the Cellar.
+        // Add DAI to the Fund.
         uint256 assets = 100_000e18;
         deal(address(DAI), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
-        uint256 assetsBeforeAttack = cellar.totalAssets();
+        uint256 assetsBeforeAttack = fund.totalAssets();
 
-        // Strategist malicously makes several `callOnAdaptor` calls to lower the Cellars Share Price.
-        data = new Cellar.AdaptorCall[](1);
+        // Strategist malicously makes several `callOnAdaptor` calls to lower the Funds Share Price.
+        data = new Fund.AdaptorCall[](1);
         adaptorCalls = new bytes[](1);
         uint256 amountToLend = assets;
         for (uint8 i; i < 10; i++) {
-            // Choose a value close to the Cellars rebalance deviation limit.
-            amountToLend = cellar.totalAssets().mulDivDown(0.003e18, 1e18);
+            // Choose a value close to the Funds rebalance deviation limit.
+            amountToLend = fund.totalAssets().mulDivDown(0.003e18, 1e18);
             adaptorCalls[0] = _createBytesDataToLendOnComnpoundV2(cDAI, amountToLend);
-            data[0] = Cellar.AdaptorCall({ adaptor: address(cTokenAdaptor), callData: adaptorCalls });
-            cellar.callOnAdaptor(data);
+            data[0] = Fund.AdaptorCall({ adaptor: address(cTokenAdaptor), callData: adaptorCalls });
+            fund.callOnAdaptor(data);
         }
-        uint256 assetsLost = assetsBeforeAttack - cellar.totalAssets();
+        uint256 assetsLost = assetsBeforeAttack - fund.totalAssets();
         assertApproxEqRel(
             assetsLost,
             assets.mulDivDown(0.03e18, 1e18),
@@ -266,22 +266,22 @@ contract CellarCompoundTest is MainnetStarterTest, AdaptorHelperFunctions {
             "Assets Lost should be about 3% of original TVL."
         );
 
-        // Somm Governance sees suspicious rebalances, and temporarily shuts down the cellar.
-        cellar.initiateShutdown();
+        // Somm Governance sees suspicious rebalances, and temporarily shuts down the fund.
+        fund.initiateShutdown();
 
         // Somm Governance revokes old strategists privilages and puts in new strategist.
 
-        // Shut down is lifted, and strategist rebalances cellar back to original value.
-        cellar.liftShutdown();
+        // Shut down is lifted, and strategist rebalances fund back to original value.
+        fund.liftShutdown();
         uint256 amountToWithdraw = assetsLost / 12;
         for (uint8 i; i < 12; i++) {
             adaptorCalls[0] = _createBytesDataToWithdrawFromCompoundV2(cDAI, amountToWithdraw);
-            data[0] = Cellar.AdaptorCall({ adaptor: address(cTokenAdaptor), callData: adaptorCalls });
-            cellar.callOnAdaptor(data);
+            data[0] = Fund.AdaptorCall({ adaptor: address(cTokenAdaptor), callData: adaptorCalls });
+            fund.callOnAdaptor(data);
         }
 
         assertApproxEqRel(
-            cellar.totalAssets(),
+            fund.totalAssets(),
             assets + initialAssets,
             0.001e18,
             "totalAssets should be equal to original assets."
@@ -307,41 +307,41 @@ contract CellarCompoundTest is MainnetStarterTest, AdaptorHelperFunctions {
     }
 
     function testErrorCodeCheck() external {
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
         {
             adaptorCalls[0] = _createBytesDataToWithdrawFromCompoundV2(cDAI, type(uint256).max);
-            data[0] = Cellar.AdaptorCall({ adaptor: address(cTokenAdaptor), callData: adaptorCalls });
+            data[0] = Fund.AdaptorCall({ adaptor: address(cTokenAdaptor), callData: adaptorCalls });
         }
-        cellar.callOnAdaptor(data);
-        // Remove cDAI as a position from Cellar.
-        cellar.setHoldingPosition(daiPosition);
-        cellar.removePosition(0, false);
+        fund.callOnAdaptor(data);
+        // Remove cDAI as a position from Fund.
+        fund.setHoldingPosition(daiPosition);
+        fund.removePosition(0, false);
 
-        // Add DAI to the Cellar.
+        // Add DAI to the Fund.
         uint256 assets = 100_000e18;
         deal(address(DAI), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
-        // Convert cellar assets to USDC.
+        // Convert fund assets to USDC.
         assets = assets.changeDecimals(18, 6);
-        deal(address(DAI), address(cellar), 0);
-        deal(address(USDC), address(cellar), assets);
+        deal(address(DAI), address(fund), 0);
+        deal(address(USDC), address(fund), assets);
 
         // Strategist tries to lend more USDC then they have,
-        data = new Cellar.AdaptorCall[](1);
+        data = new Fund.AdaptorCall[](1);
         adaptorCalls = new bytes[](1);
 
         // Choose an amount too large so deposit fails.
         uint256 amountToLend = assets + 1;
 
         adaptorCalls[0] = _createBytesDataToLendOnComnpoundV2(cUSDC, amountToLend);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(cTokenAdaptor), callData: adaptorCalls });
+        data[0] = Fund.AdaptorCall({ adaptor: address(cTokenAdaptor), callData: adaptorCalls });
 
         vm.expectRevert(
             bytes(abi.encodeWithSelector(CTokenAdaptor.CTokenAdaptor__NonZeroCompoundErrorCode.selector, 13))
         );
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
         // Strategist tries to withdraw more assets then they have.
         adaptorCalls = new bytes[](2);
@@ -350,11 +350,11 @@ contract CellarCompoundTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         adaptorCalls[0] = _createBytesDataToLendOnComnpoundV2(cUSDC, amountToLend);
         adaptorCalls[1] = _createBytesDataToWithdrawFromCompoundV2(cUSDC, amountToWithdraw);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(cTokenAdaptor), callData: adaptorCalls });
+        data[0] = Fund.AdaptorCall({ adaptor: address(cTokenAdaptor), callData: adaptorCalls });
 
         vm.expectRevert(
             bytes(abi.encodeWithSelector(CTokenAdaptor.CTokenAdaptor__NonZeroCompoundErrorCode.selector, 9))
         );
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
     }
 }

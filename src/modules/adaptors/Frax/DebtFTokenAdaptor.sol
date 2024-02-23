@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.21;
 
-import { BaseAdaptor, ERC20, SafeTransferLib, Cellar, PriceRouter, Math } from "src/modules/adaptors/BaseAdaptor.sol";
+import { BaseAdaptor, ERC20, SafeTransferLib, Fund, PriceRouter, Math } from "src/modules/adaptors/BaseAdaptor.sol";
 import { IFToken } from "src/interfaces/external/Frax/IFToken.sol";
 import { FraxlendHealthFactorLogic } from "src/modules/adaptors/Frax/FraxlendHealthFactorLogic.sol";
 
 /**
  * @title FraxLend Debt Token Adaptor
- * @notice Allows Cellars to borrow assets from FraxLend pairs.
+ * @notice Allows Funds to borrow assets from FraxLend pairs.
  * @author crispymangoes, 0xEinCodes
- * NOTE: repayAssetWithCollateral() is not allowed from strategist to call in FraxlendCore for cellar.
+ * NOTE: repayAssetWithCollateral() is not allowed from strategist to call in FraxlendCore for fund.
  */
 contract DebtFTokenAdaptor is BaseAdaptor, FraxlendHealthFactorLogic {
     using SafeTransferLib for ERC20;
@@ -19,7 +19,7 @@ contract DebtFTokenAdaptor is BaseAdaptor, FraxlendHealthFactorLogic {
     // Since there is no way to calculate pending interest for this positions balanceOf,
     // The positions balance is only updated when accounts interact with the
     // Frax Lend pair this position is working with.
-    // This can lead to a divergence from the Cellars share price, and its real value.
+    // This can lead to a divergence from the Funds share price, and its real value.
     // This can be mitigated by calling `callAddInterest` on Frax Lend pairs
     // that are not frequently interacted with.
 
@@ -33,17 +33,17 @@ contract DebtFTokenAdaptor is BaseAdaptor, FraxlendHealthFactorLogic {
     //====================================================================
 
     /**
-     * @notice Attempted to interact with an fraxlendPair the Cellar is not using.
+     * @notice Attempted to interact with an fraxlendPair the Fund is not using.
      */
     error DebtFTokenAdaptor__FraxlendPairPositionsMustBeTracked(address fraxlendPair);
 
     /**
-     * @notice Attempted tx that results in unhealthy cellar
+     * @notice Attempted tx that results in unhealthy fund
      */
     error DebtFTokenAdaptor__HealthFactorTooLow(address fraxlendPair);
 
     /**
-     * @notice Attempted repayment when no debt position in fraxlendPair for cellar
+     * @notice Attempted repayment when no debt position in fraxlendPair for fund
      */
     error DebtFTokenAdaptor__CannotRepayNoDebt(address fraxlendPair);
 
@@ -77,7 +77,7 @@ contract DebtFTokenAdaptor is BaseAdaptor, FraxlendHealthFactorLogic {
     /**
      * @dev Identifier unique to this adaptor for a shared registry.
      * Normally the identifier would just be the address of this contract, but this
-     * Identifier is needed during Cellar Delegate Call Operations, so getting the address
+     * Identifier is needed during Fund Delegate Call Operations, so getting the address
      * of the adaptor is more difficult.
      */
     function identifier() public pure virtual override returns (bytes32) {
@@ -109,7 +109,7 @@ contract DebtFTokenAdaptor is BaseAdaptor, FraxlendHealthFactorLogic {
     }
 
     /**
-     * @notice Returns the cellar's balance of the respective Fraxlend debtToken calculated from cellar borrow shares
+     * @notice Returns the fund's balance of the respective Fraxlend debtToken calculated from fund borrow shares
      * @param adaptorData encoded fraxlendPair (fToken) for this position
      */
     function balanceOf(bytes memory adaptorData) public view override returns (uint256) {
@@ -197,14 +197,14 @@ contract DebtFTokenAdaptor is BaseAdaptor, FraxlendHealthFactorLogic {
     }
 
     /**
-     * @notice Validates that a given fraxlendPair is set up as a position in the Cellar.
+     * @notice Validates that a given fraxlendPair is set up as a position in the Fund.
      * @param _fraxlendPair The specified Fraxlend Pair
-     * @dev This function uses `address(this)` as the address of the Cellar.
+     * @dev This function uses `address(this)` as the address of the Fund.
      */
     function _validateFToken(IFToken _fraxlendPair) internal view {
         bytes32 positionHash = keccak256(abi.encode(identifier(), true, abi.encode(address(_fraxlendPair))));
-        uint32 positionId = Cellar(address(this)).registry().getPositionHashToPositionId(positionHash);
-        if (!Cellar(address(this)).isPositionUsed(positionId))
+        uint32 positionId = Fund(address(this)).registry().getPositionHashToPositionId(positionHash);
+        if (!Fund(address(this)).isPositionUsed(positionId))
             revert DebtFTokenAdaptor__FraxlendPairPositionsMustBeTracked(address(_fraxlendPair));
     }
 
@@ -268,7 +268,7 @@ contract DebtFTokenAdaptor is BaseAdaptor, FraxlendHealthFactorLogic {
     }
 
     /**
-     * @notice Borrow amount of borrowAsset in cellar account within fraxlend pair
+     * @notice Borrow amount of borrowAsset in fund account within fraxlend pair
      * @param _borrowAmount The amount of borrowAsset to borrow
      * @param _fraxlendPair The specified Fraxlend Pair
      */

@@ -10,13 +10,13 @@ import { MockDataFeed } from "src/mocks/MockDataFeed.sol";
 import "test/resources/MainnetStarter.t.sol";
 
 import { AdaptorHelperFunctions } from "test/resources/AdaptorHelperFunctions.sol";
-import { CellarAdaptor } from "src/modules/adaptors/Swaap/CellarAdaptor.sol";
+import { SwaapFundAdaptor } from "src/modules/adaptors/Swaap/SwaapFundAdaptor.sol";
 
-contract CellarDSRTest is MainnetStarterTest, AdaptorHelperFunctions {
+contract FundDSRTest is MainnetStarterTest, AdaptorHelperFunctions {
     using SafeTransferLib for ERC20;
     DSRAdaptor public dsrAdaptor;
 
-    Cellar public cellar;
+    Fund public fund;
     MockDataFeed public mockDaiUsd;
 
     uint256 initialAssets;
@@ -50,43 +50,43 @@ contract CellarDSRTest is MainnetStarterTest, AdaptorHelperFunctions {
         registry.trustPosition(daiPosition, address(erc20Adaptor), abi.encode(DAI));
         registry.trustPosition(dsrPosition, address(dsrAdaptor), abi.encode(0));
 
-        string memory cellarName = "DSR Cellar V0.0";
+        string memory fundName = "DSR Fund V0.0";
         uint256 initialDeposit = 1e18;
 
-        cellar = _createCellar(cellarName, DAI, daiPosition, abi.encode(0), initialDeposit);
+        fund = _createFund(fundName, DAI, daiPosition, abi.encode(0), initialDeposit);
 
-        cellar.addAdaptorToCatalogue(address(dsrAdaptor));
-        cellar.addPositionToCatalogue(dsrPosition);
+        fund.addAdaptorToCatalogue(address(dsrAdaptor));
+        fund.addPositionToCatalogue(dsrPosition);
 
-        cellar.addPosition(0, dsrPosition, abi.encode(0), false);
-        cellar.setHoldingPosition(dsrPosition);
+        fund.addPosition(0, dsrPosition, abi.encode(0), false);
+        fund.setHoldingPosition(dsrPosition);
 
-        DAI.safeApprove(address(cellar), type(uint256).max);
+        DAI.safeApprove(address(fund), type(uint256).max);
 
-        initialAssets = cellar.totalAssets();
+        initialAssets = fund.totalAssets();
     }
 
     function testDeposit(uint256 assets) external {
         assets = bound(assets, 0.1e18, 1_000_000_000e18);
         deal(address(DAI), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
         assertApproxEqAbs(
-            cellar.totalAssets(),
+            fund.totalAssets(),
             initialAssets + assets,
             2,
-            "Cellar totalAssets should equal assets + initial assets"
+            "Fund totalAssets should equal assets + initial assets"
         );
     }
 
     function testWithdraw(uint256 assets) external {
         assets = bound(assets, 0.1e18, 1_000_000_000e18);
         deal(address(DAI), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
-        uint256 maxRedeem = cellar.maxRedeem(address(this));
+        uint256 maxRedeem = fund.maxRedeem(address(this));
 
-        assets = cellar.redeem(maxRedeem, address(this), address(this));
+        assets = fund.redeem(maxRedeem, address(this), address(this));
 
         assertApproxEqAbs(DAI.balanceOf(address(this)), assets, 2, "User should have been sent DAI.");
     }
@@ -94,25 +94,25 @@ contract CellarDSRTest is MainnetStarterTest, AdaptorHelperFunctions {
     function testInterestAccrual(uint256 assets) external {
         assets = bound(assets, 0.1e18, 1_000_000_000e18);
         deal(address(DAI), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
-        console.log("TA", cellar.totalAssets());
+        console.log("TA", fund.totalAssets());
 
-        uint256 assetsBefore = cellar.totalAssets();
+        uint256 assetsBefore = fund.totalAssets();
 
         vm.warp(block.timestamp + 1 days);
         mockDaiUsd.setMockUpdatedAt(block.timestamp);
 
         assertEq(
-            cellar.totalAssets(),
+            fund.totalAssets(),
             assetsBefore,
             "Assets should not have increased because nothing has interacted with dsr."
         );
 
-        uint256 bal = manager.daiBalance(address(cellar));
+        uint256 bal = manager.daiBalance(address(fund));
         assertGt(bal, assets, "Balance should have increased.");
 
-        uint256 assetsAfter = cellar.totalAssets();
+        uint256 assetsAfter = fund.totalAssets();
 
         assertGt(assetsAfter, assetsBefore, "Total Assets should have increased.");
     }
@@ -120,49 +120,49 @@ contract CellarDSRTest is MainnetStarterTest, AdaptorHelperFunctions {
     function testUsersDoNotGetPendingInterest(uint256 assets) external {
         assets = bound(assets, 0.1e18, 1_000_000_000e18);
         deal(address(DAI), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
-        uint256 assetsBefore = cellar.totalAssets();
+        uint256 assetsBefore = fund.totalAssets();
 
         vm.warp(block.timestamp + 1 days);
         mockDaiUsd.setMockUpdatedAt(block.timestamp);
 
         assertEq(
-            cellar.totalAssets(),
+            fund.totalAssets(),
             assetsBefore,
             "Assets should not have increased because nothing has interacted with dsr."
         );
 
-        uint256 maxRedeem = cellar.maxRedeem(address(this));
-        cellar.redeem(maxRedeem, address(this), address(this));
+        uint256 maxRedeem = fund.maxRedeem(address(this));
+        fund.redeem(maxRedeem, address(this), address(this));
 
         assertApproxEqAbs(DAI.balanceOf(address(this)), assets, 3, "Should have sent DAI to the user.");
 
-        uint256 bal = manager.daiBalance(address(cellar));
+        uint256 bal = manager.daiBalance(address(fund));
         assertGt(bal, 0, "Balance should have left pending yield in DSR.");
     }
 
     function testStrategistFunctions(uint256 assets) external {
-        cellar.setHoldingPosition(daiPosition);
+        fund.setHoldingPosition(daiPosition);
 
-        cellar.setRebalanceDeviation(0.005e18);
+        fund.setRebalanceDeviation(0.005e18);
 
         assets = bound(assets, 0.1e18, 1_000_000_000e18);
         deal(address(DAI), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
         // Deposit half the DAI into DSR.
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         {
             bytes[] memory adaptorCalls = new bytes[](1);
             adaptorCalls[0] = _createBytesDataToJoinDsr(assets / 2);
-            data[0] = Cellar.AdaptorCall({ adaptor: address(dsrAdaptor), callData: adaptorCalls });
+            data[0] = Fund.AdaptorCall({ adaptor: address(dsrAdaptor), callData: adaptorCalls });
         }
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
-        uint256 cellarDsrBalance = manager.daiBalance(address(cellar));
+        uint256 fundDsrBalance = manager.daiBalance(address(fund));
 
-        assertApproxEqAbs(cellarDsrBalance, assets / 2, 2, "Should have deposited half the assets into the DSR.");
+        assertApproxEqAbs(fundDsrBalance, assets / 2, 2, "Should have deposited half the assets into the DSR.");
 
         // Advance some time.
         vm.warp(block.timestamp + 1 days);
@@ -172,14 +172,14 @@ contract CellarDSRTest is MainnetStarterTest, AdaptorHelperFunctions {
         {
             bytes[] memory adaptorCalls = new bytes[](1);
             adaptorCalls[0] = _createBytesDataToJoinDsr(type(uint256).max);
-            data[0] = Cellar.AdaptorCall({ adaptor: address(dsrAdaptor), callData: adaptorCalls });
+            data[0] = Fund.AdaptorCall({ adaptor: address(dsrAdaptor), callData: adaptorCalls });
         }
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
         // console.log(Pot(manager.pot()).chi());
 
-        cellarDsrBalance = manager.daiBalance(address(cellar));
-        assertGt(cellarDsrBalance, assets + initialAssets, "Should have deposited all the assets into the DSR.");
+        fundDsrBalance = manager.daiBalance(address(fund));
+        assertGt(fundDsrBalance, assets + initialAssets, "Should have deposited all the assets into the DSR.");
 
         // Advance some time.
         vm.warp(block.timestamp + 10 days);
@@ -189,12 +189,12 @@ contract CellarDSRTest is MainnetStarterTest, AdaptorHelperFunctions {
         {
             bytes[] memory adaptorCalls = new bytes[](1);
             adaptorCalls[0] = _createBytesDataToExitDsr(assets / 2);
-            data[0] = Cellar.AdaptorCall({ adaptor: address(dsrAdaptor), callData: adaptorCalls });
+            data[0] = Fund.AdaptorCall({ adaptor: address(dsrAdaptor), callData: adaptorCalls });
         }
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
         assertApproxEqAbs(
-            DAI.balanceOf(address(cellar)),
+            DAI.balanceOf(address(fund)),
             assets / 2,
             1,
             "Should have withdrawn half the assets from the DSR."
@@ -204,12 +204,12 @@ contract CellarDSRTest is MainnetStarterTest, AdaptorHelperFunctions {
         {
             bytes[] memory adaptorCalls = new bytes[](1);
             adaptorCalls[0] = _createBytesDataToExitDsr(type(uint256).max);
-            data[0] = Cellar.AdaptorCall({ adaptor: address(dsrAdaptor), callData: adaptorCalls });
+            data[0] = Fund.AdaptorCall({ adaptor: address(dsrAdaptor), callData: adaptorCalls });
         }
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
         assertGt(
-            DAI.balanceOf(address(cellar)),
+            DAI.balanceOf(address(fund)),
             assets + initialAssets,
             "Should have withdrawn all the assets from the DSR."
         );
@@ -218,29 +218,29 @@ contract CellarDSRTest is MainnetStarterTest, AdaptorHelperFunctions {
     function testDrip(uint256 assets) external {
         assets = bound(assets, 0.1e18, 1_000_000_000e18);
         deal(address(DAI), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
-        uint256 assetsBefore = cellar.totalAssets();
+        uint256 assetsBefore = fund.totalAssets();
 
         vm.warp(block.timestamp + 1 days);
         mockDaiUsd.setMockUpdatedAt(block.timestamp);
 
         assertEq(
-            cellar.totalAssets(),
+            fund.totalAssets(),
             assetsBefore,
             "Assets should not have increased because nothing has interacted with dsr."
         );
 
         // Strategist calls drip.
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         {
             bytes[] memory adaptorCalls = new bytes[](1);
             adaptorCalls[0] = _createBytesDataToDrip();
-            data[0] = Cellar.AdaptorCall({ adaptor: address(dsrAdaptor), callData: adaptorCalls });
+            data[0] = Fund.AdaptorCall({ adaptor: address(dsrAdaptor), callData: adaptorCalls });
         }
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
-        uint256 assetsAfter = cellar.totalAssets();
+        uint256 assetsAfter = fund.totalAssets();
 
         assertGt(assetsAfter, assetsBefore, "Total Assets should have increased.");
     }

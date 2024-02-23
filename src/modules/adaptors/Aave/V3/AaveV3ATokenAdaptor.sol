@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.21;
 
-import { BaseAdaptor, ERC20, SafeTransferLib, Cellar, PriceRouter, Math } from "src/modules/adaptors/BaseAdaptor.sol";
+import { BaseAdaptor, ERC20, SafeTransferLib, Fund, PriceRouter, Math } from "src/modules/adaptors/BaseAdaptor.sol";
 import { IPoolV3 } from "src/interfaces/external/IPoolV3.sol";
 import { IAaveToken } from "src/interfaces/external/IAaveToken.sol";
 import { IAaveOracle } from "src/interfaces/external/IAaveOracle.sol";
 
 /**
  * @title Aave aToken Adaptor
- * @notice Allows Cellars to interact with Aave aToken positions.
+ * @notice Allows Funds to interact with Aave aToken positions.
  * @author crispymangoes
  */
 contract AaveV3ATokenAdaptor is BaseAdaptor {
@@ -30,13 +30,13 @@ contract AaveV3ATokenAdaptor is BaseAdaptor {
     //      position reverts if a user withdraw lowers health factor below minimum
     //
     // **************************** IMPORTANT ****************************
-    // Cellars with multiple aToken positions MUST only specify minimum
+    // Funds with multiple aToken positions MUST only specify minimum
     // health factor on ONE of the positions. Failing to do so will result
     // in user withdraws temporarily being blocked.
     //====================================================================
 
     /**
-     @notice Attempted withdraw would lower Cellar health factor too low.
+     @notice Attempted withdraw would lower Fund health factor too low.
      */
     error AaveV3ATokenAdaptor__HealthFactorTooLow();
 
@@ -74,7 +74,7 @@ contract AaveV3ATokenAdaptor is BaseAdaptor {
     /**
      * @dev Identifier unique to this adaptor for a shared registry.
      * Normally the identifier would just be the address of this contract, but this
-     * Identifier is needed during Cellar Delegate Call Operations, so getting the address
+     * Identifier is needed during Fund Delegate Call Operations, so getting the address
      * of the adaptor is more difficult.
      */
     function identifier() public pure override returns (bytes32) {
@@ -83,7 +83,7 @@ contract AaveV3ATokenAdaptor is BaseAdaptor {
 
     //============================================ Implement Base Functions ===========================================
     /**
-     * @notice Cellar must approve Pool to spend its assets, then call deposit to lend its assets.
+     * @notice Fund must approve Pool to spend its assets, then call deposit to lend its assets.
      * @param assets the amount of assets to lend on Aave
      * @param adaptorData adaptor data containining the abi encoded aToken
      * @dev configurationData is NOT used because this action will only increase the health factor
@@ -100,9 +100,9 @@ contract AaveV3ATokenAdaptor is BaseAdaptor {
     }
 
     /**
-     @notice Cellars must withdraw from Aave, check if a minimum health factor is specified
+     @notice Funds must withdraw from Aave, check if a minimum health factor is specified
      *       then transfer assets to receiver.
-     * @dev Important to verify that external receivers are allowed if receiver is not Cellar address.
+     * @dev Important to verify that external receivers are allowed if receiver is not Fund address.
      * @param assets the amount of assets to withdraw from Aave
      * @param receiver the address to send withdrawn assets to
      * @param adaptorData adaptor data containining the abi encoded aToken
@@ -123,7 +123,7 @@ contract AaveV3ATokenAdaptor is BaseAdaptor {
 
         (, uint256 totalDebtBase, , , , uint256 healthFactor) = pool.getUserAccountData(address(this));
         if (totalDebtBase > 0) {
-            // If cellar has entered an EMode, and has debt, user withdraws are not allowed.
+            // If fund has entered an EMode, and has debt, user withdraws are not allowed.
             if (pool.getUserEMode(msg.sender) != 0) revert BaseAdaptor__UserWithdrawsNotAllowed();
 
             // Run minimum health factor checks.
@@ -168,10 +168,10 @@ contract AaveV3ATokenAdaptor is BaseAdaptor {
             uint256 healthFactor
         ) = pool.getUserAccountData(msg.sender);
 
-        // If Cellar has no Aave debt, then return the cellars balance of the aToken.
+        // If Fund has no Aave debt, then return the funds balance of the aToken.
         if (totalDebtBase == 0) return ERC20(address(token)).balanceOf(msg.sender);
 
-        // Cellar has Aave debt, so if cellar is entered into a non zero emode, return 0.
+        // Fund has Aave debt, so if fund is entered into a non zero emode, return 0.
         if (pool.getUserEMode(msg.sender) != 0) return 0;
 
         // Otherwise we need to look at minimum health factor.
@@ -205,7 +205,7 @@ contract AaveV3ATokenAdaptor is BaseAdaptor {
         ERC20 underlying = ERC20(token.UNDERLYING_ASSET_ADDRESS());
 
         // Convert `maxBorrowableWithMin` from Base to position underlying asset.
-        PriceRouter priceRouter = Cellar(msg.sender).priceRouter();
+        PriceRouter priceRouter = Fund(msg.sender).priceRouter();
         uint256 underlyingToUSD = priceRouter.getPriceInUSD(underlying);
         uint256 withdrawable = maxBorrowableWithMin.mulDivDown(10 ** underlying.decimals(), underlyingToUSD);
         uint256 balance = ERC20(address(token)).balanceOf(msg.sender);
@@ -214,7 +214,7 @@ contract AaveV3ATokenAdaptor is BaseAdaptor {
     }
 
     /**
-     * @notice Returns the cellars balance of the positions aToken.
+     * @notice Returns the funds balance of the positions aToken.
      */
     function balanceOf(bytes memory adaptorData) public view override returns (uint256) {
         address token = abi.decode(adaptorData, (address));

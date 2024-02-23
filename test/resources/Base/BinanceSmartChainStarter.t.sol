@@ -3,7 +3,7 @@ pragma solidity 0.8.21;
 
 // Import Protocol Resources
 import { Deployer } from "src/Deployer.sol";
-import { Cellar } from "src/base/Cellar.sol";
+import { Fund } from "src/base/Fund.sol";
 import { Registry } from "src/Registry.sol";
 import { PriceRouter } from "src/modules/price-router/PriceRouter.sol";
 
@@ -84,33 +84,33 @@ contract MainnetStarterTest is Test, MainnetAddresses {
         vm.selectFork(forkId);
     }
 
-    function _createCellar(
-        string memory cellarName,
+    function _createFund(
+        string memory fundName,
         ERC20 holdingAsset,
         uint32 holdingPosition,
         bytes memory holdingPositionConfig,
         uint256 initialDeposit
-    ) internal returns (Cellar) {
-        // Approve new cellar to spend assets.
-        address cellarAddress = deployer.getAddress(cellarName);
+    ) internal returns (Fund) {
+        // Approve new fund to spend assets.
+        address fundAddress = deployer.getAddress(fundName);
         deal(address(holdingAsset), address(this), initialDeposit);
-        holdingAsset.approve(cellarAddress, initialDeposit);
+        holdingAsset.approve(fundAddress, initialDeposit);
 
         bytes memory creationCode;
         bytes memory constructorArgs;
-        creationCode = type(Cellar).creationCode;
+        creationCode = type(Fund).creationCode;
         constructorArgs = abi.encode(
             address(this),
             registry,
             holdingAsset,
-            cellarName,
-            cellarName,
+            fundName,
+            fundName,
             holdingPosition,
             holdingPositionConfig,
             initialDeposit,
             type(uint192).max
         );
 
-        return Cellar(deployer.deployContract(cellarName, creationCode, constructorArgs, 0));
+        return Fund(deployer.deployContract(fundName, creationCode, constructorArgs, 0));
     }
 }

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.21;
 
-import "src/base/Cellar.sol";
+import "src/base/Fund.sol";
 
-contract MockCellar is Cellar {
+contract MockFund is Fund {
     constructor(
         address _owner,
         Registry _registry,
@@ -15,7 +15,7 @@ contract MockCellar is Cellar {
         uint256 _initialDeposit,
         uint192 _shareSupplyCap
     )
-        Cellar(
+        Fund(
             _owner,
             _registry,
             _asset,

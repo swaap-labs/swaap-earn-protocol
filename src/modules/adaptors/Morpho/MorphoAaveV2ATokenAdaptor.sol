@@ -9,7 +9,7 @@ import { IAaveToken } from "src/interfaces/external/IAaveToken.sol";
 
 /**
  * @title Morpho Aave V2 aToken Adaptor
- * @notice Allows Cellars to interact with Morpho Aave V2 positions.
+ * @notice Allows Funds to interact with Morpho Aave V2 positions.
  * @author crispymangoes
  */
 contract MorphoAaveV2ATokenAdaptor is BaseAdaptor, MorphoRewardHandler {
@@ -25,14 +25,14 @@ contract MorphoAaveV2ATokenAdaptor is BaseAdaptor, MorphoRewardHandler {
     //====================================================================
 
     /**
-     * @notice Bit mask used to determine if a cellar has any open borrow positions
-     *         by getting the cellar's userMarkets, and performing an AND operation
+     * @notice Bit mask used to determine if a fund has any open borrow positions
+     *         by getting the fund's userMarkets, and performing an AND operation
      *         with the borrow mask.
      */
     bytes32 public constant BORROWING_MASK = 0x5555555555555555555555555555555555555555555555555555555555555555;
 
     /**
-     @notice Attempted withdraw would lower Cellar health factor too low.
+     @notice Attempted withdraw would lower Fund health factor too low.
      */
     error MorphoAaveV2ATokenAdaptor__HealthFactorTooLow();
 
@@ -70,7 +70,7 @@ contract MorphoAaveV2ATokenAdaptor is BaseAdaptor, MorphoRewardHandler {
     /**
      * @dev Identifier unique to this adaptor for a shared registry.
      * Normally the identifier would just be the address of this contract, but this
-     * Identifier is needed during Cellar Delegate Call Operations, so getting the address
+     * Identifier is needed during Fund Delegate Call Operations, so getting the address
      * of the adaptor is more difficult.
      */
     function identifier() public pure override returns (bytes32) {
@@ -79,7 +79,7 @@ contract MorphoAaveV2ATokenAdaptor is BaseAdaptor, MorphoRewardHandler {
 
     //============================================ Implement Base Functions ===========================================
     /**
-     * @notice Cellar must approve Morpho to spend its assets, then call supply to lend its assets.
+     * @notice Fund must approve Morpho to spend its assets, then call supply to lend its assets.
      * @param assets the amount of assets to lend on Morpho
      * @param adaptorData adaptor data containing the abi encoded aToken
      * @dev configurationData is not used for deposits bc it only influences user withdraws
@@ -97,8 +97,8 @@ contract MorphoAaveV2ATokenAdaptor is BaseAdaptor, MorphoRewardHandler {
     }
 
     /**
-     * @notice Cellars must withdraw from Morpho
-     * @dev Important to verify that external receivers are allowed if receiver is not Cellar address.
+     * @notice Funds must withdraw from Morpho
+     * @dev Important to verify that external receivers are allowed if receiver is not Fund address.
      * @param assets the amount of assets to withdraw from Morpho
      * @param receiver the address to send withdrawn assets to
      * @param adaptorData adaptor data containing the abi encoded aToken
@@ -117,7 +117,7 @@ contract MorphoAaveV2ATokenAdaptor is BaseAdaptor, MorphoRewardHandler {
     }
 
     /**
-     * @notice Checks if Cellar has open borrows, and if so returns zero.
+     * @notice Checks if Fund has open borrows, and if so returns zero.
      *         Otherwise returns balanceOf in underlying.
      * @param adaptorData the abi encoded aToken address
      */
@@ -132,7 +132,7 @@ contract MorphoAaveV2ATokenAdaptor is BaseAdaptor, MorphoRewardHandler {
     }
 
     /**
-     * @notice Returns the cellars balance of the positions aToken.
+     * @notice Returns the funds balance of the positions aToken.
      */
     function balanceOf(bytes memory adaptorData) public view override returns (uint256) {
         address aToken = abi.decode(adaptorData, (address));

@@ -5,7 +5,7 @@ import { BaseAdaptor, ERC20, SafeTransferLib } from "src/modules/adaptors/BaseAd
 
 /**
  * @title ERC20 Adaptor
- * @notice Allows Cellars to interact with ERC20 positions.
+ * @notice Allows Funds to interact with ERC20 positions.
  * @author crispymangoes
  */
 contract ERC20DebtAdaptor is BaseAdaptor {
@@ -23,7 +23,7 @@ contract ERC20DebtAdaptor is BaseAdaptor {
     /**
      * @dev Identifier unique to this adaptor for a shared registry.
      * Normally the identifier would just be the address of this contract, but this
-     * Identifier is needed during Cellar Delegate Call Operations, so getting the address
+     * Identifier is needed during Fund Delegate Call Operations, so getting the address
      * of the adaptor is more difficult.
      */
     function identifier() public pure override returns (bytes32) {
@@ -32,14 +32,14 @@ contract ERC20DebtAdaptor is BaseAdaptor {
 
     //============================================ Implement Base Functions ===========================================
     /**
-     * @notice Cellar already has possession of users ERC20 assets by the time this function is called,
+     * @notice Fund already has possession of users ERC20 assets by the time this function is called,
      *         so there is nothing to do.
      */
     function deposit(uint256, bytes memory, bytes memory) public override {}
 
     /**
-     * @notice Cellar just needs to transfer ERC20 token to `receiver`.
-     * @dev Important to verify that external receivers are allowed if receiver is not Cellar address.
+     * @notice Fund just needs to transfer ERC20 token to `receiver`.
+     * @dev Important to verify that external receivers are allowed if receiver is not Fund address.
      * @param assets amount of `token` to send to receiver
      * @param receiver address to send assets to
      * @param adaptorData data needed to withdraw from this position

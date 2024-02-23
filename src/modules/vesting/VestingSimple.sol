@@ -7,9 +7,9 @@ import { ERC20 } from "@solmate/tokens/ERC20.sol";
 import { Math } from "src/utils/Math.sol";
 
 /**
- * @title Cellar Vesting Timelock
+ * @title Fund Vesting Timelock
  * @author Kevin Kennis
- * @notice A contract set as a position in a Swaap cellar, with an adapter,
+ * @notice A contract set as a position in a Swaap fund, with an adapter,
  *         that linearly releases deposited tokens in order to smooth
  *         out sudden TVL increases.
  */

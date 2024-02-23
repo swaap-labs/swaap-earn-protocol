@@ -7,7 +7,7 @@ interface RewardsDistributor {
 
 /**
  * @title Morpho Reward Handler
- * @notice Allows Cellars to claim MORPHO rewards.
+ * @notice Allows Funds to claim MORPHO rewards.
  * @author crispymangoes
  */
 contract MorphoRewardHandler {
@@ -24,7 +24,7 @@ contract MorphoRewardHandler {
     //============================================ Strategist Functions ===========================================
 
     /**
-     * @notice Allows cellars to claim Morpho Rewards.
+     * @notice Allows funds to claim Morpho Rewards.
      */
     function claim(uint256 claimable, bytes32[] memory proof) public {
         morphoRewardsDistributor.claim(address(this), claimable, proof);

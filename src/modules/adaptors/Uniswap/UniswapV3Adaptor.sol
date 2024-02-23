@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.21;
 
-import { BaseAdaptor, ERC20, SafeTransferLib, Cellar, PriceRouter, Registry, Math } from "src/modules/adaptors/BaseAdaptor.sol";
+import { BaseAdaptor, ERC20, SafeTransferLib, Fund, PriceRouter, Registry, Math } from "src/modules/adaptors/BaseAdaptor.sol";
 import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import { INonfungiblePositionManager } from "@uniswapV3P/interfaces/INonfungiblePositionManager.sol";
 import { TickMath } from "@uniswapV3C/libraries/TickMath.sol";
@@ -11,7 +11,7 @@ import { UniswapV3PositionTracker } from "src/modules/adaptors/Uniswap/UniswapV3
 
 /**
  * @title Uniswap V3 Adaptor
- * @notice Allows Cellars to hold and interact with Uniswap V3 LP Positions.
+ * @notice Allows Funds to hold and interact with Uniswap V3 LP Positions.
  * @dev `balanceOf` credited to https://github.com/0xparashar/UniV3NFTOracle/blob/master/contracts/UniV3NFTOracle.sol
  * @author crispymangoes
  */
@@ -30,7 +30,7 @@ contract UniswapV3Adaptor is BaseAdaptor {
     // NOT USED
     // **************************** IMPORTANT ****************************
     // Each UniV3 LP position is defined by `token0`, and `token1`,
-    // so Cellars can theoretically have as many UniV3 LP positions with
+    // so Funds can theoretically have as many UniV3 LP positions with
     // the same underlying as they want(With any ticks, or any fees),
     // but doing so will increase the adaptors `balanceOf` gas cost
     // and is discouraged.
@@ -41,8 +41,8 @@ contract UniswapV3Adaptor is BaseAdaptor {
     //====================================================================
 
     /**
-     * @notice Strategist attempted to interact with a Uniswap V3 position the cellar does not own.
-     * @param tokenId the id of the position the cellar does not own
+     * @notice Strategist attempted to interact with a Uniswap V3 position the fund does not own.
+     * @param tokenId the id of the position the fund does not own
      */
     error UniswapV3Adaptor__NotTheOwner(uint256 tokenId);
 
@@ -85,7 +85,7 @@ contract UniswapV3Adaptor is BaseAdaptor {
     /**
      * @dev Identifier unique to this adaptor for a shared registry.
      * Normally the identifier would just be the address of this contract, but this
-     * Identifier is needed during Cellar Delegate Call Operations, so getting the address
+     * Identifier is needed during Fund Delegate Call Operations, so getting the address
      * of the adaptor is more difficult.
      */
     function identifier() public pure override returns (bytes32) {
@@ -121,15 +121,15 @@ contract UniswapV3Adaptor is BaseAdaptor {
         // Get exchange rate between token0 and token1.
         (ERC20 token0, ERC20 token1) = abi.decode(adaptorData, (ERC20, ERC20));
 
-        // Grab cellars Uniswap V3 positions from tracker.
+        // Grab funds Uniswap V3 positions from tracker.
         uint256[] memory positions = tracker.getTokens(msg.sender, token0, token1);
 
-        // If cellar does not own any UniV3 positions it has no assets in UniV3.
+        // If fund does not own any UniV3 positions it has no assets in UniV3.
         if (positions.length == 0) return 0;
 
         uint256 precisionPrice;
         {
-            PriceRouter priceRouter = Cellar(msg.sender).priceRouter();
+            PriceRouter priceRouter = Fund(msg.sender).priceRouter();
             uint256 baseToUSD = priceRouter.getPriceInUSD(token1);
             uint256 quoteToUSD = priceRouter.getPriceInUSD(token0);
             baseToUSD = baseToUSD * 1e18; // Multiply by 1e18 to keep some precision.
@@ -214,7 +214,7 @@ contract UniswapV3Adaptor is BaseAdaptor {
      * @notice Allows strategist to open up arbritray Uniswap V3 positions.
      * @notice LP positions can be range orders or normal LP positions.
      * @notice If strategist specifies token0 and token1 for a position not properly set up, totalAssets check will revert.
-     *         See Cellar.sol
+     *         See Fund.sol
      * @notice `tickLower`, and `tickUpper` MUST be valid ticks for the given `poolFee`
      *         `tickLower` % pool.tickSpacing() == 0
      *         `tickUpper` % pool.tickSpacing() == 0
@@ -239,7 +239,7 @@ contract UniswapV3Adaptor is BaseAdaptor {
         int24 tickLower,
         int24 tickUpper
     ) public {
-        // Check that Uniswap V3 position is properly set up to be tracked in the Cellar.
+        // Check that Uniswap V3 position is properly set up to be tracked in the Fund.
         _checkUniswapV3PositionIsUsed(token0, token1);
 
         amount0 = _maxAvailable(token0, amount0);
@@ -308,11 +308,11 @@ contract UniswapV3Adaptor is BaseAdaptor {
         ERC20 token0 = ERC20(t0);
         ERC20 token1 = ERC20(t1);
 
-        // Make sure position is in tracker, otherwise outside user sent it to the cellar so revert.
+        // Make sure position is in tracker, otherwise outside user sent it to the fund so revert.
         if (!tracker.checkIfPositionIsInTracker(address(this), tokenId, token0, token1))
             revert UniswapV3Adaptor__TokenIdNotFoundInTracker(tokenId);
 
-        // Check that Uniswap V3 position is properly set up to be tracked in the Cellar.
+        // Check that Uniswap V3 position is properly set up to be tracked in the Fund.
         _checkUniswapV3PositionIsUsed(token0, token1);
 
         amount0 = _maxAvailable(token0, amount0);
@@ -404,10 +404,10 @@ contract UniswapV3Adaptor is BaseAdaptor {
     }
 
     /**
-     * @notice Allows strategist to remove tracked positions that are not owned by the cellar.
+     * @notice Allows strategist to remove tracked positions that are not owned by the fund.
      *         In order for this situation to happen then an exploit needs to be found where UniV3
-     *         NFTs can be transferred out of the cellar during rebalance calls, so it is unlikely.
-     * @dev Reverts if tokenId is owned by cellar, or if tokenId is not in tracked array.
+     *         NFTs can be transferred out of the fund during rebalance calls, so it is unlikely.
+     * @dev Reverts if tokenId is owned by fund, or if tokenId is not in tracked array.
      */
     function removeUnOwnedPositionFromTracker(uint256 tokenId, ERC20 token0, ERC20 token1) public {
         tracker.removePositionFromArrayThatIsNotOwnedByCaller(tokenId, token0, token1);
@@ -427,21 +427,21 @@ contract UniswapV3Adaptor is BaseAdaptor {
     }
 
     /**
-     * @notice Checks that given `tokenId` exists, and is owned by the cellar.
+     * @notice Checks that given `tokenId` exists, and is owned by the fund.
      */
     function _checkTokenId(uint256 tokenId) internal view {
-        // Make sure the cellar owns this tokenId. Also checks the tokenId exists.
+        // Make sure the fund owns this tokenId. Also checks the tokenId exists.
         if (positionManager.ownerOf(tokenId) != address(this)) revert UniswapV3Adaptor__NotTheOwner(tokenId);
     }
 
     /**
-     * @notice Check if token0 and token1 correspond to a UniswapV3 Cellar position.
+     * @notice Check if token0 and token1 correspond to a UniswapV3 Fund position.
      */
     function _checkUniswapV3PositionIsUsed(ERC20 token0, ERC20 token1) internal view {
-        // Check that Uniswap V3 position is properly set up to be tracked in the Cellar.
+        // Check that Uniswap V3 position is properly set up to be tracked in the Fund.
         bytes32 positionHash = keccak256(abi.encode(identifier(), false, abi.encode(token0, token1)));
-        uint32 registryPositionId = Cellar(address(this)).registry().getPositionHashToPositionId(positionHash);
-        if (!Cellar(address(this)).isPositionUsed(registryPositionId))
+        uint32 registryPositionId = Fund(address(this)).registry().getPositionHashToPositionId(positionHash);
+        if (!Fund(address(this)).isPositionUsed(registryPositionId))
             revert UniswapV3Adaptor__UntrackedLiquidity(address(token0), address(token1));
     }
 

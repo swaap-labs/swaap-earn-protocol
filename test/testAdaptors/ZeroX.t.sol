@@ -9,14 +9,14 @@ import "test/resources/MainnetStarter.t.sol";
 
 import { AdaptorHelperFunctions } from "test/resources/AdaptorHelperFunctions.sol";
 
-contract CellarZeroXTest is MainnetStarterTest, AdaptorHelperFunctions {
+contract FundZeroXTest is MainnetStarterTest, AdaptorHelperFunctions {
     using SafeTransferLib for ERC20;
     using Math for uint256;
     using stdStorage for StdStorage;
 
     ZeroXAdaptor private zeroXAdaptor;
     MockZeroXAdaptor private mockZeroXAdaptor;
-    Cellar private cellar;
+    Fund private fund;
 
     uint32 private usdcPosition = 1;
     uint32 private wethPosition = 2;
@@ -53,7 +53,7 @@ contract CellarZeroXTest is MainnetStarterTest, AdaptorHelperFunctions {
         settings = PriceRouter.AssetSettings(CHAINLINK_DERIVATIVE, USDC_USD_FEED);
         priceRouter.addAsset(USDC, settings, abi.encode(stor), price);
 
-        // Setup Cellar:
+        // Setup Fund:
 
         // Add adaptors and positions to the registry.
         registry.trustAdaptor(address(zeroXAdaptor));
@@ -62,59 +62,59 @@ contract CellarZeroXTest is MainnetStarterTest, AdaptorHelperFunctions {
         registry.trustPosition(usdcPosition, address(erc20Adaptor), abi.encode(USDC));
         registry.trustPosition(wethPosition, address(erc20Adaptor), abi.encode(WETH));
 
-        string memory cellarName = "0x Cellar V0.0";
+        string memory fundName = "0x Fund V0.0";
         uint256 initialDeposit = 1e6;
 
-        cellar = _createCellar(cellarName, USDC, usdcPosition, abi.encode(0), initialDeposit);
+        fund = _createFund(fundName, USDC, usdcPosition, abi.encode(0), initialDeposit);
 
-        cellar.addAdaptorToCatalogue(address(zeroXAdaptor));
-        cellar.addAdaptorToCatalogue(address(mockZeroXAdaptor));
+        fund.addAdaptorToCatalogue(address(zeroXAdaptor));
+        fund.addAdaptorToCatalogue(address(mockZeroXAdaptor));
 
-        cellar.addPositionToCatalogue(wethPosition);
-        cellar.addPosition(1, wethPosition, abi.encode(0), false);
+        fund.addPositionToCatalogue(wethPosition);
+        fund.addPosition(1, wethPosition, abi.encode(0), false);
 
-        cellar.setRebalanceDeviation(0.01e18);
+        fund.setRebalanceDeviation(0.01e18);
 
-        USDC.safeApprove(address(cellar), type(uint256).max);
+        USDC.safeApprove(address(fund), type(uint256).max);
     }
 
     function test0xSwap() external {
-        uint256 initialAssets = cellar.totalAssets();
-        // Deposit into Cellar.
+        uint256 initialAssets = fund.totalAssets();
+        // Deposit into Fund.
         uint256 assets = 1_000_000e6;
         deal(address(USDC), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
         {
-            Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+            Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
             bytes[] memory adaptorCalls = new bytes[](1);
             adaptorCalls[0] = _createBytesDataToSwap(USDC, WETH, assets, swapCallData);
 
-            data[0] = Cellar.AdaptorCall({ adaptor: address(zeroXAdaptor), callData: adaptorCalls });
-            cellar.callOnAdaptor(data);
+            data[0] = Fund.AdaptorCall({ adaptor: address(zeroXAdaptor), callData: adaptorCalls });
+            fund.callOnAdaptor(data);
         }
 
-        assertEq(USDC.balanceOf(address(cellar)), initialAssets, "Cellar USDC should have been converted into WETH.");
+        assertEq(USDC.balanceOf(address(fund)), initialAssets, "Fund USDC should have been converted into WETH.");
         uint256 expectedWETH = priceRouter.getValue(USDC, assets, WETH);
         assertApproxEqRel(
-            WETH.balanceOf(address(cellar)),
+            WETH.balanceOf(address(fund)),
             expectedWETH,
             0.01e18,
-            "Cellar WETH should be approximately equal to expected."
+            "Fund WETH should be approximately equal to expected."
         );
     }
 
     function testSlippageChecks() external {
-        // Deposit into Cellar.
+        // Deposit into Fund.
         uint256 assets = 1_000_000e6;
         deal(address(USDC), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
         ERC20 from;
         ERC20 to;
         uint256 fromAmount;
         bytes memory slippageSwapData;
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
 
         // Make a swap where both assets are supported by the price router, and slippage is good.
@@ -131,11 +131,11 @@ contract CellarZeroXTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         // Make the swap.
         adaptorCalls[0] = _createBytesDataToSwap(from, to, fromAmount, slippageSwapData);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(mockZeroXAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(mockZeroXAdaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
 
-        // This test does not spend cellars approval, but check it is still zero.
-        assertEq(USDC.allowance(address(cellar), address(this)), 0, "Approval should have been revoked.");
+        // This test does not spend funds approval, but check it is still zero.
+        assertEq(USDC.allowance(address(fund), address(this)), 0, "Approval should have been revoked.");
 
         // Make the same swap, but have the slippage check fail.
         slippageSwapData = abi.encodeWithSignature(
@@ -148,9 +148,9 @@ contract CellarZeroXTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         // Make the swap.
         adaptorCalls[0] = _createBytesDataToSwap(from, to, fromAmount, slippageSwapData);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(mockZeroXAdaptor), callData: adaptorCalls });
+        data[0] = Fund.AdaptorCall({ adaptor: address(mockZeroXAdaptor), callData: adaptorCalls });
         vm.expectRevert(bytes(abi.encodeWithSelector(BaseAdaptor.BaseAdaptor__Slippage.selector)));
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
         // Try making a swap where the from `asset` is supported, but the `to` asset is not.
         from = USDC;
@@ -164,17 +164,17 @@ contract CellarZeroXTest is MainnetStarterTest, AdaptorHelperFunctions {
             0.99e4
         );
         adaptorCalls[0] = _createBytesDataToSwap(from, to, fromAmount, slippageSwapData);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(mockZeroXAdaptor), callData: adaptorCalls });
+        data[0] = Fund.AdaptorCall({ adaptor: address(mockZeroXAdaptor), callData: adaptorCalls });
         vm.expectRevert(
             bytes(abi.encodeWithSelector(BaseAdaptor.BaseAdaptor__PricingNotSupported.selector, address(1)))
         );
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
         // Make a swap where the `from` asset is not supported.
         from = DAI;
         to = USDC;
         fromAmount = 1_000e18;
-        deal(address(DAI), address(cellar), fromAmount);
+        deal(address(DAI), address(fund), fromAmount);
         slippageSwapData = abi.encodeWithSignature(
             "slippageSwap(address,address,uint256,uint32)",
             from,
@@ -183,8 +183,8 @@ contract CellarZeroXTest is MainnetStarterTest, AdaptorHelperFunctions {
             0.99e4
         );
         adaptorCalls[0] = _createBytesDataToSwap(from, to, fromAmount, slippageSwapData);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(mockZeroXAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(mockZeroXAdaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
 
         // Demonstrate that multiple swaps back to back can max out slippage and still work.
         from = USDC;
@@ -200,8 +200,8 @@ contract CellarZeroXTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         adaptorCalls = new bytes[](10);
         for (uint256 i; i < 10; ++i) adaptorCalls[i] = _createBytesDataToSwap(from, to, fromAmount, slippageSwapData);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(mockZeroXAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(mockZeroXAdaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
 
         // Above rebalance works, but this attack vector will be mitigated on the steward side, by flagging suspicious rebalances,
         // such as the one above.

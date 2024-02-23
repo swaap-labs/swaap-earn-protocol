@@ -10,7 +10,7 @@ import { IBalancerRelayer } from "src/interfaces/external/Balancer/IBalancerRela
 import { MockBalancerPoolAdaptor } from "src/mocks/adaptors/MockBalancerPoolAdaptor.sol";
 import { BalancerStablePoolExtension } from "src/modules/price-router/Extensions/Balancer/BalancerStablePoolExtension.sol";
 import { WstEthExtension } from "src/modules/price-router/Extensions/Lido/WstEthExtension.sol";
-import { CellarWithBalancerFlashLoans } from "src/base/permutations/CellarWithBalancerFlashLoans.sol";
+import { FundWithBalancerFlashLoans } from "src/base/permutations/FundWithBalancerFlashLoans.sol";
 import { IUniswapV3Pool } from "@uniswapV3C/interfaces/IUniswapV3Pool.sol";
 
 // Import Everything from Starter file.
@@ -30,8 +30,8 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
     BalancerStablePoolExtension private balancerStablePoolExtension;
     WstEthExtension private wstethExtension;
 
-    CellarWithBalancerFlashLoans private cellar;
-    CellarWithBalancerFlashLoans private wethCellar;
+    FundWithBalancerFlashLoans private fund;
+    FundWithBalancerFlashLoans private wethFund;
 
     uint32 private usdcPosition = 1;
     uint32 private daiPosition = 2;
@@ -134,7 +134,7 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
         settings = PriceRouter.AssetSettings(EXTENSION_DERIVATIVE, address(balancerStablePoolExtension));
         priceRouter.addAsset(wstETH_bbaWETH, settings, abi.encode(extensionStor), 1.787e11);
 
-        // Setup Cellar:
+        // Setup Fund:
         registry.trustAdaptor(address(balancerPoolAdaptor));
         registry.trustAdaptor(address(mockBalancerPoolAdaptor));
 
@@ -159,298 +159,296 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
             abi.encode(address(wstETH_bbaWETH), wstETH_bbaWETH_GAUGE_ADDRESS)
         );
 
-        string memory cellarName = "Balancer Cellar V0.0";
+        string memory fundName = "Balancer Fund V0.0";
         uint256 initialDeposit = 1e6;
 
-        // Approve new cellar to spend assets.
-        address cellarAddress = deployer.getAddress(cellarName);
+        // Approve new fund to spend assets.
+        address fundAddress = deployer.getAddress(fundName);
         deal(address(USDC), address(this), initialDeposit);
-        USDC.approve(cellarAddress, initialDeposit);
+        USDC.approve(fundAddress, initialDeposit);
 
-        bytes memory creationCode = type(CellarWithBalancerFlashLoans).creationCode;
+        bytes memory creationCode = type(FundWithBalancerFlashLoans).creationCode;
         bytes memory constructorArgs = abi.encode(
             address(this),
             registry,
             USDC,
-            cellarName,
-            cellarName,
+            fundName,
+            fundName,
             usdcPosition,
             abi.encode(0),
             initialDeposit,
             type(uint192).max,
             vault
         );
-        cellar = CellarWithBalancerFlashLoans(deployer.deployContract(cellarName, creationCode, constructorArgs, 0));
+        fund = FundWithBalancerFlashLoans(deployer.deployContract(fundName, creationCode, constructorArgs, 0));
 
-        cellar.addAdaptorToCatalogue(address(balancerPoolAdaptor));
-        cellar.addAdaptorToCatalogue(address(erc20Adaptor));
-        cellar.addAdaptorToCatalogue(address(mockBalancerPoolAdaptor));
-        cellar.addAdaptorToCatalogue(address(swapWithUniswapAdaptor));
+        fund.addAdaptorToCatalogue(address(balancerPoolAdaptor));
+        fund.addAdaptorToCatalogue(address(erc20Adaptor));
+        fund.addAdaptorToCatalogue(address(mockBalancerPoolAdaptor));
+        fund.addAdaptorToCatalogue(address(swapWithUniswapAdaptor));
 
-        USDC.safeApprove(address(cellar), type(uint256).max);
+        USDC.safeApprove(address(fund), type(uint256).max);
 
-        cellar.setRebalanceDeviation(0.005e18);
-        cellar.addPositionToCatalogue(daiPosition);
-        cellar.addPositionToCatalogue(usdtPosition);
-        cellar.addPositionToCatalogue(bbaUSDPosition);
-        cellar.addPositionToCatalogue(vanillaBbaUSDPosition);
+        fund.setRebalanceDeviation(0.005e18);
+        fund.addPositionToCatalogue(daiPosition);
+        fund.addPositionToCatalogue(usdtPosition);
+        fund.addPositionToCatalogue(bbaUSDPosition);
+        fund.addPositionToCatalogue(vanillaBbaUSDPosition);
 
-        cellar.addPosition(0, bbaUSDPosition, abi.encode(0), false);
-        cellar.addPosition(0, vanillaBbaUSDPosition, abi.encode(0), false);
-        cellar.addPosition(0, daiPosition, abi.encode(0), false);
-        cellar.addPosition(0, usdtPosition, abi.encode(0), false);
+        fund.addPosition(0, bbaUSDPosition, abi.encode(0), false);
+        fund.addPosition(0, vanillaBbaUSDPosition, abi.encode(0), false);
+        fund.addPosition(0, daiPosition, abi.encode(0), false);
+        fund.addPosition(0, usdtPosition, abi.encode(0), false);
 
-        // Deploy WETH cellar.
-        cellarName = "WETH Balancer Cellar V0.0";
+        // Deploy WETH fund.
+        fundName = "WETH Balancer Fund V0.0";
         initialDeposit = 1e6;
 
-        // Approve new cellar to spend assets.
-        cellarAddress = deployer.getAddress(cellarName);
+        // Approve new fund to spend assets.
+        fundAddress = deployer.getAddress(fundName);
         deal(address(WETH), address(this), initialDeposit);
-        WETH.approve(cellarAddress, initialDeposit);
+        WETH.approve(fundAddress, initialDeposit);
 
-        creationCode = type(CellarWithBalancerFlashLoans).creationCode;
+        creationCode = type(FundWithBalancerFlashLoans).creationCode;
         constructorArgs = abi.encode(
             address(this),
             registry,
             WETH,
-            cellarName,
-            cellarName,
+            fundName,
+            fundName,
             wethPosition,
             abi.encode(0),
             initialDeposit,
             type(uint192).max,
             vault
         );
-        wethCellar = CellarWithBalancerFlashLoans(
-            deployer.deployContract(cellarName, creationCode, constructorArgs, 0)
-        );
+        wethFund = FundWithBalancerFlashLoans(deployer.deployContract(fundName, creationCode, constructorArgs, 0));
 
-        wethCellar.addAdaptorToCatalogue(address(balancerPoolAdaptor));
-        wethCellar.addAdaptorToCatalogue(address(erc20Adaptor));
-        wethCellar.addAdaptorToCatalogue(address(mockBalancerPoolAdaptor));
+        wethFund.addAdaptorToCatalogue(address(balancerPoolAdaptor));
+        wethFund.addAdaptorToCatalogue(address(erc20Adaptor));
+        wethFund.addAdaptorToCatalogue(address(mockBalancerPoolAdaptor));
 
-        WETH.safeApprove(address(wethCellar), type(uint256).max);
+        WETH.safeApprove(address(wethFund), type(uint256).max);
 
-        wethCellar.setRebalanceDeviation(0.005e18);
-        wethCellar.addPositionToCatalogue(wstETHPosition);
-        wethCellar.addPositionToCatalogue(wstETH_bbaWETHPosition);
+        wethFund.setRebalanceDeviation(0.005e18);
+        wethFund.addPositionToCatalogue(wstETHPosition);
+        wethFund.addPositionToCatalogue(wstETH_bbaWETHPosition);
 
-        wethCellar.addPosition(0, wstETHPosition, abi.encode(0), false);
-        wethCellar.addPosition(0, wstETH_bbaWETHPosition, abi.encode(0), false);
+        wethFund.addPosition(0, wstETHPosition, abi.encode(0), false);
+        wethFund.addPosition(0, wstETH_bbaWETHPosition, abi.encode(0), false);
 
-        initialAssets = cellar.totalAssets();
+        initialAssets = fund.totalAssets();
     }
 
     // ========================================= HAPPY PATH TESTS =========================================
 
     function testTotalAssets(uint256 assets) external {
-        // User Joins Cellar.
+        // User Joins Fund.
         assets = bound(assets, 0.1e6, 1_000_000e6);
         deal(address(USDC), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
         // Simulate strategist pool join.
-        _simulatePoolJoin(address(cellar), USDC, assets, BB_A_USD);
+        _simulatePoolJoin(address(fund), USDC, assets, BB_A_USD);
         assertApproxEqAbs(
-            cellar.totalAssets(),
+            fund.totalAssets(),
             assets + initialAssets,
             10,
-            "Cellar totalAssets should approximately equal assets."
+            "Fund totalAssets should approximately equal assets."
         );
 
         // Simulate strategist stakes all their BPTs.
-        uint256 bbAUsdBalance = BB_A_USD.balanceOf(address(cellar));
-        _simulateBptStake(address(cellar), BB_A_USD, bbAUsdBalance, BB_A_USD_GAUGE);
+        uint256 bbAUsdBalance = BB_A_USD.balanceOf(address(fund));
+        _simulateBptStake(address(fund), BB_A_USD, bbAUsdBalance, BB_A_USD_GAUGE);
         assertApproxEqAbs(
-            cellar.totalAssets(),
+            fund.totalAssets(),
             assets + initialAssets,
             10,
-            "Cellar totalAssets should approximately equal assets."
+            "Fund totalAssets should approximately equal assets."
         );
 
         // Simulate strategist unstaking half their BPTs.
-        _simulateBptUnStake(address(cellar), BB_A_USD, bbAUsdBalance / 2, BB_A_USD_GAUGE);
+        _simulateBptUnStake(address(fund), BB_A_USD, bbAUsdBalance / 2, BB_A_USD_GAUGE);
         assertApproxEqAbs(
-            cellar.totalAssets(),
+            fund.totalAssets(),
             assets + initialAssets,
             10,
-            "Cellar totalAssets should approximately equal assets."
+            "Fund totalAssets should approximately equal assets."
         );
 
         // Simulate strategist full unstake, and exit.
-        bbAUsdBalance = BB_A_USD_GAUGE.balanceOf(address(cellar));
-        _simulateBptUnStake(address(cellar), BB_A_USD, bbAUsdBalance, BB_A_USD_GAUGE);
-        bbAUsdBalance = BB_A_USD.balanceOf(address(cellar));
-        _simulatePoolExit(address(cellar), BB_A_USD, bbAUsdBalance, USDC);
+        bbAUsdBalance = BB_A_USD_GAUGE.balanceOf(address(fund));
+        _simulateBptUnStake(address(fund), BB_A_USD, bbAUsdBalance, BB_A_USD_GAUGE);
+        bbAUsdBalance = BB_A_USD.balanceOf(address(fund));
+        _simulatePoolExit(address(fund), BB_A_USD, bbAUsdBalance, USDC);
         assertApproxEqAbs(
-            cellar.totalAssets(),
+            fund.totalAssets(),
             assets + initialAssets,
             10,
-            "Cellar totalAssets should approximately equal assets."
+            "Fund totalAssets should approximately equal assets."
         );
 
-        // At this point Cellar should hold approximately assets of USDC, and no bpts or guage bpts.
+        // At this point Fund should hold approximately assets of USDC, and no bpts or guage bpts.
         assertApproxEqAbs(
-            USDC.balanceOf(address(cellar)),
+            USDC.balanceOf(address(fund)),
             assets + initialAssets,
             10,
-            "Cellar should be holding assets amount of USDC."
+            "Fund should be holding assets amount of USDC."
         );
-        assertEq(BB_A_USD.balanceOf(address(cellar)), 0, "Cellar should have no BB_A_USD.");
-        assertEq(BB_A_USD_GAUGE.balanceOf(address(cellar)), 0, "Cellar should have no BB_A_USD_GAUGE.");
+        assertEq(BB_A_USD.balanceOf(address(fund)), 0, "Fund should have no BB_A_USD.");
+        assertEq(BB_A_USD_GAUGE.balanceOf(address(fund)), 0, "Fund should have no BB_A_USD_GAUGE.");
     }
 
     function testStakeBpt(uint256 assets) external {
         assets = bound(assets, 0.1e6, 1_000_000e6);
         uint256 bptAmount = priceRouter.getValue(USDC, assets, BB_A_USD);
-        // User Joins Cellar.
+        // User Joins Fund.
         deal(address(USDC), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
-        // Use deal to mint cellar Bpts.
-        deal(address(USDC), address(cellar), 0);
-        deal(address(BB_A_USD), address(cellar), bptAmount);
+        // Use deal to mint fund Bpts.
+        deal(address(USDC), address(fund), 0);
+        deal(address(BB_A_USD), address(fund), bptAmount);
 
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
         adaptorCalls[0] = _createBytesDataToStakeBpts(address(BB_A_USD), address(BB_A_USD_GAUGE), bptAmount);
 
-        data[0] = Cellar.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
 
-        assertApproxEqRel(cellar.totalAssets(), assets, 0.01e18, "Cellar totalAssets should equal assets.");
+        assertApproxEqRel(fund.totalAssets(), assets, 0.01e18, "Fund totalAssets should equal assets.");
 
-        // Make sure cellar actually staked into gauge.
-        assertEq(BB_A_USD_GAUGE.balanceOf(address(cellar)), bptAmount, "Cellar should have staked into guage.");
+        // Make sure fund actually staked into gauge.
+        assertEq(BB_A_USD_GAUGE.balanceOf(address(fund)), bptAmount, "Fund should have staked into guage.");
     }
 
     function testStakeUint256Max(uint256 assets) external {
         assets = bound(assets, 0.1e6, 1_000_000e6);
         uint256 bptAmount = priceRouter.getValue(USDC, assets, BB_A_USD);
-        // User Joins Cellar.
+        // User Joins Fund.
         deal(address(USDC), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
-        // Use deal to mint cellar Bpts.
-        deal(address(USDC), address(cellar), 0);
-        deal(address(BB_A_USD), address(cellar), bptAmount);
+        // Use deal to mint fund Bpts.
+        deal(address(USDC), address(fund), 0);
+        deal(address(BB_A_USD), address(fund), bptAmount);
 
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
         adaptorCalls[0] = _createBytesDataToStakeBpts(address(BB_A_USD), address(BB_A_USD_GAUGE), type(uint256).max);
 
-        data[0] = Cellar.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
 
-        assertApproxEqRel(cellar.totalAssets(), assets, 0.01e18, "Cellar totalAssets should equal assets.");
+        assertApproxEqRel(fund.totalAssets(), assets, 0.01e18, "Fund totalAssets should equal assets.");
 
-        // Make sure cellar actually staked into gauge.
-        assertEq(BB_A_USD_GAUGE.balanceOf(address(cellar)), bptAmount, "Cellar should have staked into guage.");
+        // Make sure fund actually staked into gauge.
+        assertEq(BB_A_USD_GAUGE.balanceOf(address(fund)), bptAmount, "Fund should have staked into guage.");
     }
 
     function testUnstakeBpt(uint256 assets) external {
         assets = bound(assets, 0.1e6, 1_000_000e6);
         uint256 bptAmount = priceRouter.getValue(USDC, assets, BB_A_USD);
-        // User Joins Cellar.
+        // User Joins Fund.
         deal(address(USDC), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
-        // Use deal to mint cellar Gauge Bpts.
-        deal(address(USDC), address(cellar), 0);
-        deal(address(BB_A_USD_GAUGE), address(cellar), bptAmount);
+        // Use deal to mint fund Gauge Bpts.
+        deal(address(USDC), address(fund), 0);
+        deal(address(BB_A_USD_GAUGE), address(fund), bptAmount);
 
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
         adaptorCalls[0] = _createBytesDataToUnstakeBpts(address(BB_A_USD), address(BB_A_USD_GAUGE), bptAmount);
 
-        data[0] = Cellar.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
 
-        assertApproxEqRel(cellar.totalAssets(), assets, 0.01e18, "Cellar totalAssets should equal assets.");
+        assertApproxEqRel(fund.totalAssets(), assets, 0.01e18, "Fund totalAssets should equal assets.");
 
-        // Make sure cellar actually staked into gauge.
-        assertEq(BB_A_USD.balanceOf(address(cellar)), bptAmount, "Cellar should have unstaked from guage.");
+        // Make sure fund actually staked into gauge.
+        assertEq(BB_A_USD.balanceOf(address(fund)), bptAmount, "Fund should have unstaked from guage.");
     }
 
     function testUnstakeUint256Max(uint256 assets) external {
         assets = bound(assets, 0.1e6, 1_000_000e6);
         uint256 bptAmount = priceRouter.getValue(USDC, assets, BB_A_USD);
-        // User Joins Cellar.
+        // User Joins Fund.
         deal(address(USDC), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
-        // Use deal to mint cellar Gauge Bpts.
-        deal(address(USDC), address(cellar), 0);
-        deal(address(BB_A_USD_GAUGE), address(cellar), bptAmount);
+        // Use deal to mint fund Gauge Bpts.
+        deal(address(USDC), address(fund), 0);
+        deal(address(BB_A_USD_GAUGE), address(fund), bptAmount);
 
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
         adaptorCalls[0] = _createBytesDataToUnstakeBpts(address(BB_A_USD), address(BB_A_USD_GAUGE), type(uint256).max);
 
-        data[0] = Cellar.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
 
-        assertApproxEqRel(cellar.totalAssets(), assets, 0.01e18, "Cellar totalAssets should equal assets.");
+        assertApproxEqRel(fund.totalAssets(), assets, 0.01e18, "Fund totalAssets should equal assets.");
 
-        // Make sure cellar actually staked into gauge.
-        assertEq(BB_A_USD.balanceOf(address(cellar)), bptAmount, "Cellar should have unstaked from guage.");
+        // Make sure fund actually staked into gauge.
+        assertEq(BB_A_USD.balanceOf(address(fund)), bptAmount, "Fund should have unstaked from guage.");
     }
 
     function testClaimRewards() external {
         uint256 assets = 1_000_000e6;
         uint256 bptAmount = priceRouter.getValue(USDC, assets, BB_A_USD);
-        // User Joins Cellar.
+        // User Joins Fund.
         deal(address(USDC), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
-        // Use deal to mint cellar Bpts.
-        deal(address(USDC), address(cellar), 0);
-        deal(address(BB_A_USD), address(cellar), bptAmount);
+        // Use deal to mint fund Bpts.
+        deal(address(USDC), address(fund), 0);
+        deal(address(BB_A_USD), address(fund), bptAmount);
 
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
         adaptorCalls[0] = _createBytesDataToStakeBpts(address(BB_A_USD), address(BB_A_USD_GAUGE), bptAmount);
 
-        data[0] = Cellar.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
 
-        // Now that cellar is in gauge, wait for awards to accrue.
+        // Now that fund is in gauge, wait for awards to accrue.
         vm.warp(block.timestamp + (1 days / 4));
 
         // Strategist claims rewards.
         adaptorCalls[0] = _createBytesDataToClaimBalancerRewards(address(BB_A_USD_GAUGE));
 
-        data[0] = Cellar.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
 
-        uint256 cellarBALBalance = BAL.balanceOf(address(cellar));
+        uint256 fundBALBalance = BAL.balanceOf(address(fund));
 
-        assertGt(cellarBALBalance, 0, "Cellar should have earned BAL rewards.");
+        assertGt(fundBALBalance, 0, "Fund should have earned BAL rewards.");
     }
 
     function testUserWithdrawPullFromGauge(uint256 assets, uint256 percentInGauge) external {
         assets = bound(assets, 0.1e6, 1_000_000e6);
         percentInGauge = bound(percentInGauge, 0, 1e18);
         uint256 bptAmount = priceRouter.getValue(USDC, assets + initialAssets, BB_A_USD);
-        // User Joins Cellar.
+        // User Joins Fund.
         deal(address(USDC), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
-        // Use deal to mint cellar Bpts.
-        deal(address(USDC), address(cellar), 0);
-        deal(address(BB_A_USD), address(cellar), bptAmount);
+        // Use deal to mint fund Bpts.
+        deal(address(USDC), address(fund), 0);
+        deal(address(BB_A_USD), address(fund), bptAmount);
 
         uint256 amountToStakeInGauge = bptAmount.mulDivDown(percentInGauge, 1e18);
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
         adaptorCalls[0] = _createBytesDataToStakeBpts(address(BB_A_USD), address(BB_A_USD_GAUGE), amountToStakeInGauge);
 
-        data[0] = Cellar.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
 
-        uint256 amountToWithdraw = cellar.maxWithdraw(address(this));
-        cellar.withdraw(amountToWithdraw, address(this), address(this));
+        uint256 amountToWithdraw = fund.maxWithdraw(address(this));
+        fund.withdraw(amountToWithdraw, address(this), address(this));
 
         uint256 expectedBptOut = priceRouter.getValue(USDC, assets, BB_A_USD);
 
@@ -465,50 +463,50 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
     function testBalancerFlashLoans() external {
         uint256 assets = 100e6;
         deal(address(USDC), address(this), assets);
-        USDC.safeApprove(address(cellar), assets);
-        cellar.deposit(assets, address(this));
+        USDC.safeApprove(address(fund), assets);
+        fund.deposit(assets, address(this));
 
         address[] memory tokens = new address[](1);
         tokens[0] = address(USDC);
         uint256[] memory amounts = new uint256[](1);
         amounts[0] = 1_000e6;
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCallsInFlashLoan = new bytes[](2);
         adaptorCallsInFlashLoan[0] = _createBytesDataForSwapWithUniv3(USDC, DAI, 100, 1_000e6);
         adaptorCallsInFlashLoan[1] = _createBytesDataForSwapWithUniv3(DAI, USDC, 100, type(uint256).max);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(swapWithUniswapAdaptor), callData: adaptorCallsInFlashLoan });
+        data[0] = Fund.AdaptorCall({ adaptor: address(swapWithUniswapAdaptor), callData: adaptorCallsInFlashLoan });
         bytes memory flashLoanData = abi.encode(data);
 
-        data = new Cellar.AdaptorCall[](1);
+        data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
         adaptorCalls[0] = _createBytesDataToMakeFlashLoanFromBalancer(tokens, amounts, flashLoanData);
 
-        data[0] = Cellar.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
 
         assertApproxEqRel(
-            cellar.totalAssets(),
+            fund.totalAssets(),
             initialAssets + assets,
             0.002e18,
-            "Cellar totalAssets should be relatively unchanged."
+            "Fund totalAssets should be relatively unchanged."
         );
     }
 
     function testBalancerFlashLoanChecks() external {
-        // Try calling `receiveFlashLoan` directly on the Cellar.
+        // Try calling `receiveFlashLoan` directly on the Fund.
         IERC20[] memory tokens;
         uint256[] memory amounts;
         uint256[] memory feeAmounts;
         bytes memory userData;
 
         vm.expectRevert(
-            bytes(abi.encodeWithSelector(CellarWithBalancerFlashLoans.Cellar__CallerNotBalancerVault.selector))
+            bytes(abi.encodeWithSelector(FundWithBalancerFlashLoans.Fund__CallerNotBalancerVault.selector))
         );
-        cellar.receiveFlashLoan(tokens, amounts, feeAmounts, userData);
+        fund.receiveFlashLoan(tokens, amounts, feeAmounts, userData);
 
-        // Attacker tries to initiate a flashloan to control the Cellar.
-        vm.expectRevert(bytes(abi.encodeWithSelector(CellarWithBalancerFlashLoans.Cellar__ExternalInitiator.selector)));
-        IVault(vault).flashLoan(IFlashLoanRecipient(address(cellar)), tokens, amounts, userData);
+        // Attacker tries to initiate a flashloan to control the Fund.
+        vm.expectRevert(bytes(abi.encodeWithSelector(FundWithBalancerFlashLoans.Fund__ExternalInitiator.selector)));
+        IVault(vault).flashLoan(IFlashLoanRecipient(address(fund)), tokens, amounts, userData);
     }
 
     /**
@@ -527,19 +525,19 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
     }
 
     function testDepositToHoldingPosition() external {
-        string memory cellarName = "Balancer LP Cellar V0.0";
+        string memory fundName = "Balancer LP Fund V0.0";
         uint256 initialDeposit = 1e12;
 
-        Cellar balancerCellar = _createCellar(cellarName, BB_A_USD, bbaUSDPosition, abi.encode(0), initialDeposit);
+        Fund balancerFund = _createFund(fundName, BB_A_USD, bbaUSDPosition, abi.encode(0), initialDeposit);
 
-        uint256 totalAssetsBefore = balancerCellar.totalAssets();
+        uint256 totalAssetsBefore = balancerFund.totalAssets();
 
         uint256 assetsToDeposit = 100e18;
         deal(address(BB_A_USD), address(this), assetsToDeposit);
-        BB_A_USD.safeApprove(address(balancerCellar), assetsToDeposit);
-        balancerCellar.deposit(assetsToDeposit, address(this));
+        BB_A_USD.safeApprove(address(balancerFund), assetsToDeposit);
+        balancerFund.deposit(assetsToDeposit, address(this));
 
-        uint256 totalAssetsAfter = balancerCellar.totalAssets();
+        uint256 totalAssetsAfter = balancerFund.totalAssets();
 
         assertEq(
             totalAssetsAfter,
@@ -551,13 +549,13 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
     // ========================================= Join Happy Paths =========================================
 
     function testJoinVanillaPool(uint256 assets) external {
-        // Deposit into Cellar.
+        // Deposit into Fund.
         assets = bound(assets, 0.1e6, 10_000_000e6);
         deal(address(USDC), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
         // Have strategist rebalance into vanilla USDC DAI USDT Bpt.
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
 
         // Create Swap Data.
@@ -576,27 +574,27 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         adaptorCalls[0] = _createBytesDataToJoinBalancerPool(vanillaUsdcDaiUsdt, swapsBeforeJoin, swapData, 0);
 
-        data[0] = Cellar.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
 
         uint256 expectedBpt = priceRouter.getValue(USDC, assets + initialAssets, vanillaUsdcDaiUsdt);
 
         assertApproxEqRel(
-            vanillaUsdcDaiUsdt.balanceOf(address(cellar)),
+            vanillaUsdcDaiUsdt.balanceOf(address(fund)),
             expectedBpt,
             0.002e18,
-            "Cellar should have received expected BPT."
+            "Fund should have received expected BPT."
         );
     }
 
     function testJoinBoostedPool(uint256 assets) external {
-        // Deposit into Cellar.
+        // Deposit into Fund.
         assets = bound(assets, 0.1e6, 10_000_000e6);
         deal(address(USDC), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
         // Have strategist rebalance into boosted USDC DAI USDT Bpt.
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
 
         // Create Swap Data.
@@ -621,36 +619,36 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         adaptorCalls[0] = _createBytesDataToJoinBalancerPool(BB_A_USD, swapsBeforeJoin, swapData, 0);
 
-        data[0] = Cellar.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
 
         uint256 expectedBpt = priceRouter.getValue(USDC, assets, BB_A_USD);
 
         assertApproxEqRel(
-            BB_A_USD.balanceOf(address(cellar)),
+            BB_A_USD.balanceOf(address(fund)),
             expectedBpt,
             0.001e18,
-            "Cellar should have received expected BPT."
+            "Fund should have received expected BPT."
         );
     }
 
     function testJoinVanillaPoolWithMultiTokens(uint256 assets) external {
-        // Deposit into Cellar.
+        // Deposit into Fund.
         assets = bound(assets, 0.1e6, 10_000_000e6);
         deal(address(USDC), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
         // Simulate strategist rebalance into pools underlying assets.
         uint256 daiAmount = priceRouter.getValue(USDC, assets / 3, DAI);
         uint256 usdtAmount = priceRouter.getValue(USDC, assets / 3, USDT);
         uint256 usdcAmount = assets / 3;
 
-        deal(address(USDT), address(cellar), usdtAmount);
-        deal(address(DAI), address(cellar), daiAmount);
-        deal(address(USDC), address(cellar), usdcAmount);
+        deal(address(USDT), address(fund), usdtAmount);
+        deal(address(DAI), address(fund), daiAmount);
+        deal(address(USDC), address(fund), usdcAmount);
 
         // Have strategist rebalance into vanilla USDC DAI USDT Bpt.
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
 
         // Create Swap Data.
@@ -679,37 +677,37 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
         baseAmounts[1] = usdcAmount;
         baseAmounts[2] = usdtAmount;
 
-        data[0] = Cellar.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
+        data[0] = Fund.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
         // carry out tx
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
         uint256 expectedBpt = priceRouter.getValues(baseAssets, baseAmounts, vanillaUsdcDaiUsdt);
 
         assertApproxEqRel(
-            vanillaUsdcDaiUsdt.balanceOf(address(cellar)),
+            vanillaUsdcDaiUsdt.balanceOf(address(fund)),
             expectedBpt,
             0.001e18,
-            "Cellar should have received expected BPT."
+            "Fund should have received expected BPT."
         );
     }
 
     function testJoinBoostedPoolWithMultipleTokens(uint256 assets) external {
-        // Deposit into Cellar.
+        // Deposit into Fund.
         assets = bound(assets, 0.1e6, 10_000_000e6);
         deal(address(USDC), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
         // Simulate strategist rebalance into pools underlying assets.
         uint256 daiAmount = priceRouter.getValue(USDC, assets / 3, DAI);
         uint256 usdtAmount = priceRouter.getValue(USDC, assets / 3, USDT);
         uint256 usdcAmount = assets / 3;
 
-        deal(address(USDT), address(cellar), usdtAmount);
-        deal(address(DAI), address(cellar), daiAmount);
-        deal(address(USDC), address(cellar), usdcAmount);
+        deal(address(USDT), address(fund), usdtAmount);
+        deal(address(DAI), address(fund), daiAmount);
+        deal(address(USDC), address(fund), usdcAmount);
 
         // Have strategist rebalance into boosted USDC DAI USDT Bpt.
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
 
         // Create Swap Data.
@@ -762,39 +760,39 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
         baseAmounts[1] = usdcAmount;
         baseAmounts[2] = usdtAmount;
 
-        data[0] = Cellar.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
 
         uint256 expectedBpt = priceRouter.getValues(baseAssets, baseAmounts, BB_A_USD);
 
         assertApproxEqRel(
-            BB_A_USD.balanceOf(address(cellar)),
+            BB_A_USD.balanceOf(address(fund)),
             expectedBpt,
             0.001e18,
-            "Cellar should have received expected BPT."
+            "Fund should have received expected BPT."
         );
     }
 
     /**
-     * More complex join: deal wstETH to user and they deposit to cellar.
-     * Cellar should be dealt equal amounts of other constituent (WETH). Prepare swaps for bb-a-WETH.
+     * More complex join: deal wstETH to user and they deposit to fund.
+     * Fund should be dealt equal amounts of other constituent (WETH). Prepare swaps for bb-a-WETH.
      */
     function testNonStableCoinJoinMultiTokens(uint256 assets) external {
-        // Deposit into Cellar.
+        // Deposit into Fund.
         assets = bound(assets, 0.1e18, 100_000e18);
         deal(address(WETH), address(this), assets);
-        wethCellar.deposit(assets, address(this));
+        wethFund.deposit(assets, address(this));
 
         // pricing set up for BB_A_WETH. Now, we set up the adaptorCall to actually join the pool
 
         uint256 wethAmount = assets / 2;
         uint256 wstethAmount = priceRouter.getValue(WETH, assets / 2, WSTETH);
 
-        deal(address(WETH), address(wethCellar), wethAmount);
-        deal(address(WSTETH), address(wethCellar), wstethAmount);
+        deal(address(WETH), address(wethFund), wethAmount);
+        deal(address(WSTETH), address(wethFund), wstethAmount);
 
         // Have strategist rebalance into Boosted.
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
 
         IVault.SingleSwap[] memory swapsBeforeJoin = new IVault.SingleSwap[](2);
@@ -828,34 +826,34 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
         baseAmounts[0] = wethAmount;
         baseAmounts[1] = wstethAmount;
 
-        data[0] = Cellar.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
-        wethCellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
+        wethFund.callOnAdaptor(data);
 
         uint256 expectedBpt = priceRouter.getValues(baseAssets, baseAmounts, wstETH_bbaWETH);
 
         assertApproxEqRel(
-            wstETH_bbaWETH.balanceOf(address(wethCellar)),
+            wstETH_bbaWETH.balanceOf(address(wethFund)),
             expectedBpt,
             0.001e18,
-            "Cellar should have received expected BPT."
+            "Fund should have received expected BPT."
         );
     }
 
     // ========================================= Exit Happy Paths =========================================
 
     function testExitVanillaPool(uint256 assets) external {
-        // Deposit into Cellar.
+        // Deposit into Fund.
         assets = bound(assets, 0.1e6, 1_000_000e6);
         deal(address(USDC), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
-        // Simulate a vanilla pool deposit by minting cellar bpts.
+        // Simulate a vanilla pool deposit by minting fund bpts.
         uint256 bptAmount = priceRouter.getValue(USDC, assets, vanillaUsdcDaiUsdt);
-        deal(address(USDC), address(cellar), 0);
-        deal(address(vanillaUsdcDaiUsdt), address(cellar), bptAmount);
+        deal(address(USDC), address(fund), 0);
+        deal(address(vanillaUsdcDaiUsdt), address(fund), bptAmount);
 
         // Have strategist exit pool in 1 token.
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
 
         // There are no swaps to be made, so just create empty arrays.
@@ -885,9 +883,9 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
         });
 
         adaptorCalls[0] = _createBytesDataToExitBalancerPool(vanillaUsdcDaiUsdt, swapsAfterExit, swapData, request);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
+        data[0] = Fund.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
 
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
         ERC20[] memory baseAssets = new ERC20[](3);
         baseAssets[0] = USDC;
@@ -895,33 +893,33 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
         baseAssets[2] = USDT;
 
         uint256[] memory baseAmounts = new uint256[](3);
-        baseAmounts[0] = USDC.balanceOf(address(cellar));
-        baseAmounts[1] = DAI.balanceOf(address(cellar));
-        baseAmounts[2] = USDT.balanceOf(address(cellar));
+        baseAmounts[0] = USDC.balanceOf(address(fund));
+        baseAmounts[1] = DAI.balanceOf(address(fund));
+        baseAmounts[2] = USDT.balanceOf(address(fund));
 
         uint256 expectedValueOut = priceRouter.getValues(baseAssets, baseAmounts, USDC);
 
         assertApproxEqRel(
-            cellar.totalAssets(),
+            fund.totalAssets(),
             expectedValueOut,
             0.001e18,
-            "Cellar should have received expected value out."
+            "Fund should have received expected value out."
         );
     }
 
     function testExitBoostedPool(uint256 assets) external {
-        // Deposit into Cellar.
+        // Deposit into Fund.
         assets = bound(assets, 0.1e6, 1_000_000e6);
         deal(address(USDC), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
-        // Simulate a vanilla pool deposit by minting cellar bpts.
+        // Simulate a vanilla pool deposit by minting fund bpts.
         uint256 bptAmount = priceRouter.getValue(USDC, assets, BB_A_USD);
-        deal(address(USDC), address(cellar), 0);
-        deal(address(BB_A_USD), address(cellar), bptAmount);
+        deal(address(USDC), address(fund), 0);
+        deal(address(BB_A_USD), address(fund), bptAmount);
 
         // Have strategist exit pool in 1 token.
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
 
         // There are no swaps to be made, so just create empty arrays.
@@ -957,9 +955,9 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
         });
 
         adaptorCalls[0] = _createBytesDataToExitBalancerPool(BB_A_USD, swapsAfterExit, swapData, request);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
+        data[0] = Fund.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
 
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
         ERC20[] memory baseAssets = new ERC20[](3);
         baseAssets[0] = USDC;
@@ -967,33 +965,33 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
         baseAssets[2] = USDT;
 
         uint256[] memory baseAmounts = new uint256[](3);
-        baseAmounts[0] = USDC.balanceOf(address(cellar));
-        baseAmounts[1] = DAI.balanceOf(address(cellar));
-        baseAmounts[2] = USDT.balanceOf(address(cellar));
+        baseAmounts[0] = USDC.balanceOf(address(fund));
+        baseAmounts[1] = DAI.balanceOf(address(fund));
+        baseAmounts[2] = USDT.balanceOf(address(fund));
 
         uint256 expectedValueOut = priceRouter.getValues(baseAssets, baseAmounts, USDC);
 
         assertApproxEqRel(
-            cellar.totalAssets(),
+            fund.totalAssets(),
             expectedValueOut,
             0.001e18,
-            "Cellar should have received expected value out."
+            "Fund should have received expected value out."
         );
     }
 
     function testExitBoostedPoolProportional(uint256 assets) external {
-        // Deposit into Cellar.
+        // Deposit into Fund.
         assets = bound(assets, 0.1e6, 1_000_000e6);
         deal(address(USDC), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
-        // Simulate a vanilla pool deposit by minting cellar bpts.
+        // Simulate a vanilla pool deposit by minting fund bpts.
         uint256 bptAmount = priceRouter.getValue(USDC, assets, BB_A_USD);
-        deal(address(USDC), address(cellar), 0);
-        deal(address(BB_A_USD), address(cellar), bptAmount);
+        deal(address(USDC), address(fund), 0);
+        deal(address(BB_A_USD), address(fund), bptAmount);
 
         // Have strategist exit pool in 1 token.
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
 
         // There are no swaps to be made, so just create empty arrays.
@@ -1033,9 +1031,9 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
         });
 
         adaptorCalls[0] = _createBytesDataToExitBalancerPool(BB_A_USD, swapsAfterExit, swapData, request);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
+        data[0] = Fund.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
 
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
         ERC20[] memory baseAssets = new ERC20[](3);
         baseAssets[0] = USDC;
@@ -1043,39 +1041,39 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
         baseAssets[2] = USDT;
 
         uint256[] memory baseAmounts = new uint256[](3);
-        baseAmounts[0] = USDC.balanceOf(address(cellar));
-        baseAmounts[1] = DAI.balanceOf(address(cellar));
-        baseAmounts[2] = USDT.balanceOf(address(cellar));
+        baseAmounts[0] = USDC.balanceOf(address(fund));
+        baseAmounts[1] = DAI.balanceOf(address(fund));
+        baseAmounts[2] = USDT.balanceOf(address(fund));
 
-        assertGt(baseAmounts[0], 0, "Cellar should have got USDC.");
-        assertGt(baseAmounts[1], 0, "Cellar should have got DAI.");
-        assertGt(baseAmounts[2], 0, "Cellar should have got USDT.");
+        assertGt(baseAmounts[0], 0, "Fund should have got USDC.");
+        assertGt(baseAmounts[1], 0, "Fund should have got DAI.");
+        assertGt(baseAmounts[2], 0, "Fund should have got USDT.");
 
         uint256 expectedValueOut = priceRouter.getValues(baseAssets, baseAmounts, USDC);
 
         assertApproxEqRel(
-            cellar.totalAssets(),
+            fund.totalAssets(),
             expectedValueOut,
             0.001e18,
-            "Cellar should have received expected value out."
+            "Fund should have received expected value out."
         );
 
-        assertEq(BB_A_USD.balanceOf(address(cellar)), 0, "Cellar should have redeemed all BPTs.");
+        assertEq(BB_A_USD.balanceOf(address(fund)), 0, "Fund should have redeemed all BPTs.");
     }
 
     function testExitVanillaPoolProportional(uint256 assets) external {
-        // Deposit into Cellar.
+        // Deposit into Fund.
         assets = bound(assets, 0.1e6, 1_000_000e6);
         deal(address(USDC), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
-        // Simulate a vanilla pool deposit by minting cellar bpts.
+        // Simulate a vanilla pool deposit by minting fund bpts.
         uint256 bptAmount = priceRouter.getValue(USDC, assets, vanillaUsdcDaiUsdt);
-        deal(address(USDC), address(cellar), 0);
-        deal(address(vanillaUsdcDaiUsdt), address(cellar), bptAmount);
+        deal(address(USDC), address(fund), 0);
+        deal(address(vanillaUsdcDaiUsdt), address(fund), bptAmount);
 
         // Have strategist exit pool in underlying tokens.
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
 
         // There are no swaps to be made, so just create empty arrays.
@@ -1105,9 +1103,9 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
         });
 
         adaptorCalls[0] = _createBytesDataToExitBalancerPool(vanillaUsdcDaiUsdt, swapsAfterExit, swapData, request);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
+        data[0] = Fund.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
 
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
         ERC20[] memory baseAssets = new ERC20[](3);
         baseAssets[0] = USDC;
@@ -1115,24 +1113,24 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
         baseAssets[2] = USDT;
 
         uint256[] memory baseAmounts = new uint256[](3);
-        baseAmounts[0] = USDC.balanceOf(address(cellar));
-        baseAmounts[1] = DAI.balanceOf(address(cellar));
-        baseAmounts[2] = USDT.balanceOf(address(cellar));
+        baseAmounts[0] = USDC.balanceOf(address(fund));
+        baseAmounts[1] = DAI.balanceOf(address(fund));
+        baseAmounts[2] = USDT.balanceOf(address(fund));
 
         uint256 expectedValueOut = priceRouter.getValues(baseAssets, baseAmounts, USDC);
 
         assertApproxEqRel(
-            cellar.totalAssets(),
+            fund.totalAssets(),
             expectedValueOut,
             0.002e18,
-            "Cellar should have received expected value out."
+            "Fund should have received expected value out."
         );
 
-        assertGt(baseAmounts[0], 0, "Cellar should have got USDC.");
-        assertGt(baseAmounts[1], 0, "Cellar should have got DAI.");
-        assertGt(baseAmounts[2], 0, "Cellar should have got USDT.");
+        assertGt(baseAmounts[0], 0, "Fund should have got USDC.");
+        assertGt(baseAmounts[1], 0, "Fund should have got DAI.");
+        assertGt(baseAmounts[2], 0, "Fund should have got USDT.");
 
-        assertEq(vanillaUsdcDaiUsdt.balanceOf(address(cellar)), 0, "Cellar shouyld have redeemed all BPTs.");
+        assertEq(vanillaUsdcDaiUsdt.balanceOf(address(fund)), 0, "Fund shouyld have redeemed all BPTs.");
     }
 
     // ========================================= Reverts =========================================
@@ -1150,13 +1148,13 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
     }
 
     function testJoinPoolNoSwapsReverts() external {
-        // Deposit into Cellar.
+        // Deposit into Fund.
         uint256 assets = 10_000e6;
         deal(address(USDC), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
         // Have strategist rebalance into vanilla USDC DAI USDT Bpt.
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
 
         // Create Swap Data with 1 less index than required.
@@ -1173,21 +1171,21 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         adaptorCalls[0] = _createBytesDataToJoinBalancerPool(vanillaUsdcDaiUsdt, swapsBeforeJoin, swapData, 0);
 
-        data[0] = Cellar.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
+        data[0] = Fund.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
 
         vm.expectRevert(
             bytes(abi.encodeWithSelector(BalancerPoolAdaptor.BalancerPoolAdaptor___LengthMismatch.selector))
         );
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
         // Simulate strategist rebalance into pools underlying assets.
         uint256 daiAmount = priceRouter.getValue(USDC, assets / 3, DAI);
         uint256 usdtAmount = priceRouter.getValue(USDC, assets / 3, USDT);
         uint256 usdcAmount = assets / 3;
 
-        deal(address(USDT), address(cellar), usdtAmount);
-        deal(address(DAI), address(cellar), daiAmount);
-        deal(address(USDC), address(cellar), usdcAmount);
+        deal(address(USDT), address(fund), usdtAmount);
+        deal(address(DAI), address(fund), daiAmount);
+        deal(address(USDC), address(fund), usdcAmount);
 
         // Now make the lengths right, but mix up USDC and USDT inputs.
         swapsBeforeJoin = new IVault.SingleSwap[](3);
@@ -1206,7 +1204,7 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         adaptorCalls[0] = _createBytesDataToJoinBalancerPool(vanillaUsdcDaiUsdt, swapsBeforeJoin, swapData, 0);
 
-        data[0] = Cellar.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
+        data[0] = Fund.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
 
         vm.expectRevert(
             bytes(
@@ -1215,7 +1213,7 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
                 )
             )
         );
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
         // Now fix USDT USDC order, but replace DAI with FRAX.
         swapsBeforeJoin = new IVault.SingleSwap[](3);
@@ -1234,7 +1232,7 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         adaptorCalls[0] = _createBytesDataToJoinBalancerPool(vanillaUsdcDaiUsdt, swapsBeforeJoin, swapData, 0);
 
-        data[0] = Cellar.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
+        data[0] = Fund.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
 
         vm.expectRevert(
             bytes(
@@ -1243,26 +1241,26 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
                 )
             )
         );
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
     }
 
     function testJoinPoolWithSwapsReverts() external {
-        // Deposit into Cellar.
+        // Deposit into Fund.
         uint256 assets = 10_000e6;
         deal(address(USDC), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
         // Simulate strategist rebalance into pools underlying assets.
         uint256 daiAmount = priceRouter.getValue(USDC, assets / 3, DAI);
         uint256 usdtAmount = priceRouter.getValue(USDC, assets / 3, USDT);
         uint256 usdcAmount = assets / 3;
 
-        deal(address(USDT), address(cellar), usdtAmount);
-        deal(address(DAI), address(cellar), daiAmount);
-        deal(address(USDC), address(cellar), usdcAmount);
+        deal(address(USDT), address(fund), usdtAmount);
+        deal(address(DAI), address(fund), daiAmount);
+        deal(address(USDC), address(fund), usdcAmount);
 
         // Have strategist rebalance into boosted USDC DAI USDT Bpt.
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
 
         // First replace BB A DAI with Frax.
@@ -1315,7 +1313,7 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
         baseAmounts[1] = usdcAmount;
         baseAmounts[2] = usdtAmount;
 
-        data[0] = Cellar.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
+        data[0] = Fund.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
 
         vm.expectRevert(
             bytes(
@@ -1324,7 +1322,7 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
                 )
             )
         );
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
         // Fix it by setting it back to bb_a_dai, but change swap kind.
         swapsBeforeJoin[0] = IVault.SingleSwap({
@@ -1338,27 +1336,27 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         adaptorCalls[0] = _createBytesDataToJoinBalancerPool(BB_A_USD, swapsBeforeJoin, swapData, 0);
 
-        data[0] = Cellar.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
+        data[0] = Fund.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
 
         vm.expectRevert(
             bytes(abi.encodeWithSelector(BalancerPoolAdaptor.BalancerPoolAdaptor___WrongSwapKind.selector))
         );
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
     }
 
     function testExitPoolReverts() external {
-        // Deposit into Cellar.
+        // Deposit into Fund.
         uint256 assets = 10_000e6;
         deal(address(USDC), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
-        // Simulate a vanilla pool deposit by minting cellar bpts.
+        // Simulate a vanilla pool deposit by minting fund bpts.
         uint256 bptAmount = priceRouter.getValue(USDC, assets, BB_A_USD);
-        deal(address(USDC), address(cellar), 0);
-        deal(address(BB_A_USD), address(cellar), bptAmount);
+        deal(address(USDC), address(fund), 0);
+        deal(address(BB_A_USD), address(fund), bptAmount);
 
         // Have strategist exit pool but try to send funds to an internal balance.
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
 
         BalancerPoolAdaptor.SwapData memory swapData;
@@ -1393,14 +1391,14 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
         });
 
         adaptorCalls[0] = _createBytesDataToExitBalancerPool(BB_A_USD, swapsAfterExit, swapData, request);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
+        data[0] = Fund.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
 
         vm.expectRevert(
             bytes(
                 abi.encodeWithSelector(BalancerPoolAdaptor.BalancerPoolAdaptor___InternalBalancesNotSupported.selector)
             )
         );
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
         // Change toInternalBalance to false, but mistmatch the array lengths.
         swapData.minAmountsForSwaps = new uint256[](3);
@@ -1432,12 +1430,12 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
         });
 
         adaptorCalls[0] = _createBytesDataToExitBalancerPool(BB_A_USD, swapsAfterExit, swapData, request);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
+        data[0] = Fund.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
 
         vm.expectRevert(
             bytes(abi.encodeWithSelector(BalancerPoolAdaptor.BalancerPoolAdaptor___LengthMismatch.selector))
         );
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
         // Now have strategist try to swap an asset not in the BPT.
         swapData.minAmountsForSwaps = new uint256[](3);
@@ -1471,7 +1469,7 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
         });
 
         adaptorCalls[0] = _createBytesDataToExitBalancerPool(BB_A_USD, swapsAfterExit, swapData, request);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
+        data[0] = Fund.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
 
         vm.expectRevert(
             bytes(
@@ -1480,7 +1478,7 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
                 )
             )
         );
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
         // Now have strategist try to swap with wrong swap kind.
         swapData.minAmountsForSwaps = new uint256[](3);
@@ -1515,12 +1513,12 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
         });
 
         adaptorCalls[0] = _createBytesDataToExitBalancerPool(BB_A_USD, swapsAfterExit, swapData, request);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
+        data[0] = Fund.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
 
         vm.expectRevert(
             bytes(abi.encodeWithSelector(BalancerPoolAdaptor.BalancerPoolAdaptor___WrongSwapKind.selector))
         );
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
         // Now have strategist try to not swap their linear pool tokens.
         swapData.minAmountsForSwaps = new uint256[](3);
@@ -1555,31 +1553,31 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
         });
 
         adaptorCalls[0] = _createBytesDataToExitBalancerPool(BB_A_USD, swapsAfterExit, swapData, request);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
+        data[0] = Fund.AdaptorCall({ adaptor: address(balancerPoolAdaptor), callData: adaptorCalls });
 
         vm.expectRevert(
             bytes(abi.encodeWithSelector(BalancerPoolAdaptor.BalancerPoolAdaptor___UnsupportedTokenNotSwapped.selector))
         );
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
     }
 
-    function testFailTransferEthToCellar() external {
-        // This test verifies that native eth transfers to the cellar will revert.
+    function testFailTransferEthToFund() external {
+        // This test verifies that native eth transfers to the fund will revert.
         // So even if the strategist somehow manages to make a swap send native eth
-        // to the cellar it will revert.
+        // to the fund it will revert.
 
         deal(address(this), 1 ether);
-        address(cellar).safeTransferETH(1 ether);
+        address(fund).safeTransferETH(1 ether);
     }
 
     function testJoinPoolSlippageCheck(uint256 assets) external {
-        // Deposit into Cellar.
+        // Deposit into Fund.
         assets = bound(assets, 0.1e6, 10_000_000e6);
         deal(address(USDC), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
         // Have strategist rebalance into vanilla USDC DAI USDT Bpt.
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
 
         // Create Swap Data.
@@ -1595,25 +1593,25 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         adaptorCalls[0] = _createBytesDataToJoinBalancerPool(vanillaUsdcDaiUsdt, swapsBeforeJoin, swapData, 0);
 
-        data[0] = Cellar.AdaptorCall({ adaptor: address(mockBalancerPoolAdaptor), callData: adaptorCalls });
+        data[0] = Fund.AdaptorCall({ adaptor: address(mockBalancerPoolAdaptor), callData: adaptorCalls });
 
         vm.expectRevert(bytes(abi.encodeWithSelector(BalancerPoolAdaptor.BalancerPoolAdaptor___Slippage.selector)));
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
     }
 
     function testExitPoolSlippageCheck(uint256 assets) external {
-        // Deposit into Cellar.
+        // Deposit into Fund.
         assets = bound(assets, 0.1e6, 1_000_000e6);
         deal(address(USDC), address(this), assets);
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
-        // Simulate a vanilla pool deposit by minting cellar bpts.
+        // Simulate a vanilla pool deposit by minting fund bpts.
         uint256 bptAmount = priceRouter.getValue(USDC, assets, vanillaUsdcDaiUsdt);
-        deal(address(USDC), address(cellar), 0);
-        deal(address(vanillaUsdcDaiUsdt), address(cellar), bptAmount);
+        deal(address(USDC), address(fund), 0);
+        deal(address(vanillaUsdcDaiUsdt), address(fund), bptAmount);
 
         // Have strategist exit pool in 1 token.
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
 
         // There are no swaps to be made, so just create empty arrays.
@@ -1643,16 +1641,16 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
         });
 
         adaptorCalls[0] = _createBytesDataToExitBalancerPool(vanillaUsdcDaiUsdt, swapsAfterExit, swapData, request);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(mockBalancerPoolAdaptor), callData: adaptorCalls });
+        data[0] = Fund.AdaptorCall({ adaptor: address(mockBalancerPoolAdaptor), callData: adaptorCalls });
 
         vm.expectRevert(bytes(abi.encodeWithSelector(BalancerPoolAdaptor.BalancerPoolAdaptor___Slippage.selector)));
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
     }
 
     // ========================================= HELPERS =========================================
 
     // This function is used for exit pool slippage checks.
-    // Specifically this function will only work to mock exit pools for vanilla stablecoin pool where the cellar
+    // Specifically this function will only work to mock exit pools for vanilla stablecoin pool where the fund
     // is exiting into USDC at index 1.
     function exitPool(bytes32, address sender, address payable, IVault.ExitPoolRequest memory request) external {
         (, uint256 amountOfBptsToRedeem) = abi.decode(request.userData, (uint256, uint256));
@@ -1662,11 +1660,11 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
         amountOfUsdcToMint = amountOfUsdcToMint.mulDivDown(exitPoolSlippage, 1e4);
 
         deal(address(USDC), sender, USDC.balanceOf(sender) + amountOfUsdcToMint);
-        deal(address(vanillaUsdcDaiUsdt), sender, vanillaUsdcDaiUsdt.balanceOf(address(cellar)) - amountOfBptsToRedeem);
+        deal(address(vanillaUsdcDaiUsdt), sender, vanillaUsdcDaiUsdt.balanceOf(address(fund)) - amountOfBptsToRedeem);
     }
 
     // This function is used for join pool slippage checks.
-    // Specifically this function will only work to mock join pools for vanilla stablecoin pool where the cellar
+    // Specifically this function will only work to mock join pools for vanilla stablecoin pool where the fund
     // is joining with USDC at index 1.
     function joinPool(bytes32, address sender, address, IVault.JoinPoolRequest memory request) public {
         (, uint256[] memory amounts) = abi.decode(request.userData, (uint256, uint256[]));

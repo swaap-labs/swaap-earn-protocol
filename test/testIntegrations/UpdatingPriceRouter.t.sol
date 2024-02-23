@@ -17,14 +17,14 @@
 
 // import { AdaptorHelperFunctions } from "test/resources/AdaptorHelperFunctions.sol";
 
-// // Will test the swapping and cellar position management using adaptors
+// // Will test the swapping and fund position management using adaptors
 // contract UpdatingPriceRouterTest is MainnetStarterTest, AdaptorHelperFunctions, ERC721Holder {
 //     using SafeTransferLib for ERC20;
 //     using Math for uint256;
 //     using stdStorage for StdStorage;
 //     using Address for address;
 
-//     address[] public cellars;
+//     address[] public funds;
 
 //     function setUp() external {
 //         // Setup forked environment.
@@ -36,22 +36,22 @@
 //         registry = Registry(address(0)); // TODO: here
 //         priceRouter = new PriceRouter(address(this), registry, WETH);
 
-//         cellars = new address[](0);
-//         // cellars[0] = address(0); // TODO: here
+//         funds = new address[](0);
+//         // funds[0] = address(0); // TODO: here
 //     }
 
 //     function testUpdatingPriceRouter() external {
 //         vm.prank(multisig);
 //         registry.setAddress(2, address(priceRouter));
 
-//         for (uint256 i; i < cellars.length; ++i) {
-//             Cellar cellar = Cellar(cellars[i]);
-//             ERC20 asset = cellar.asset();
+//         for (uint256 i; i < funds.length; ++i) {
+//             Fund fund = Fund(funds[i]);
+//             ERC20 asset = fund.asset();
 //             uint256 amount = 10 ** asset.decimals();
 //             deal(address(asset), address(this), amount);
-//             asset.safeApprove(address(cellar), amount);
-//             cellar.deposit(amount, address(this));
-//             assertTrue(address(cellar.priceRouter()) != address(priceRouter), "PriceRouters should be different");
+//             asset.safeApprove(address(fund), amount);
+//             fund.deposit(amount, address(this));
+//             assertTrue(address(fund.priceRouter()) != address(priceRouter), "PriceRouters should be different");
 //         }
 //     }
 // }

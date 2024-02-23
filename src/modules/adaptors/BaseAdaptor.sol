@@ -5,13 +5,13 @@ import { Math } from "src/utils/Math.sol";
 import { SafeTransferLib } from "@solmate/utils/SafeTransferLib.sol";
 import { ERC20 } from "@solmate/tokens/ERC20.sol";
 import { Registry } from "src/Registry.sol";
-import { Cellar } from "src/base/Cellar.sol";
+import { Fund } from "src/base/Fund.sol";
 import { PriceRouter } from "src/modules/price-router/PriceRouter.sol";
 
 /**
  * @title Base Adaptor
  * @notice Base contract all adaptors must inherit from.
- * @dev Allows Cellars to interact with arbritrary DeFi assets and protocols.
+ * @dev Allows Funds to interact with arbritrary DeFi assets and protocols.
  * @author crispymangoes
  */
 abstract contract BaseAdaptor {
@@ -19,7 +19,7 @@ abstract contract BaseAdaptor {
     using Math for uint256;
 
     /**
-     * @notice Attempted to specify an external receiver during a Cellar `callOnAdaptor` call.
+     * @notice Attempted to specify an external receiver during a Fund `callOnAdaptor` call.
      */
     error BaseAdaptor__ExternalReceiverBlocked();
 
@@ -50,7 +50,7 @@ abstract contract BaseAdaptor {
     error BaseAdaptor__ConstructorHealthFactorTooLow();
 
     /**
-     * @notice Attempted to interact with a position that is not used in the calling cellar.
+     * @notice Attempted to interact with a position that is not used in the calling fund.
      */
     error BaseAdaptor__PositionNotUsed(bytes adaptorData);
 
@@ -58,7 +58,7 @@ abstract contract BaseAdaptor {
     /**
      * @dev Identifier unique to this adaptor for a shared registry.
      * Normally the identifier would just be the address of this contract, but this
-     * Identifier is needed during Cellar Delegate Call Operations, so getting the address
+     * Identifier is needed during Fund Delegate Call Operations, so getting the address
      * of the adaptor is more difficult.
      */
     function identifier() public pure virtual returns (bytes32) {
@@ -90,7 +90,7 @@ abstract contract BaseAdaptor {
 
     //============================================ Implement Base Functions ===========================================
     //==================== Base Function Specification ====================
-    // Base functions are functions designed to help the Cellar interact with
+    // Base functions are functions designed to help the Fund interact with
     // an adaptor position, strategists are not intended to use these functions.
     // Base functions MUST be implemented in adaptor contracts, even if that is just
     // adding a revert statement to make them uncallable by normal user operations.
@@ -99,19 +99,19 @@ abstract contract BaseAdaptor {
     // All mutative Base functions will be called using delegatecall.
     //=====================================================================
     /**
-     * @notice Function Cellars call to deposit users funds into holding position.
+     * @notice Function Funds call to deposit users funds into holding position.
      * @param assets the amount of assets to deposit
      * @param adaptorData data needed to deposit into a position
-     * @param configurationData data settable when strategists add positions to their Cellar
+     * @param configurationData data settable when strategists add positions to their Fund
      *                          Allows strategist to control how the adaptor interacts with the position
      */
     function deposit(uint256 assets, bytes memory adaptorData, bytes memory configurationData) public virtual;
 
     /**
-     * @notice Function Cellars call to withdraw funds from positions to send to users.
+     * @notice Function Funds call to withdraw funds from positions to send to users.
      * @param receiver the address that should receive withdrawn funds
      * @param adaptorData data needed to withdraw from a position
-     * @param configurationData data settable when strategists add positions to their Cellar
+     * @param configurationData data settable when strategists add positions to their Fund
      *                          Allows strategist to control how the adaptor interacts with the position
      */
     function withdraw(
@@ -122,14 +122,14 @@ abstract contract BaseAdaptor {
     ) public virtual;
 
     /**
-     * @notice Function Cellars use to determine `assetOf` balance of an adaptor position.
+     * @notice Function Funds use to determine `assetOf` balance of an adaptor position.
      * @param adaptorData data needed to interact with the position
      * @return balance of the position in terms of `assetOf`
      */
     function balanceOf(bytes memory adaptorData) public view virtual returns (uint256);
 
     /**
-     * @notice Functions Cellars use to determine the withdrawable balance from an adaptor position.
+     * @notice Functions Funds use to determine the withdrawable balance from an adaptor position.
      * @dev Debt positions MUST return 0 for their `withdrawableFrom`
      * @notice accepts adaptorData and configurationData
      * @return withdrawable balance of the position in terms of `assetOf`
@@ -137,7 +137,7 @@ abstract contract BaseAdaptor {
     function withdrawableFrom(bytes memory, bytes memory) public view virtual returns (uint256);
 
     /**
-     * @notice Function Cellars use to determine the underlying ERC20 asset of a position.
+     * @notice Function Funds use to determine the underlying ERC20 asset of a position.
      * @param adaptorData data needed to withdraw from a position
      * @return the underlying ERC20 asset of a position
      */
@@ -153,23 +153,23 @@ abstract contract BaseAdaptor {
     }
 
     /**
-     * @notice Functions Registry/Cellars use to determine if this adaptor reports debt values.
+     * @notice Functions Registry/Funds use to determine if this adaptor reports debt values.
      * @dev returns true if this adaptor reports debt values.
      */
     function isDebt() public view virtual returns (bool);
 
     //============================================ Strategist Functions ===========================================
     //==================== Strategist Function Specification ====================
-    // Strategist functions are only callable by strategists through the Cellars
-    // `callOnAdaptor` function. A cellar will never call any of these functions,
-    // when a normal user interacts with a cellar(depositing/withdrawing)
+    // Strategist functions are only callable by strategists through the Funds
+    // `callOnAdaptor` function. A fund will never call any of these functions,
+    // when a normal user interacts with a fund(depositing/withdrawing)
     //
     // All strategist functions will be called using delegatecall.
-    // Strategist functions are intentionally "blind" to what positions the cellar
+    // Strategist functions are intentionally "blind" to what positions the fund
     // is currently holding. This allows strategists to enter temporary positions
     // while rebalancing.
     // To mitigate strategist from abusing this and moving funds in untracked
-    // positions, the cellar will enforce a Total Value Locked check that
+    // positions, the fund will enforce a Total Value Locked check that
     // insures TVL has not deviated too much from `callOnAdaptor`.
     //===========================================================================
 
@@ -197,7 +197,7 @@ abstract contract BaseAdaptor {
      * @notice Helper function that validates external receivers are allowed.
      */
     function _externalReceiverCheck(address receiver) internal view {
-        if (receiver != address(this) && Cellar(address(this)).blockExternalReceiver())
+        if (receiver != address(this) && Fund(address(this)).blockExternalReceiver())
             revert BaseAdaptor__ExternalReceiverBlocked();
     }
 
@@ -219,35 +219,31 @@ abstract contract BaseAdaptor {
     }
 
     /**
-     * @notice Allows cellar to validate if a position is used in the calling cellar.
-     * If the cellar is deployed (code size > 0), this function will check if the position is used.
+     * @notice Allows fund to validate if a position is used in the calling fund.
+     * If the fund is deployed (code size > 0), this function will check if the position is used.
      * If not deployed, this function will not check if the position is being used as it is assumed that it is
-     * being used by the initial deposit function in the constructor which already adds the position to the cellar.
+     * being used by the initial deposit function in the constructor which already adds the position to the fund.
      */
     function _verifyUsedPositionIfDeployed(bytes memory adaptorData) internal view {
-        uint256 cellarCodeSize;
-        address cellarAddress = address(this);
-        
+        uint256 fundCodeSize;
+        address fundAddress = address(this);
+
         assembly {
-            cellarCodeSize := extcodesize(cellarAddress)
+            fundCodeSize := extcodesize(fundAddress)
         }
-        
-        if (cellarCodeSize > 0) {
+
+        if (fundCodeSize > 0) {
             _verifyUsedPosition(adaptorData);
         }
     }
 
     /**
-     * @notice Allows cellar to validate if a position is used in the calling cellar.
+     * @notice Allows fund to validate if a position is used in the calling fund.
      */
-    function _verifyUsedPosition(
-        bytes memory adaptorData
-    ) internal view {
-        // Check that erc4626Vault position is setup to be used in the calling cellar.
+    function _verifyUsedPosition(bytes memory adaptorData) internal view {
+        // Check that erc4626Vault position is setup to be used in the calling fund.
         bytes32 positionHash = keccak256(abi.encode(identifier(), isDebt(), adaptorData));
-        uint32 positionId = Cellar(address(this)).registry().getPositionHashToPositionId(positionHash);
-        if (!Cellar(address(this)).isPositionUsed(positionId))
-            revert BaseAdaptor__PositionNotUsed(adaptorData);
+        uint32 positionId = Fund(address(this)).registry().getPositionHashToPositionId(positionHash);
+        if (!Fund(address(this)).isPositionUsed(positionId)) revert BaseAdaptor__PositionNotUsed(adaptorData);
     }
-
 }

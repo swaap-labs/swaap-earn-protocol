@@ -4,7 +4,7 @@ pragma solidity 0.8.21;
 import { ERC20 } from "@solmate/tokens/ERC20.sol";
 import { SafeTransferLib } from "@solmate/utils/SafeTransferLib.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
-import { ICellarStaking } from "src/interfaces/ICellarStaking.sol";
+import { IFundStaking } from "src/interfaces/IFundStaking.sol";
 
 import "./Errors.sol";
 
@@ -12,13 +12,13 @@ import "./Errors.sol";
  * @title Swaap Staking
  * @author Kevin Kennis
  *
- * Staking for Swaap Cellars.
+ * Staking for Swaap Funds.
  *
  * This contract is inspired by the Synthetix staking rewards contract, Ampleforth's
  * token geyser, and Treasure DAO's MAGIC mine. However, there are unique improvements
  * and new features, specifically unbonding, as inspired by LP bonding on Osmosis.
  * Unbonding allows the contract to guarantee deposits for a certain amount of time,
- * increasing predictability and stickiness of TVL for Cellars.
+ * increasing predictability and stickiness of TVL for Funds.
  *
  * *********************************** Funding Flow ***********************************
  *
@@ -113,7 +113,7 @@ import "./Errors.sol";
  * accounted for and that no accounting time periods have been missed.
  *
  */
-contract CellarStaking is ICellarStaking, Ownable {
+contract FundStaking is IFundStaking, Ownable {
     using SafeTransferLib for ERC20;
 
     // ============================================ STATE ==============================================

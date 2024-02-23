@@ -2,7 +2,7 @@
 pragma solidity 0.8.21;
 
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
-import { SwaapPoolAdaptor } from "src/modules/adaptors/Swaap/SwaapPoolAdaptor.sol";
+import { SwaapV2Adaptor } from "src/modules/adaptors/Swaap/SwaapV2Adaptor.sol";
 import { ILiquidityGaugev3Custom } from "src/interfaces/external/Balancer/ILiquidityGaugev3Custom.sol";
 import { IBasePool } from "src/interfaces/external/Balancer/typically-npm/IBasePool.sol";
 import { IVault, IAsset, IERC20, IFlashLoanRecipient } from "@balancer/interfaces/contracts/vault/IVault.sol";
@@ -10,9 +10,9 @@ import { IBalancerRelayer } from "src/interfaces/external/Balancer/IBalancerRela
 import { MockBalancerPoolAdaptor } from "src/mocks/adaptors/MockBalancerPoolAdaptor.sol";
 import { SwaapSafeguardPoolExtension } from "src/modules/price-router/Extensions/Swaap/SwaapSafeguardPoolExtension.sol";
 import { WstEthExtension } from "src/modules/price-router/Extensions/Lido/WstEthExtension.sol";
-import { CellarWithShareLockFlashLoansWhitelisting } from "src/base/permutations/CellarWithShareLockFlashLoansWhitelisting.sol";
+import { FundWithShareLockFlashLoansWhitelisting } from "src/base/permutations/FundWithShareLockFlashLoansWhitelisting.sol";
 import { IUniswapV3Pool } from "@uniswapV3C/interfaces/IUniswapV3Pool.sol";
-import { Cellar } from "src/base/Cellar.sol";
+import { Fund } from "src/base/Fund.sol";
 import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 // Import Everything from Starter file.
@@ -20,17 +20,17 @@ import "test/resources/SwaapMainnetStarter.t.sol";
 
 import { AdaptorHelperFunctions } from "test/resources/AdaptorHelperFunctions.sol";
 
-contract SwaapPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
+contract SwaapV2AdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
     using SafeTransferLib for ERC20;
     using Math for uint256;
     using stdStorage for StdStorage;
     using Address for address;
     using SafeTransferLib for address;
 
-    SwaapPoolAdaptor private swaapPoolAdaptor;
+    SwaapV2Adaptor private swaapV2Adaptor;
     SwaapSafeguardPoolExtension private swaapSafeguardPoolExtension;
 
-    CellarWithShareLockFlashLoansWhitelisting private cellar;
+    FundWithShareLockFlashLoansWhitelisting private fund;
 
     uint32 private usdcPosition = 1;
     uint32 private wethPosition = 2;
@@ -50,8 +50,8 @@ contract SwaapPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
         // Run Starter setUp code.
         _setUp();
 
-        swaapPoolAdaptor = new SwaapPoolAdaptor(swaapVault, address(erc20Adaptor));
-        swaapSafeguardPoolExtension = new SwaapSafeguardPoolExtension(priceRouter, IVault(swaapVault));
+        swaapV2Adaptor = new SwaapV2Adaptor(swaapV2Vault, address(erc20Adaptor));
+        swaapSafeguardPoolExtension = new SwaapSafeguardPoolExtension(priceRouter, IVault(swaapV2Vault));
 
         PriceRouter.ChainlinkDerivativeStorage memory stor;
         PriceRouter.AssetSettings memory settings;
@@ -70,39 +70,39 @@ contract SwaapPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
         settings = PriceRouter.AssetSettings(EXTENSION_DERIVATIVE, address(swaapSafeguardPoolExtension));
         priceRouter.addAsset(USDC_WETH_SPT, settings, abi.encode(), expectedUSDC_WETH_SPTPrice);
 
-        // Setup Cellar:
-        registry.trustAdaptor(address(swaapPoolAdaptor));
+        // Setup Fund:
+        registry.trustAdaptor(address(swaapV2Adaptor));
 
         registry.trustPosition(usdcPosition, address(erc20Adaptor), abi.encode(address(USDC))); // holdingPosition for tests
         registry.trustPosition(wethPosition, address(erc20Adaptor), abi.encode(address(WETH))); // holdingPosition for tests
         registry.trustPosition(safeguardUsdcWethPosition, address(erc20Adaptor), abi.encode(address(USDC_WETH_SPT)));
 
-        string memory cellarName = "Swaap Cellar V0.0";
+        string memory fundName = "Swaap Fund V0.0";
         uint256 initialDeposit = 1e6;
 
-        cellar = _createCellarWithShareLockFlashLoansWhitelisting(
-            cellarName,
+        fund = _createFundWithShareLockFlashLoansWhitelisting(
+            fundName,
             USDC, // holdingAsset,
             usdcPosition, // holdingPosition,
             abi.encode(0), // holdingPositionConfig,
             initialDeposit,
-            swaapVault
+            swaapV2Vault
         );
 
-        cellar.addAdaptorToCatalogue(address(swaapPoolAdaptor));
-        cellar.addAdaptorToCatalogue(address(erc20Adaptor));
-        cellar.addAdaptorToCatalogue(address(swapWithUniswapAdaptor));
+        fund.addAdaptorToCatalogue(address(swaapV2Adaptor));
+        fund.addAdaptorToCatalogue(address(erc20Adaptor));
+        fund.addAdaptorToCatalogue(address(swapWithUniswapAdaptor));
 
-        USDC.approve(address(cellar), type(uint256).max);
+        USDC.approve(address(fund), type(uint256).max);
 
-        cellar.setRebalanceDeviation(0.005e18);
-        cellar.addPositionToCatalogue(wethPosition);
-        cellar.addPositionToCatalogue(safeguardUsdcWethPosition);
+        fund.setRebalanceDeviation(0.005e18);
+        fund.addPositionToCatalogue(wethPosition);
+        fund.addPositionToCatalogue(safeguardUsdcWethPosition);
 
-        cellar.addPosition(0, wethPosition, abi.encode(0), false);
-        cellar.addPosition(0, safeguardUsdcWethPosition, abi.encode(USDC_WETH_SPT), false);
+        fund.addPosition(0, wethPosition, abi.encode(0), false);
+        fund.addPosition(0, safeguardUsdcWethPosition, abi.encode(USDC_WETH_SPT), false);
 
-        initialAssets = cellar.totalAssets();
+        initialAssets = fund.totalAssets();
     }
 
     // ========================================= HAPPY PATH TESTS =========================================
@@ -110,38 +110,38 @@ contract SwaapPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
     function testSwaapFlashLoans() external {
         uint256 assets = 100e6;
         deal(address(USDC), address(this), assets);
-        USDC.approve(address(cellar), assets);
+        USDC.approve(address(fund), assets);
 
-        cellar.deposit(assets, address(this));
+        fund.deposit(assets, address(this));
 
         address[] memory tokens = new address[](1);
         tokens[0] = address(USDC);
         uint256[] memory amounts = new uint256[](1);
         amounts[0] = 10_000e6;
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCallsInFlashLoan = new bytes[](2);
         adaptorCallsInFlashLoan[0] = _createBytesDataForSwapWithUniv3(USDC, WETH, 500, 5_00e6);
         adaptorCallsInFlashLoan[1] = _createBytesDataForSwapWithUniv3(WETH, USDC, 500, type(uint256).max);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(swapWithUniswapAdaptor), callData: adaptorCallsInFlashLoan });
+        data[0] = Fund.AdaptorCall({ adaptor: address(swapWithUniswapAdaptor), callData: adaptorCallsInFlashLoan });
         bytes memory flashLoanData = abi.encode(data);
 
-        data = new Cellar.AdaptorCall[](1);
+        data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
         adaptorCalls[0] = _createBytesDataToMakeFlashLoanFromBalancer(tokens, amounts, flashLoanData);
 
-        data[0] = Cellar.AdaptorCall({ adaptor: address(swaapPoolAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(swaapV2Adaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
 
         assertApproxEqRel(
-            cellar.totalAssets(),
+            fund.totalAssets(),
             initialAssets + assets,
             0.005e18,
-            "Cellar totalAssets should be relatively unchanged."
+            "Fund totalAssets should be relatively unchanged."
         );
     }
 
     function testBalancerFlashLoanChecks() external {
-        // Try calling `receiveFlashLoan` directly on the Cellar.
+        // Try calling `receiveFlashLoan` directly on the Fund.
         IERC20[] memory tokens;
         uint256[] memory amounts;
         uint256[] memory feeAmounts;
@@ -150,17 +150,17 @@ contract SwaapPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
         vm.expectRevert(
             bytes(
                 abi.encodeWithSelector(
-                    CellarWithShareLockFlashLoansWhitelisting.Cellar__CallerNotBalancerVault.selector
+                    FundWithShareLockFlashLoansWhitelisting.Fund__CallerNotBalancerVault.selector
                 )
             )
         );
-        cellar.receiveFlashLoan(tokens, amounts, feeAmounts, userData);
+        fund.receiveFlashLoan(tokens, amounts, feeAmounts, userData);
 
-        // Attacker tries to initiate a flashloan to control the Cellar.
+        // Attacker tries to initiate a flashloan to control the Fund.
         vm.expectRevert(
-            bytes(abi.encodeWithSelector(CellarWithShareLockFlashLoansWhitelisting.Cellar__ExternalInitiator.selector))
+            bytes(abi.encodeWithSelector(FundWithShareLockFlashLoansWhitelisting.Fund__ExternalInitiator.selector))
         );
-        IVault(swaapVault).flashLoan(IFlashLoanRecipient(address(cellar)), tokens, amounts, userData);
+        IVault(swaapV2Vault).flashLoan(IFlashLoanRecipient(address(fund)), tokens, amounts, userData);
     }
 
     /**
@@ -174,31 +174,31 @@ contract SwaapPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
     }
 
     function testIsDebt() external {
-        bool result = swaapPoolAdaptor.isDebt();
+        bool result = swaapV2Adaptor.isDebt();
         assertEq(result, false);
     }
 
     function testDepositToHoldingPosition() external {
-        string memory cellarName = "Swaap LP Cellar V0.0";
+        string memory fundName = "Swaap LP Fund V0.0";
         uint256 initialDeposit = 1e12;
 
-        Cellar swaapCellar = _createCellarWithShareLockFlashLoansWhitelisting(
-            cellarName,
+        Fund swaapFund = _createFundWithShareLockFlashLoansWhitelisting(
+            fundName,
             USDC_WETH_SPT,
             safeguardUsdcWethPosition,
             abi.encode(0),
             initialDeposit,
-            swaapVault
+            swaapV2Vault
         );
 
-        uint256 totalAssetsBefore = swaapCellar.totalAssets();
+        uint256 totalAssetsBefore = swaapFund.totalAssets();
 
         uint256 assetsToDeposit = 100e18;
         deal(address(USDC_WETH_SPT), address(this), assetsToDeposit);
-        USDC_WETH_SPT.approve(address(swaapCellar), assetsToDeposit);
-        swaapCellar.deposit(assetsToDeposit, address(this));
+        USDC_WETH_SPT.approve(address(swaapFund), assetsToDeposit);
+        swaapFund.deposit(assetsToDeposit, address(this));
 
-        uint256 totalAssetsAfter = swaapCellar.totalAssets();
+        uint256 totalAssetsAfter = swaapFund.totalAssets();
 
         assertEq(
             totalAssetsAfter,
@@ -210,7 +210,7 @@ contract SwaapPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
     // ========================================= Join Happy Paths =========================================
 
     function testTotalAssetsAfterJoin(uint256 assets) external {
-        // User Joins Cellar.
+        // User Joins Fund.
         assets = bound(assets, 0.1e6, 1_000_000e6);
 
         // make sure that the minted spt value corresponds to the expected value
@@ -221,33 +221,33 @@ contract SwaapPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
         bytes[] memory adaptorCalls = new bytes[](1);
         adaptorCalls[0] = _dealAndGetJoinPoolAdaptorData(USDC_WETH_SPT, eqSPT);
 
-        uint256 totalAssetsBefore = cellar.totalAssets();
+        uint256 totalAssetsBefore = fund.totalAssets();
 
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
 
-        data[0] = Cellar.AdaptorCall({ adaptor: address(swaapPoolAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(swaapV2Adaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
 
-        uint256 totalAssetsAfter = cellar.totalAssets();
+        uint256 totalAssetsAfter = fund.totalAssets();
 
         assertApproxEqRel(
             totalAssetsAfter,
             totalAssetsBefore,
             0.0001e18, // 0.01%
-            "Cellar totalAssets should be relatively unchanged in a swaap pool join with no trades."
+            "Fund totalAssets should be relatively unchanged in a swaap pool join with no trades."
         );
 
         assertApproxEqRel(
-            cellar.totalAssets(),
+            fund.totalAssets(),
             assets + initialAssets,
             0.0001e18, // 0.01%
-            "Cellar totalAssets should be correct after joining a swaap pool."
+            "Fund totalAssets should be correct after joining a swaap pool."
         );
 
         assertEq(
-            USDC_WETH_SPT.balanceOf(address(cellar)),
+            USDC_WETH_SPT.balanceOf(address(fund)),
             eqSPT,
-            "Cellar should have received the exact number of SPT."
+            "Fund should have received the exact number of SPT."
         );
     }
 
@@ -262,7 +262,7 @@ contract SwaapPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
         address aliceAddress = vm.addr(signerKey);
 
         bytes memory signature = _swaapSafeguardAllowlistSignature(
-            address(cellar),
+            address(fund),
             block.timestamp + 10,
             signerKey,
             bytes32(0xc52c5924ef6f12369246860438537534d07daf9e4ceb0b897a712b50f74b1ad0) // domain separator of USDC_WETH_SPT
@@ -286,29 +286,29 @@ contract SwaapPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
         (success, ) = address(USDC_WETH_SPT).call(abi.encodeWithSelector(0x7b749c45, true)); // set signer to alice
         require(success, "failed to set allowlist to true");
 
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(swaapPoolAdaptor), callData: adaptorCalls });
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
+        data[0] = Fund.AdaptorCall({ adaptor: address(swaapV2Adaptor), callData: adaptorCalls });
 
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
         assertApproxEqRel(
-            cellar.totalAssets(),
+            fund.totalAssets(),
             initialAssets + assets,
             0.0001e18, // 0.01%
-            "Cellar totalAssets should be correct after joining a swaap pool with allowlist."
+            "Fund totalAssets should be correct after joining a swaap pool with allowlist."
         );
 
         assertEq(
-            USDC_WETH_SPT.balanceOf(address(cellar)),
+            USDC_WETH_SPT.balanceOf(address(fund)),
             eqSPT,
-            "Cellar should have received the exact number of SPT when allowlist is on."
+            "Fund should have received the exact number of SPT when allowlist is on."
         );
     }
 
     // ========================================= Exit Happy Paths =========================================
 
     function testTotalAssetsAfterExit(uint256 assets) external {
-        // User Joins Cellar.
+        // User Joins Fund.
         assets = bound(assets, 0.1e6, 500_000e6); // make sure that the max exit amount is less than the swaap pool tvl
 
         // make sure that the minted spt value corresponds to the expected value
@@ -320,49 +320,49 @@ contract SwaapPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
         bytes[] memory adaptorCalls = new bytes[](1);
         adaptorCalls[0] = _dealAndGetExitPoolAdaptorData(USDC_WETH_SPT, eqSPT);
 
-        uint256 totalAssetsBefore = cellar.totalAssets();
+        uint256 totalAssetsBefore = fund.totalAssets();
 
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
 
-        data[0] = Cellar.AdaptorCall({ adaptor: address(swaapPoolAdaptor), callData: adaptorCalls });
-        cellar.callOnAdaptor(data);
+        data[0] = Fund.AdaptorCall({ adaptor: address(swaapV2Adaptor), callData: adaptorCalls });
+        fund.callOnAdaptor(data);
 
-        uint256 totalAssetsAfter = cellar.totalAssets();
+        uint256 totalAssetsAfter = fund.totalAssets();
 
         assertApproxEqRel(
             totalAssetsAfter,
             totalAssetsBefore,
             0.0001e18, // 0.01%
-            "Cellar totalAssets should be relatively unchanged in a swaap pool exit with no trades."
+            "Fund totalAssets should be relatively unchanged in a swaap pool exit with no trades."
         );
 
         assertApproxEqRel(
             totalAssetsAfter,
             assets + initialAssets,
             0.0001e18, // 0.01%
-            "Cellar totalAssets should be correct after exiting swaap pool."
+            "Fund totalAssets should be correct after exiting swaap pool."
         );
 
-        assertEq(USDC_WETH_SPT.balanceOf(address(cellar)), 0, "Cellar should have no USDC_WETH_SPT left.");
+        assertEq(USDC_WETH_SPT.balanceOf(address(fund)), 0, "Fund should have no USDC_WETH_SPT left.");
     }
 
     function testSwaapProportionalExitPool(uint256 assets) external {
         assets = bound(assets, 0.1e6, 500_000e6);
 
-        // Simulate a pool deposit by minting to the cellar spts.
+        // Simulate a pool deposit by minting to the fund spts.
         uint256 sptAmount = priceRouter.getValue(USDC, assets, USDC_WETH_SPT);
-        deal(address(USDC), address(cellar), 0); // set cellar USDC balance to 0 for this test
-        deal(address(USDC_WETH_SPT), address(cellar), sptAmount); // simulate deposit of spt into cellar
+        deal(address(USDC), address(fund), 0); // set fund USDC balance to 0 for this test
+        deal(address(USDC_WETH_SPT), address(fund), sptAmount); // simulate deposit of spt into fund
 
         assertApproxEqRel(
-            cellar.totalAssets(),
+            fund.totalAssets(),
             assets,
             0.0001e18, // 0.01%
-            "Cellar should have received expected value of spt."
+            "Fund should have received expected value of spt."
         );
 
         // Have strategist exit pool in underlying tokens.
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
 
         ERC20[] memory poolAssets = new ERC20[](2);
@@ -373,44 +373,44 @@ contract SwaapPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
         uint256[] memory minAmountsOut = new uint256[](2);
 
         adaptorCalls[0] = _createBytesDataToExitSwaapPool(USDC_WETH_SPT, poolAssets, minAmountsOut, sptAmount);
-        data[0] = Cellar.AdaptorCall({ adaptor: address(swaapPoolAdaptor), callData: adaptorCalls });
+        data[0] = Fund.AdaptorCall({ adaptor: address(swaapV2Adaptor), callData: adaptorCalls });
 
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
         uint256[] memory baseAmounts = new uint256[](2);
-        baseAmounts[0] = USDC.balanceOf(address(cellar));
-        baseAmounts[1] = WETH.balanceOf(address(cellar));
+        baseAmounts[0] = USDC.balanceOf(address(fund));
+        baseAmounts[1] = WETH.balanceOf(address(fund));
 
         uint256 expectedValueOut = priceRouter.getValues(poolAssets, baseAmounts, USDC);
 
         assertGe(expectedValueOut, 0, "Price router might be misconfigured.");
 
         assertApproxEqRel(
-            cellar.totalAssets(),
+            fund.totalAssets(),
             expectedValueOut,
             0.0001e18, // 0.01%
-            "Cellar should have received expected value out."
+            "Fund should have received expected value out."
         );
 
-        assertGt(baseAmounts[0], 0, "Cellar should have got USDC.");
-        assertGt(baseAmounts[1], 0, "Cellar should have got WETH.");
+        assertGt(baseAmounts[0], 0, "Fund should have got USDC.");
+        assertGt(baseAmounts[1], 0, "Fund should have got WETH.");
 
-        assertEq(ERC20(USDC_WETH_SPT).balanceOf(address(cellar)), 0, "Cellar should have redeemed all SPTs.");
+        assertEq(ERC20(USDC_WETH_SPT).balanceOf(address(fund)), 0, "Fund should have redeemed all SPTs.");
     }
 
     // ========================================= Reverts =========================================
 
     function testJoinPoolReverts() external {
-        // Have strategist exit pool but tokens out are not supported by the cellar.
+        // Have strategist exit pool but tokens out are not supported by the fund.
         uint256 sptUsdcUsdtAmount = 100e18;
 
         // revert on unsupported spt token (usdc-usdt pool)
         bytes[] memory adaptorCalls = new bytes[](1);
         adaptorCalls[0] = _dealAndGetJoinPoolAdaptorData(USDC_USDT_SPT, sptUsdcUsdtAmount);
 
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
 
-        data[0] = Cellar.AdaptorCall({ adaptor: address(swaapPoolAdaptor), callData: adaptorCalls });
+        data[0] = Fund.AdaptorCall({ adaptor: address(swaapV2Adaptor), callData: adaptorCalls });
         vm.expectRevert(
             bytes(
                 abi.encodeWithSelector(
@@ -420,7 +420,7 @@ contract SwaapPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
             )
         );
 
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
         // revert on tokensIn and poolTokens length mismatch
         adaptorCalls[0] = _createBytesDataToJoinSwaapPool(
@@ -430,9 +430,9 @@ contract SwaapPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
             sptUsdcUsdtAmount
         );
 
-        vm.expectRevert(abi.encodeWithSelector(SwaapPoolAdaptor.SwaapPoolAdaptor___LengthMismatch.selector));
+        vm.expectRevert(abi.encodeWithSelector(SwaapV2Adaptor.SwaapV2Adaptor___LengthMismatch.selector));
 
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
         // revert on tokensIn and amountsIn length mismatch
         adaptorCalls[0] = _createBytesDataToJoinSwaapPool(
@@ -442,8 +442,8 @@ contract SwaapPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
             sptUsdcUsdtAmount
         );
 
-        vm.expectRevert(abi.encodeWithSelector(SwaapPoolAdaptor.SwaapPoolAdaptor___LengthMismatch.selector));
-        cellar.callOnAdaptor(data);
+        vm.expectRevert(abi.encodeWithSelector(SwaapV2Adaptor.SwaapV2Adaptor___LengthMismatch.selector));
+        fund.callOnAdaptor(data);
 
         // revert on poolTokens and tokensOut mismatch
         adaptorCalls[0] = _createBytesDataToJoinSwaapPool(
@@ -454,27 +454,27 @@ contract SwaapPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
         );
 
         vm.expectRevert(
-            abi.encodeWithSelector(SwaapPoolAdaptor.SwaapPoolAdaptor___PoolTokenAndExpectedTokenMismatch.selector)
+            abi.encodeWithSelector(SwaapV2Adaptor.SwaapV2Adaptor___PoolTokenAndExpectedTokenMismatch.selector)
         );
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
     }
 
     function testExitPoolReverts() external {
-        // Have strategist exit pool but tokens out are not supported by the cellar.
+        // Have strategist exit pool but tokens out are not supported by the fund.
         uint256 sptUsdcUsdtAmount = 100e18;
 
         // revert on unsupported token out (usdt)
         bytes[] memory adaptorCalls = new bytes[](1);
         adaptorCalls[0] = _dealAndGetExitPoolAdaptorData(USDC_USDT_SPT, sptUsdcUsdtAmount);
 
-        Cellar.AdaptorCall[] memory data = new Cellar.AdaptorCall[](1);
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
 
-        data[0] = Cellar.AdaptorCall({ adaptor: address(swaapPoolAdaptor), callData: adaptorCalls });
+        data[0] = Fund.AdaptorCall({ adaptor: address(swaapV2Adaptor), callData: adaptorCalls });
         vm.expectRevert(
             bytes(abi.encodeWithSelector(BaseAdaptor.BaseAdaptor__PositionNotUsed.selector, abi.encode(address(USDT))))
         );
 
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
         // revert on tokensOut and poolTokens length mismatch
         adaptorCalls[0] = _createBytesDataToExitSwaapPool(
@@ -484,9 +484,9 @@ contract SwaapPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
             sptUsdcUsdtAmount
         );
 
-        vm.expectRevert(abi.encodeWithSelector(SwaapPoolAdaptor.SwaapPoolAdaptor___LengthMismatch.selector));
+        vm.expectRevert(abi.encodeWithSelector(SwaapV2Adaptor.SwaapV2Adaptor___LengthMismatch.selector));
 
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
 
         // revert on tokensOut and amountsOut length mismatch
         adaptorCalls[0] = _createBytesDataToExitSwaapPool(
@@ -496,8 +496,8 @@ contract SwaapPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
             sptUsdcUsdtAmount
         );
 
-        vm.expectRevert(abi.encodeWithSelector(SwaapPoolAdaptor.SwaapPoolAdaptor___LengthMismatch.selector));
-        cellar.callOnAdaptor(data);
+        vm.expectRevert(abi.encodeWithSelector(SwaapV2Adaptor.SwaapV2Adaptor___LengthMismatch.selector));
+        fund.callOnAdaptor(data);
 
         // revert on poolTokens and tokensOut mismatch
         adaptorCalls[0] = _createBytesDataToExitSwaapPool(
@@ -508,18 +508,18 @@ contract SwaapPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
         );
 
         vm.expectRevert(
-            abi.encodeWithSelector(SwaapPoolAdaptor.SwaapPoolAdaptor___PoolTokenAndExpectedTokenMismatch.selector)
+            abi.encodeWithSelector(SwaapV2Adaptor.SwaapV2Adaptor___PoolTokenAndExpectedTokenMismatch.selector)
         );
-        cellar.callOnAdaptor(data);
+        fund.callOnAdaptor(data);
     }
 
-    function testFailTransferEthToCellar() external {
-        // This test verifies that native eth transfers to the cellar will revert.
+    function testFailTransferEthToFund() external {
+        // This test verifies that native eth transfers to the fund will revert.
         // So even if the strategist somehow manages to make a swap send native eth
-        // to the cellar it will revert.
+        // to the fund it will revert.
 
         deal(address(this), 1 ether);
-        address(cellar).safeTransferETH(1 ether);
+        address(fund).safeTransferETH(1 ether);
     }
 
     // ========================================= HELPERS =========================================
@@ -557,7 +557,7 @@ contract SwaapPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
         uint256 sptShares
     ) internal returns (ERC20[] memory, uint256[] memory) {
         bytes32 poolId = IBasePool(address(pool)).getPoolId();
-        (IERC20[] memory poolTokens, uint256[] memory balances, ) = IVault(swaapVault).getPoolTokens(poolId);
+        (IERC20[] memory poolTokens, uint256[] memory balances, ) = IVault(swaapV2Vault).getPoolTokens(poolId);
 
         (, uint256[] memory amountsIn) = IBasePool(address(pool)).queryJoin(
             poolId,
@@ -566,7 +566,7 @@ contract SwaapPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
             balances, // pool balance
             0, // last change block (irrelevant)
             0, // swap fee percentage (irrelevant)
-            abi.encode(SwaapPoolAdaptor.JoinKind.ALL_TOKENS_IN_FOR_EXACT_SPT_OUT, sptShares) // userData to join
+            abi.encode(SwaapV2Adaptor.JoinKind.ALL_TOKENS_IN_FOR_EXACT_SPT_OUT, sptShares) // userData to join
         );
 
         ERC20[] memory convertedPoolTokens = new ERC20[](poolTokens.length);
@@ -578,7 +578,7 @@ contract SwaapPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
         return (convertedPoolTokens, amountsIn);
     }
 
-    // adds necessary tokens to join a pool to the cellar
+    // adds necessary tokens to join a pool to the fund
     function _dealAndGetJoinAllowlistPoolAdaptorData(
         ERC20 pool,
         uint256 sptShares,
@@ -590,12 +590,12 @@ contract SwaapPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
             sptShares
         );
 
-        // give the cellar the necessary tokens to join the pool (+ keep old balance)
+        // give the fund the necessary tokens to join the pool (+ keep old balance)
         for (uint256 i; i < underlyingBalances.length; i++) {
             deal(
                 address(underlyingTokens[i]),
-                address(cellar),
-                underlyingTokens[i].balanceOf(address(cellar)) + underlyingBalances[i]
+                address(fund),
+                underlyingTokens[i].balanceOf(address(fund)) + underlyingBalances[i]
             );
         }
 
@@ -610,29 +610,29 @@ contract SwaapPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
             );
     }
 
-    // adds necessary tokens to join a pool to the cellar
+    // adds necessary tokens to join a pool to the fund
     function _dealAndGetJoinPoolAdaptorData(ERC20 pool, uint256 sptShares) internal returns (bytes memory) {
         (ERC20[] memory underlyingTokens, uint256[] memory underlyingBalances) = _getUnderlyingBalancesGivenShares(
             pool,
             sptShares
         );
 
-        // give the cellar the necessary tokens to join the pool (+ keep old balance)
+        // give the fund the necessary tokens to join the pool (+ keep old balance)
         for (uint256 i; i < underlyingBalances.length; i++) {
             deal(
                 address(underlyingTokens[i]),
-                address(cellar),
-                underlyingTokens[i].balanceOf(address(cellar)) + underlyingBalances[i]
+                address(fund),
+                underlyingTokens[i].balanceOf(address(fund)) + underlyingBalances[i]
             );
         }
 
         return _createBytesDataToJoinSwaapPool(pool, underlyingTokens, underlyingBalances, sptShares);
     }
 
-    // adds necessary tokens to exit a pool to the cellar
+    // adds necessary tokens to exit a pool to the fund
     function _dealAndGetExitPoolAdaptorData(ERC20 pool, uint256 sptShares) internal returns (bytes memory) {
         bytes32 poolId = IBasePool(address(pool)).getPoolId();
-        (IERC20[] memory poolTokens, , ) = IVault(swaapVault).getPoolTokens(poolId);
+        (IERC20[] memory poolTokens, , ) = IVault(swaapV2Vault).getPoolTokens(poolId);
 
         ERC20[] memory underlyingTokens = new ERC20[](poolTokens.length);
 
@@ -644,7 +644,7 @@ contract SwaapPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
         // sets minimum amounts out to 0
         uint256[] memory underlyingBalances = new uint256[](underlyingTokens.length);
 
-        deal(address(pool), address(cellar), sptShares);
+        deal(address(pool), address(fund), sptShares);
 
         return _createBytesDataToExitSwaapPool(pool, underlyingTokens, underlyingBalances, sptShares);
     }

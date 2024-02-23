@@ -3,16 +3,16 @@
 
 // import { PriceRouter } from "src/modules/price-router/PriceRouter.sol";
 // import { Deployer } from "src/Deployer.sol";
-// import { Cellar } from "src/base/Cellar.sol";
+// import { Fund } from "src/base/Fund.sol";
 
 // // Import Everything from Starter file.
 // import "test/resources/MainnetStarter.t.sol";
 
 // import { AdaptorHelperFunctions } from "test/resources/AdaptorHelperFunctions.sol";
 
-// // Will test the swapping and cellar position management using adaptors
+// // Will test the swapping and fund position management using adaptors
 // contract ChangingSwethPricingTest is MainnetStarterTest, AdaptorHelperFunctions {
-//     Cellar public turboSweth = Cellar(0xd33dAd974b938744dAC81fE00ac67cb5AA13958E);
+//     Fund public turboSweth = Fund(0xd33dAd974b938744dAC81fE00ac67cb5AA13958E);
 
 //     address public SWETH_ETH_100 = 0xcBDF4d702e7dCda5dfCA05Dacd24f203CFD7Ef84;
 

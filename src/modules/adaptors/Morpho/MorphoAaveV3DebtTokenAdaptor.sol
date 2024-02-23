@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.21;
 
-import { BaseAdaptor, ERC20, SafeTransferLib, Cellar, Registry, Math } from "src/modules/adaptors/BaseAdaptor.sol";
+import { BaseAdaptor, ERC20, SafeTransferLib, Fund, Registry, Math } from "src/modules/adaptors/BaseAdaptor.sol";
 import { IMorphoV3 } from "src/interfaces/external/Morpho/IMorphoV3.sol";
 import { MorphoAaveV3HealthFactorLogic } from "src/modules/adaptors/Morpho/MorphoAaveV3HealthFactorLogic.sol";
 
 /**
  * @title Morpho Aave V3 debtToken Adaptor
- * @notice Allows Cellars to interact with Morpho Aave V3 debtToken positions.
+ * @notice Allows Funds to interact with Morpho Aave V3 debtToken positions.
  * @author crispymangoes
  */
 contract MorphoAaveV3DebtTokenAdaptor is BaseAdaptor, MorphoAaveV3HealthFactorLogic {
@@ -23,7 +23,7 @@ contract MorphoAaveV3DebtTokenAdaptor is BaseAdaptor, MorphoAaveV3HealthFactorLo
     //====================================================================
 
     /**
-     @notice Attempted borrow would lower Cellar health factor too low.
+     @notice Attempted borrow would lower Fund health factor too low.
      */
     error MorphoAaveV3DebtTokenAdaptor__HealthFactorTooLow();
 
@@ -54,7 +54,7 @@ contract MorphoAaveV3DebtTokenAdaptor is BaseAdaptor, MorphoAaveV3HealthFactorLo
     /**
      * @dev Identifier unique to this adaptor for a shared registry.
      * Normally the identifier would just be the address of this contract, but this
-     * Identifier is needed during Cellar Delegate Call Operations, so getting the address
+     * Identifier is needed during Fund Delegate Call Operations, so getting the address
      * of the adaptor is more difficult.
      */
     function identifier() public pure override returns (bytes32) {
@@ -86,7 +86,7 @@ contract MorphoAaveV3DebtTokenAdaptor is BaseAdaptor, MorphoAaveV3HealthFactorLo
     }
 
     /**
-     * @notice Returns the cellars balance of the positions debt.
+     * @notice Returns the funds balance of the positions debt.
      */
     function balanceOf(bytes memory adaptorData) public view override returns (uint256) {
         address underlying = abi.decode(adaptorData, (address));
@@ -117,10 +117,10 @@ contract MorphoAaveV3DebtTokenAdaptor is BaseAdaptor, MorphoAaveV3HealthFactorLo
      * @param amountToBorrow the amount of `debtTokenToBorrow` to borrow on Morpho.
      */
     function borrowFromAaveV3Morpho(address underlying, uint256 amountToBorrow, uint256 maxIterations) public {
-        // Check that debt position is properly set up to be tracked in the Cellar.
+        // Check that debt position is properly set up to be tracked in the Fund.
         bytes32 positionHash = keccak256(abi.encode(identifier(), true, abi.encode(underlying)));
-        uint32 positionId = Cellar(address(this)).registry().getPositionHashToPositionId(positionHash);
-        if (!Cellar(address(this)).isPositionUsed(positionId))
+        uint32 positionId = Fund(address(this)).registry().getPositionHashToPositionId(positionHash);
+        if (!Fund(address(this)).isPositionUsed(positionId))
             revert MorphoAaveV3DebtTokenAdaptor__DebtPositionsMustBeTracked(underlying);
 
         // Borrow from morpho.
