@@ -9,12 +9,14 @@ on:
 jobs:
   foundry:
     strategy:
+      matrix:
+        os: [ubuntu-latest]
       fail-fast: true
 
     name: Foundry project
     runs-on: ubuntu-latest
     env:
-      MAINNET_RPC_URL: https://eth-mainnet.alchemyapi.io/v2/${{ secrets.ALCHEMY_API_KEY }}
+      MAINNET_RPC_URL: https://eth-mainnet.g.alchemy.com/v2/${{ secrets.ALCHEMY_API_KEY }}
       ARBITRUM_RPC_URL: https://arb-mainnet.g.alchemy.com/v2/${{ secrets.ALCHEMY_ARB_API_KEY }}
     steps:
       - uses: actions/checkout@v3
@@ -22,7 +24,7 @@ jobs:
           submodules: recursive
 
       - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
+        uses: foundry-rs/foundry-toolchain@v1.1.1
         with:
           version: nightly-d369d2486f85576eec4ca41d277391dfdae21ba7
 
