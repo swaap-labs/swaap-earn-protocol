@@ -365,6 +365,26 @@ contract AdaptorHelperFunctions {
         return abi.encodeWithSelector(SwaapPoolAdaptor.joinPool.selector, pool, tokens, maxAmountsIn, sptShares);
     }
 
+    function _createBytesDataToJoinAllowlistSwaapPool(
+        ERC20 pool,
+        ERC20[] memory tokens,
+        uint256[] memory maxAmountsIn,
+        uint256 sptShares,
+        uint256 deadline,
+        bytes memory allowlistSignatureData
+    ) internal pure returns (bytes memory) {
+        return
+            abi.encodeWithSelector(
+                SwaapPoolAdaptor.joinPoolWithAllowlistOn.selector,
+                pool,
+                tokens,
+                maxAmountsIn,
+                sptShares,
+                deadline,
+                allowlistSignatureData
+            );
+    }
+
     function _createBytesDataToExitSwaapPool(
         ERC20 pool,
         ERC20[] memory tokens,
