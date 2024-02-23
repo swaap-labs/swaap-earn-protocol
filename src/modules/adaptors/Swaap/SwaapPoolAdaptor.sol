@@ -4,15 +4,14 @@ pragma solidity 0.8.21;
 import { BaseAdaptor, ERC20, SafeTransferLib, Cellar, Registry, PriceRouter } from "src/modules/adaptors/BaseAdaptor.sol";
 import { IVault, IERC20, IAsset, IFlashLoanRecipient } from "src/interfaces/external/Balancer/IVault.sol";
 import { IBasePool } from "src/interfaces/external/Balancer/typically-npm/IBasePool.sol";
-import { Math } from "src/utils/Math.sol";
+import { ERC20Adaptor } from "src/modules/adaptors/ERC20Adaptor.sol";
 
 /**
  * @title Swaap Pool Adaptor
  * @notice Allows Cellars to interact with Swaap Safeguard Pools.
  */
-contract SwaapPoolAdaptor is BaseAdaptor {
+contract SwaapPoolAdaptor is ERC20Adaptor {
     using SafeTransferLib for ERC20;
-    using Math for uint256;
 
     //==================== Adaptor Data Specification ====================
     // adaptorData = abi.encode(ERC20 _spt)
@@ -76,56 +75,9 @@ contract SwaapPoolAdaptor is BaseAdaptor {
     }
 
     //============================================ Implement Base Functions ===========================================
+    // This adaptor is a special case of the ERC20Adaptor, and thus does not need to implement the deposit / withdraw function.
 
-    /**
-     * @notice User deposits are allowed into this position.
-     */
-    function deposit(uint256, bytes memory, bytes memory) public pure override {}
-
-    /**
-     * @notice If a user withdraw needs more SPTs than what is in the Cellar's
-     *         wallet, then the function should revert.
-     */
-    function withdraw(
-        uint256 _amountSPTToSend,
-        address _recipient,
-        bytes memory _adaptorData,
-        bytes memory
-    ) public override {
-        // Run external receiver check.
-        _externalReceiverCheck(_recipient);
-
-        ERC20 spt = abi.decode(_adaptorData, (ERC20));
-
-        spt.safeTransfer(_recipient, _amountSPTToSend);
-    }
-
-    /**
-     * @notice Accounts for SPTs in the Cellar's wallet
-     * @dev See `balanceOf`.
-     */
-    function withdrawableFrom(bytes memory _adaptorData, bytes memory) public view override returns (uint256) {
-        return balanceOf(_adaptorData);
-    }
-
-    /**
-     * @notice Calculates the Cellar's balance of the positions creditAsset, a specific spt.
-     * @param _adaptorData encoded data for trusted adaptor position detailing the spt
-     * @return total balance of spt for Cellar
-     */
-    function balanceOf(bytes memory _adaptorData) public view override returns (uint256) {
-        ERC20 spt = abi.decode(_adaptorData, (ERC20));
-        return ERC20(spt).balanceOf(msg.sender);
-    }
-
-    /**
-     * @notice Returns the positions underlying assets.
-     * @param _adaptorData encoded data for trusted adaptor position detailing the spt
-     * @return spt for Cellar's respective balancer pool position
-     */
-    function assetOf(bytes memory _adaptorData) public pure override returns (ERC20) {
-        return ERC20(abi.decode(_adaptorData, (address)));
-    }
+    //============================================ Strategist Functions ===========================================
 
     /**
      * @notice When positions are added to the Registry, this function can be used in order to figure out
