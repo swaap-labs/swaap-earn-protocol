@@ -4,7 +4,7 @@
 [![Docs](https://img.shields.io/badge/docs-%F0%9F%93%84-blue)](https://docs.swaap.finance/)
 [![tests](https://github.com/swaap-labs/swaap-earn-protocol/actions/workflows/tests.yml/badge.svg)](https://github.com/swaap-labs/swaap-earn-protocol/actions/workflows/tests.yml) 
 [![lints](https://github.com/swaap-labs/swaap-earn-protocol/actions/workflows/lints.yml/badge.svg)](https://github.com/swaap-labs/swaap-earn-protocol/actions/workflows/lints.yml) 
-![license](https://img.shields.io/github/license/swaap-labs/swaap-earn-protocol)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 
 Cellar contracts.
