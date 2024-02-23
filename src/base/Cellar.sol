@@ -683,7 +683,7 @@ contract Cellar is ERC4626, Ownable {
      * @return shares amount of shares given for deposit.
      */
     function deposit(uint256 assets, address receiver) public virtual override nonReentrant returns (uint256 shares) {
-        // Use `_calculateTotalAssetsOrTotalAssetsWithdrawable` instead of totalAssets bc re-entrancy is already checked in this function.
+        // Use `_calculateTotalAssets` instead of totalAssets bc re-entrancy is already checked in this function.
         (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply(true);
 
         uint16 enterFeesRate; // equivalent assets after applying enter fees
@@ -960,48 +960,53 @@ contract Cellar is ERC4626, Ownable {
     function _getTotalAssetsAndTotalSupply(
         bool
     ) internal view virtual returns (uint256 _totalAssets, uint256 _totalSupply) {
-        _totalAssets = _calculateTotalAssetsOrTotalAssetsWithdrawable(false);
+        _totalAssets = _calculateTotalAssets();
         _totalSupply = totalSupply;
     }
 
-    /**
-     * @notice Internal accounting function that can report total assets, or total assets withdrawable.
-     * @param reportWithdrawable if true, then the withdrawable total assets is reported,
-     *                           if false, then the total assets is reported
-     */
-    function _calculateTotalAssetsOrTotalAssetsWithdrawable(
-        bool reportWithdrawable
-    ) internal view returns (uint256 assets) {
+    function _calculateTotalWithdrawableAssets() internal view returns (uint256 withdrawableAssets) {
         uint256 numOfCreditPositions = creditPositions.length;
         ERC20[] memory creditAssets = new ERC20[](numOfCreditPositions);
         uint256[] memory creditBalances = new uint256[](numOfCreditPositions);
-        // If we just need the withdrawable, then query credit array value.
-        if (reportWithdrawable) {
-            for (uint256 i; i < numOfCreditPositions; ++i) {
-                uint32 position = creditPositions[i];
-                // If the withdrawable balance is zero there is no point to query the asset since a zero balance has zero value.
-                if ((creditBalances[i] = _withdrawableFrom(position)) == 0) continue;
-                creditAssets[i] = _assetOf(position);
-            }
-            assets = priceRouter.getValues(creditAssets, creditBalances, asset);
-        } else {
-            uint256 numOfDebtPositions = debtPositions.length;
-            ERC20[] memory debtAssets = new ERC20[](numOfDebtPositions);
-            uint256[] memory debtBalances = new uint256[](numOfDebtPositions);
-            for (uint256 i; i < numOfCreditPositions; ++i) {
-                uint32 position = creditPositions[i];
-                // If the balance is zero there is no point to query the asset since a zero balance has zero value.
-                if ((creditBalances[i] = _balanceOf(position)) == 0) continue;
-                creditAssets[i] = _assetOf(position);
-            }
-            for (uint256 i; i < numOfDebtPositions; ++i) {
-                uint32 position = debtPositions[i];
-                // If the balance is zero there is no point to query the asset since a zero balance has zero value.
-                if ((debtBalances[i] = _balanceOf(position)) == 0) continue;
-                debtAssets[i] = _assetOf(position);
-            }
-            assets = priceRouter.getValuesDelta(creditAssets, creditBalances, debtAssets, debtBalances, asset);
+
+        for (uint256 i; i < numOfCreditPositions; ++i) {
+            uint32 position = creditPositions[i];
+            // If the withdrawable balance is zero there is no point to query the asset since a zero balance has zero value.
+            if ((creditBalances[i] = _withdrawableFrom(position)) == 0) continue;
+            creditAssets[i] = _assetOf(position);
         }
+
+        withdrawableAssets = priceRouter.getValues(creditAssets, creditBalances, asset);
+    }
+
+    function _calculateTotalAssets() internal view returns (uint256 assets) {
+        (ERC20[] memory creditAssets, uint256[] memory creditBalances) = _getCreditOrDebtPositionsData(false);
+        (ERC20[] memory debtAssets, uint256[] memory debtBalances) = _getCreditOrDebtPositionsData(true);
+
+        assets = priceRouter.getValuesDelta(creditAssets, creditBalances, debtAssets, debtBalances, asset);
+    }
+
+    /**
+     * @return _positionAssets the assets of the positions
+     * @return _positionBalances the balances of the positions 
+     */
+    function _getCreditOrDebtPositionsData(
+        bool _isDebt
+    ) internal view returns (ERC20[] memory, uint256[] memory) {
+        uint32[] memory _positions = _isDebt ? debtPositions : creditPositions;
+        
+        uint256 numOfPositions = _positions.length;
+        ERC20[] memory _positionAssets = new ERC20[](numOfPositions);
+        uint256[] memory _positionBalances = new uint256[](numOfPositions);
+    
+        for (uint256 i; i < numOfPositions; ++i) {
+            uint32 position = _positions[i];
+            // If the balance is zero there is no point to query the asset since a zero balance has zero value.
+            if ((_positionBalances[i] = _balanceOf(position)) == 0) continue;
+            _positionAssets[i] = _assetOf(position);
+        }
+
+        return (_positionAssets, _positionBalances);
     }
 
     /**
@@ -1016,7 +1021,7 @@ contract Cellar is ERC4626, Ownable {
     function totalAssets() public view override returns (uint256 assets) {
         _checkIfPaused();
         _revertWhenReentrant();
-        assets = _calculateTotalAssetsOrTotalAssetsWithdrawable(false);
+        assets = _calculateTotalAssets();
     }
 
     /**
@@ -1026,7 +1031,7 @@ contract Cellar is ERC4626, Ownable {
     function totalAssetsWithdrawable() public view returns (uint256 assets) {
         _checkIfPaused();
         _revertWhenReentrant();
-        assets = _calculateTotalAssetsOrTotalAssetsWithdrawable(true);
+        assets = _calculateTotalWithdrawableAssets();
     }
 
     /**
@@ -1127,7 +1132,7 @@ contract Cellar is ERC4626, Ownable {
         (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply(false);
         uint256 assets = _convertToAssets(balanceOf[owner], _totalAssets, _totalSupply);
 
-        uint256 withdrawable = _calculateTotalAssetsOrTotalAssetsWithdrawable(true);
+        uint256 withdrawable = _calculateTotalWithdrawableAssets();
         maxOut = assets <= withdrawable ? assets : withdrawable;
 
         if (inShares) maxOut = _convertToShares(maxOut, _totalAssets, _totalSupply);
@@ -1347,7 +1352,7 @@ contract Cellar is ERC4626, Ownable {
         uint256 maximumAllowedAssets;
         uint256 totalShares;
         {
-            uint256 assetsBeforeAdaptorCall = _calculateTotalAssetsOrTotalAssetsWithdrawable(false);
+            uint256 assetsBeforeAdaptorCall = _calculateTotalAssets();
             minimumAllowedAssets = assetsBeforeAdaptorCall.mulDivUp((1e18 - allowedRebalanceDeviation), 1e18);
             maximumAllowedAssets = assetsBeforeAdaptorCall.mulDivUp((1e18 + allowedRebalanceDeviation), 1e18);
             totalShares = totalSupply;
@@ -1357,7 +1362,7 @@ contract Cellar is ERC4626, Ownable {
         _makeAdaptorCalls(data);
 
         // After making every external call, check that the totalAssets has not deviated significantly, and that totalShares is the same.
-        uint256 assets = _calculateTotalAssetsOrTotalAssetsWithdrawable(false);
+        uint256 assets = _calculateTotalAssets();
         if (assets < minimumAllowedAssets || assets > maximumAllowedAssets) {
             revert Cellar__TotalAssetDeviatedOutsideRange(assets, minimumAllowedAssets, maximumAllowedAssets);
         }
