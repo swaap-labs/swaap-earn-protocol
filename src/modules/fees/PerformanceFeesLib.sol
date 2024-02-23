@@ -16,7 +16,7 @@ library PerformanceFeesLib {
      * @param highWatermarkPrice The high-water mark share price (in 18 decimals)
      * @param performanceFeesRate The performance fees rate (in 18 decimals)
      * @return feesAsShares The shares that should be minted as fees
-     * @return currentSharePrice The up-to-date high-water mark price
+     * @return highWatermarkPrice The up-to-date high-water mark price
      */
     function _calcPerformanceFees(
         uint256 totalAssets,
