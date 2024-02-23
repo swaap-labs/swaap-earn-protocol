@@ -638,12 +638,6 @@ contract Cellar is ERC4626, Ownable {
     error Cellar__IncompleteWithdraw(uint256 assetsOwed);
 
     /**
-     * @notice Attempted to withdraw an illiquid position.
-     * @param illiquidPosition the illiquid position.
-     */
-    error Cellar__IlliquidWithdraw(address illiquidPosition);
-
-    /**
      * @notice called at the beginning of deposit.
      */
     function beforeDeposit(uint256, uint256, address) internal view virtual {
