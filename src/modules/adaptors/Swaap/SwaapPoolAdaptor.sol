@@ -4,6 +4,7 @@ pragma solidity 0.8.21;
 import { BaseAdaptor, ERC20, SafeTransferLib, Cellar, Registry, PriceRouter } from "src/modules/adaptors/BaseAdaptor.sol";
 import { IVault, IERC20, IAsset, IFlashLoanRecipient } from "src/interfaces/external/Balancer/IVault.sol";
 import { IBasePool } from "src/interfaces/external/Balancer/typically-npm/IBasePool.sol";
+import { ISafeguardPool } from "src/interfaces/external/ISafeguardPool.sol";
 import { ERC20Adaptor } from "src/modules/adaptors/ERC20Adaptor.sol";
 
 /**
@@ -80,26 +81,28 @@ contract SwaapPoolAdaptor is ERC20Adaptor {
     //============================================ Strategist Functions ===========================================
 
     /**
-     * @notice When positions are added to the Registry, this function can be used in order to figure out
-     *         what assets this adaptor needs to price, and confirm pricing is properly setup.
-     * @param _adaptorData specified spt of interest
-     * @return assets for Cellar's respective balancer pool position
-     * @dev all breakdowns of spt pricing and its underlying assets are done through the PriceRouter extension (in accordance to PriceRouterv2 architecture)
+     * @notice Allows strategists to join Swaap pools using all tokens (without swaps) when allowlist in on.
      */
-    function assetsUsed(bytes memory _adaptorData) public pure override returns (ERC20[] memory assets) {
-        assets = new ERC20[](1);
-        assets[0] = assetOf(_adaptorData);
-    }
+    function joinPoolWithAllowlistOn(
+        ERC20 targetPool,
+        ERC20[] memory expectedTokensIn,
+        uint256[] memory maxAmountsIn,
+        uint256 requestedSpt,
+        uint256 deadline,
+        bytes memory allowlistSignatureData
+    ) external {
+        if (!ISafeguardPool(address(targetPool)).isAllowlistEnabled()) {
+            joinPool(targetPool, expectedTokensIn, maxAmountsIn, requestedSpt);
+        } else {
+            bytes memory userData = abi.encode(
+                deadline,
+                allowlistSignatureData,
+                abi.encode(JoinKind.ALL_TOKENS_IN_FOR_EXACT_SPT_OUT, requestedSpt)
+            );
 
-    /**
-     * @notice This adaptor returns collateral, and not debt.
-     * @return whether adaptor returns debt or not
-     */
-    function isDebt() public pure override returns (bool) {
-        return false;
+            _joinPool(targetPool, expectedTokensIn, maxAmountsIn, userData);
+        }
     }
-
-    //============================================ Strategist Functions ===========================================
 
     /**
      * @notice Allows strategists to join Swaap pools using all tokens (without swaps).
@@ -109,7 +112,17 @@ contract SwaapPoolAdaptor is ERC20Adaptor {
         ERC20[] memory expectedTokensIn,
         uint256[] memory maxAmountsIn,
         uint256 requestedSpt
-    ) external {
+    ) public {
+        bytes memory userData = abi.encode(JoinKind.ALL_TOKENS_IN_FOR_EXACT_SPT_OUT, requestedSpt);
+        _joinPool(targetPool, expectedTokensIn, maxAmountsIn, userData);
+    }
+
+    function _joinPool(
+        ERC20 targetPool,
+        ERC20[] memory expectedTokensIn,
+        uint256[] memory maxAmountsIn,
+        bytes memory userData
+    ) internal {
         // verify that the spt is used and tracked in the calling cellar
         _validateSpt(targetPool);
 
@@ -136,7 +149,8 @@ contract SwaapPoolAdaptor is ERC20Adaptor {
         }
 
         request.maxAmountsIn = maxAmountsIn;
-        request.userData = abi.encode(JoinKind.ALL_TOKENS_IN_FOR_EXACT_SPT_OUT, requestedSpt);
+
+        request.userData = userData;
 
         SWAAP_VAULT.joinPool(poolId, address(this), address(this), request);
 
