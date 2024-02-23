@@ -5,13 +5,14 @@ import { BaseAdaptor, ERC20, SafeTransferLib, Cellar, Registry, PriceRouter } fr
 import { IVault, IERC20, IAsset, IFlashLoanRecipient } from "src/interfaces/external/Balancer/IVault.sol";
 import { IBasePool } from "src/interfaces/external/Balancer/typically-npm/IBasePool.sol";
 import { ISafeguardPool } from "src/interfaces/external/ISafeguardPool.sol";
-import { ERC20Adaptor } from "src/modules/adaptors/ERC20Adaptor.sol";
+import { BaseAdaptor } from "src/modules/adaptors/BaseAdaptor.sol";
+import { PositionlessAdaptor } from "src/modules/adaptors/PositionlessAdaptor.sol";
 
 /**
  * @title Swaap Pool Adaptor
  * @notice Allows Cellars to interact with Swaap Safeguard Pools.
  */
-contract SwaapPoolAdaptor is ERC20Adaptor {
+contract SwaapPoolAdaptor is PositionlessAdaptor {
     using SafeTransferLib for ERC20;
 
     //==================== Adaptor Data Specification ====================
@@ -45,6 +46,8 @@ contract SwaapPoolAdaptor is ERC20Adaptor {
      */
     IVault public immutable SWAAP_VAULT;
 
+    bytes32 public immutable ERC20_ADAPTOR_IDENTIFIER;
+
     /**
      * @notice The enum value needed to specify the join and exit type on Safeguard pools.
      */
@@ -60,8 +63,14 @@ contract SwaapPoolAdaptor is ERC20Adaptor {
 
     //============================================ Constructor ===========================================
 
-    constructor(address _swaapVault) {
+    /**
+     * @notice Constructs the Swaap Pool Adaptor
+     * @param _swaapVault the address of the Swaap Vault
+     * @param _erc20Adaptor the address of the ERC20 Adaptor
+     */
+    constructor(address _swaapVault, address _erc20Adaptor) {
         SWAAP_VAULT = IVault(_swaapVault);
+        ERC20_ADAPTOR_IDENTIFIER = BaseAdaptor(_erc20Adaptor).identifier();
     }
 
     //============================================ Global Functions ===========================================
@@ -74,9 +83,6 @@ contract SwaapPoolAdaptor is ERC20Adaptor {
     function identifier() public pure virtual override returns (bytes32) {
         return keccak256(abi.encode("Swaap Pool Adaptor V 1.0"));
     }
-
-    //============================================ Implement Base Functions ===========================================
-    // This adaptor is a special case of the ERC20Adaptor, and thus does not need to implement the deposit / withdraw function.
 
     //============================================ Strategist Functions ===========================================
 
@@ -124,7 +130,7 @@ contract SwaapPoolAdaptor is ERC20Adaptor {
         bytes memory userData
     ) internal {
         // verify that the spt is used and tracked in the calling cellar
-        _validateSpt(targetPool);
+        _validateTokenIsUsed(targetPool);
 
         uint256 length = expectedTokensIn.length;
         if (length != maxAmountsIn.length) revert SwaapPoolAdaptor___LengthMismatch();
@@ -188,6 +194,7 @@ contract SwaapPoolAdaptor is ERC20Adaptor {
         for (uint256 i; i < length; ++i) {
             if (address(poolTokens[i]) != address(expectedTokensOut[i]))
                 revert SwaapPoolAdaptor___PoolTokenAndExpectedTokenMismatch();
+            _validateTokenIsUsed(expectedTokensOut[i]);
             request.assets[i] = IAsset(address(poolTokens[i]));
         }
 
@@ -206,12 +213,11 @@ contract SwaapPoolAdaptor is ERC20Adaptor {
 
     //============================================ Helper Functions ===========================================
 
-    /**
-     * @notice Validates that a given spt is set up as a position in the Cellar
-     * @dev This function uses `address(this)` as the address of the Cellar
-     * @param _spt of interest
-     */
-    function _validateSpt(ERC20 _spt) internal view {
-        _verifyUsedPosition(abi.encode(_spt));
+    function _validateTokenIsUsed(ERC20 token) internal view {
+        bytes memory adaptorData = abi.encode(token);
+        // This adaptor has no underlying position, so no need to validate token out.
+        bytes32 positionHash = keccak256(abi.encode(ERC20_ADAPTOR_IDENTIFIER, false, adaptorData));
+        uint32 positionId = Cellar(address(this)).registry().getPositionHashToPositionId(positionHash);
+        if (!Cellar(address(this)).isPositionUsed(positionId)) revert BaseAdaptor__PositionNotUsed(adaptorData);
     }
 }
