@@ -683,11 +683,10 @@ contract Cellar is ERC4626, Ownable {
      * @return shares amount of shares given for deposit.
      */
     function deposit(uint256 assets, address receiver) public virtual override nonReentrant returns (uint256 shares) {
-        // Use `_calculateTotalAssets` instead of totalAssets bc re-entrancy is already checked in this function.
-        (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply();
-
-        uint16 enterFeesRate; // equivalent assets after applying enter fees
-        (enterFeesRate, _totalSupply) = _beforeEnterOrExitFeesHook(_totalAssets, _totalSupply, true);
+        // the total supply is the equivalent of total shares after applying the performance and management fees
+        (uint16 enterFeesRate, uint256 _totalAssets, uint256 _totalSupply) = _applyFeesAndGetTotalAssetsAndTotalSupply(
+            true
+        );
 
         // Check for rounding error since we round down in previewDeposit.
         if ((shares = _convertToShares(assets, _totalAssets, _totalSupply)) == 0) revert Cellar__ZeroShares();
@@ -707,11 +706,10 @@ contract Cellar is ERC4626, Ownable {
      * @return assets amount of assets deposited into the cellar.
      */
     function mint(uint256 shares, address receiver) public virtual override nonReentrant returns (uint256 assets) {
-        (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply();
-
-        // equivalent shares after applying enter fees
-        uint16 enterFeesRate;
-        (enterFeesRate, _totalSupply) = _beforeEnterOrExitFeesHook(_totalAssets, _totalSupply, true);
+        // the total supply is the equivalent of total shares after applying the performance and management fees
+        (uint16 enterFeesRate, uint256 _totalAssets, uint256 _totalSupply) = _applyFeesAndGetTotalAssetsAndTotalSupply(
+            true
+        );
 
         // previewMint rounds up, but initial mint could return zero assets, so check for rounding error.
         if ((assets = _previewMint(shares, _totalAssets, _totalSupply)) == 0) revert Cellar__ZeroAssets();
@@ -763,10 +761,10 @@ contract Cellar is ERC4626, Ownable {
         address receiver,
         address owner
     ) public override nonReentrant returns (uint256 shares) {
-        (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply();
-
-        uint16 exitFeesRate;
-        (exitFeesRate, _totalSupply) = _beforeEnterOrExitFeesHook(_totalAssets, _totalSupply, false);
+        // the total supply is the equivalent of total shares after applying the performance and management fees
+        (uint16 exitFeesRate, uint256 _totalAssets, uint256 _totalSupply) = _applyFeesAndGetTotalAssetsAndTotalSupply(
+            false
+        );
 
         // No need to check for rounding error, `previewWithdraw` rounds up.
         shares = _previewWithdraw(assets, _totalAssets, _totalSupply);
@@ -795,10 +793,10 @@ contract Cellar is ERC4626, Ownable {
         address receiver,
         address owner
     ) public override nonReentrant returns (uint256 assets) {
-        (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply();
-
-        uint16 exitFeesRate;
-        (exitFeesRate, _totalSupply) = _beforeEnterOrExitFeesHook(_totalAssets, _totalSupply, false);
+        // the total supply is the equivalent of total shares after applying the performance and management fees
+        (uint16 exitFeesRate, uint256 _totalAssets, uint256 _totalSupply) = _applyFeesAndGetTotalAssetsAndTotalSupply(
+            false
+        );
 
         // Check for rounding error since we round down in previewRedeem.
         if ((assets = _convertToAssets(shares, _totalAssets, _totalSupply)) == 0) revert Cellar__ZeroAssets();
@@ -809,16 +807,29 @@ contract Cellar is ERC4626, Ownable {
         _exit(assets, shares, receiver, owner);
     }
 
-    function _previewBeforeEnterOrExitFeesHook(
-        uint256 _totalAssets,
-        uint256 _totalSupply,
+    /**
+     * @notice Called at the beginning of `previewDeposit`, `previewMint`, `previewWithdraw` and `previewRedeem`.
+     * @return _enterOrExitFees the enter or exit fees that should be applied to the operation
+     * @return _totalAssets the total assets in the cellar
+     * @return _totalSupply the total supply of shares after fees if any
+     */
+    function _previewTotalAssetsAndTotalSupplyAfterFees(
         bool _isEntering
-    ) internal view virtual returns (uint16, uint256) {
+    ) internal view virtual returns (uint16, uint256, uint256) {
+        uint256 _totalAssets = _calculateTotalAssets();
+        uint256 _totalSupply = totalSupply;
+
         if (isShutdown) {
-            return (0, _totalSupply);
+            return (0, _totalAssets, _totalSupply);
         }
 
-        return FEES_MANAGER.previewApplyFeesBeforeJoinExit(_totalAssets, _totalSupply, _isEntering);
+        (uint16 _enterOrExitFees, uint256 feesAsShares) = FEES_MANAGER.previewApplyFeesBeforeJoinExit(
+            _totalAssets,
+            _totalSupply,
+            _isEntering
+        );
+
+        return (_enterOrExitFees, _totalAssets, _totalSupply + feesAsShares);
     }
 
     /**
@@ -827,17 +838,24 @@ contract Cellar is ERC4626, Ownable {
      */
     function collectFees() external nonReentrant {
         _checkIfPaused();
-        (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply();
-        _beforeEnterOrExitFeesHook(_totalAssets, _totalSupply, false);
+        _applyFeesAndGetTotalAssetsAndTotalSupply(false);
     }
 
-    function _beforeEnterOrExitFeesHook(
-        uint256 _totalAssets,
-        uint256 _totalSupply,
+    /**
+     * @notice Called at the beginning of `deposit`, `mint`, `withdraw` and `redeem`.
+     * @dev This function is called before the cellar applies fees.
+     * @return _enterOrExitFeesRate the enter or exit fees rate that should be applied to the operation
+     * @return _totalAssets the total assets in the cellar
+     * @return _totalSupply the total supply of shares after fees if any
+     */
+    function _applyFeesAndGetTotalAssetsAndTotalSupply(
         bool _isEntering
-    ) internal virtual returns (uint16, uint256) {
+    ) internal virtual returns (uint16, uint256, uint256) {
+        uint256 _totalAssets = _calculateTotalAssets();
+        uint256 _totalSupply = totalSupply;
+
         if (isShutdown) {
-            return (0, _totalSupply);
+            return (0, _totalAssets, _totalSupply);
         }
 
         (uint16 _enterOrExitFeesRate, uint256 _feesAsShares) = FEES_MANAGER.applyFeesBeforeJoinExit(
@@ -851,7 +869,7 @@ contract Cellar is ERC4626, Ownable {
             _totalSupply += _feesAsShares;
         }
 
-        return (_enterOrExitFeesRate, _totalSupply);
+        return (_enterOrExitFeesRate, _totalAssets, _totalSupply);
     }
 
     uint16 internal constant _BPS_ONE_HUNDRED_PER_CENT = 1e4;
@@ -954,7 +972,12 @@ contract Cellar is ERC4626, Ownable {
     /**
      * @notice Get the Cellars Total Assets, and Total Supply.
      */
-    function _getTotalAssetsAndTotalSupply() internal view virtual returns (uint256 _totalAssets, uint256 _totalSupply) {
+    function _getTotalAssetsAndTotalSupply()
+        internal
+        view
+        virtual
+        returns (uint256 _totalAssets, uint256 _totalSupply)
+    {
         _totalAssets = _calculateTotalAssets();
         _totalSupply = totalSupply;
     }
@@ -983,17 +1006,15 @@ contract Cellar is ERC4626, Ownable {
 
     /**
      * @return _positionAssets the assets of the positions
-     * @return _positionBalances the balances of the positions 
+     * @return _positionBalances the balances of the positions
      */
-    function _getCreditOrDebtPositionsData(
-        bool _isDebt
-    ) internal view returns (ERC20[] memory, uint256[] memory) {
+    function _getCreditOrDebtPositionsData(bool _isDebt) internal view returns (ERC20[] memory, uint256[] memory) {
         uint32[] memory _positions = _isDebt ? debtPositions : creditPositions;
-        
+
         uint256 numOfPositions = _positions.length;
         ERC20[] memory _positionAssets = new ERC20[](numOfPositions);
         uint256[] memory _positionBalances = new uint256[](numOfPositions);
-    
+
         for (uint256 i; i < numOfPositions; ++i) {
             uint32 position = _positions[i];
             // If the balance is zero there is no point to query the asset since a zero balance has zero value.
@@ -1057,13 +1078,12 @@ contract Cellar is ERC4626, Ownable {
      * @return assets that will be deposited
      */
     function previewMint(uint256 shares) public view override returns (uint256 assets) {
-        (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply();
-        (uint16 _enterFeesRate, uint256 _feesAsShares) = _previewBeforeEnterOrExitFeesHook(
-            _totalAssets,
-            _totalSupply,
-            true
-        );
-        assets = _previewMint(shares, _totalAssets, _totalSupply + _feesAsShares);
+        (
+            uint16 _enterFeesRate,
+            uint256 _totalAssets,
+            uint256 _totalSupply
+        ) = _previewTotalAssetsAndTotalSupplyAfterFees(true);
+        assets = _previewMint(shares, _totalAssets, _totalSupply);
         assets = _applyEnterOrExitFees(_enterFeesRate, assets, true);
     }
 
@@ -1073,13 +1093,10 @@ contract Cellar is ERC4626, Ownable {
      * @return shares that will be redeemed
      */
     function previewWithdraw(uint256 assets) public view override returns (uint256 shares) {
-        (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply();
-        (uint16 _exitFeesRate, uint256 _feesAsShares) = _previewBeforeEnterOrExitFeesHook(
-            _totalAssets,
-            _totalSupply,
+        (uint16 _exitFeesRate, uint256 _totalAssets, uint256 _totalSupply) = _previewTotalAssetsAndTotalSupplyAfterFees(
             false
         );
-        shares = _previewWithdraw(assets, _totalAssets, _totalSupply + _feesAsShares);
+        shares = _previewWithdraw(assets, _totalAssets, _totalSupply);
         shares = _applyEnterOrExitFees(_exitFeesRate, shares, true);
     }
 
@@ -1089,13 +1106,12 @@ contract Cellar is ERC4626, Ownable {
      * @return shares that will be minted
      */
     function previewDeposit(uint256 assets) public view override returns (uint256 shares) {
-        (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply();
-        (uint16 _enterFeesRate, uint256 _feesAsShares) = _previewBeforeEnterOrExitFeesHook(
-            _totalAssets,
-            _totalSupply,
-            true
-        );
-        shares = _convertToShares(assets, _totalAssets, _totalSupply + _feesAsShares);
+        (
+            uint16 _enterFeesRate,
+            uint256 _totalAssets,
+            uint256 _totalSupply
+        ) = _previewTotalAssetsAndTotalSupplyAfterFees(true);
+        shares = _convertToShares(assets, _totalAssets, _totalSupply);
         shares = _applyEnterOrExitFees(_enterFeesRate, shares, false);
     }
 
@@ -1105,13 +1121,10 @@ contract Cellar is ERC4626, Ownable {
      * @return assets that will be returned
      */
     function previewRedeem(uint256 shares) public view override returns (uint256 assets) {
-        (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply();
-        (uint16 _exitFeesRate, uint256 _feesAsShares) = _previewBeforeEnterOrExitFeesHook(
-            _totalAssets,
-            _totalSupply,
+        (uint16 _exitFeesRate, uint256 _totalAssets, uint256 _totalSupply) = _previewTotalAssetsAndTotalSupplyAfterFees(
             false
         );
-        assets = _convertToAssets(shares, _totalAssets, _totalSupply + _feesAsShares);
+        assets = _convertToAssets(shares, _totalAssets, _totalSupply);
         assets = _applyEnterOrExitFees(_exitFeesRate, assets, false);
     }
 
