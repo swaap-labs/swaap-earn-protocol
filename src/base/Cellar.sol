@@ -969,19 +969,6 @@ contract Cellar is ERC4626, Ownable {
 
     // ========================================= ACCOUNTING LOGIC =========================================
 
-    /**
-     * @notice Get the Cellars Total Assets, and Total Supply.
-     */
-    function _getTotalAssetsAndTotalSupply()
-        internal
-        view
-        virtual
-        returns (uint256 _totalAssets, uint256 _totalSupply)
-    {
-        _totalAssets = _calculateTotalAssets();
-        _totalSupply = totalSupply;
-    }
-
     function _calculateTotalWithdrawableAssets() internal view returns (uint256 withdrawableAssets) {
         uint256 numOfCreditPositions = creditPositions.length;
         ERC20[] memory creditAssets = new ERC20[](numOfCreditPositions);
@@ -1137,8 +1124,12 @@ contract Cellar is ERC4626, Ownable {
     function _findMax(address owner, bool inShares) internal view virtual returns (uint256 maxOut) {
         _checkIfPaused();
         // Get amount of assets to withdraw.
-        (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply();
+        (uint16 _exitFees, uint256 _totalAssets, uint256 _totalSupply) = _previewTotalAssetsAndTotalSupplyAfterFees(
+            false
+        );
+
         uint256 assets = _convertToAssets(balanceOf[owner], _totalAssets, _totalSupply);
+        assets = _applyEnterOrExitFees(_exitFees, assets, false);
 
         uint256 withdrawable = _calculateTotalWithdrawableAssets();
         maxOut = assets <= withdrawable ? assets : withdrawable;
@@ -1407,11 +1398,15 @@ contract Cellar is ERC4626, Ownable {
         uint192 _cap = shareSupplyCap;
         if ((_cap = shareSupplyCap) == type(uint192).max) return type(uint256).max;
 
-        (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply();
+        (uint16 _enterFees, uint256 _totalAssets, uint256 _totalSupply) = _previewTotalAssetsAndTotalSupplyAfterFees(
+            true
+        );
+
         if (_totalSupply >= _cap) return 0;
         else {
             uint256 shareDelta = _cap - _totalSupply;
-            return _convertToAssets(shareDelta, _totalAssets, _totalSupply);
+            uint256 assets = _convertToAssets(shareDelta, _totalAssets, _totalSupply);
+            return _applyEnterOrExitFees(_enterFees, assets, true);
         }
     }
 
