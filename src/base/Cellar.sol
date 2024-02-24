@@ -684,7 +684,7 @@ contract Cellar is ERC4626, Ownable {
      */
     function deposit(uint256 assets, address receiver) public virtual override nonReentrant returns (uint256 shares) {
         // Use `_calculateTotalAssets` instead of totalAssets bc re-entrancy is already checked in this function.
-        (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply(true);
+        (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply();
 
         uint16 enterFeesRate; // equivalent assets after applying enter fees
         (enterFeesRate, _totalSupply) = _beforeEnterOrExitFeesHook(_totalAssets, _totalSupply, true);
@@ -707,7 +707,7 @@ contract Cellar is ERC4626, Ownable {
      * @return assets amount of assets deposited into the cellar.
      */
     function mint(uint256 shares, address receiver) public virtual override nonReentrant returns (uint256 assets) {
-        (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply(true);
+        (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply();
 
         // equivalent shares after applying enter fees
         uint16 enterFeesRate;
@@ -763,7 +763,7 @@ contract Cellar is ERC4626, Ownable {
         address receiver,
         address owner
     ) public override nonReentrant returns (uint256 shares) {
-        (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply(false);
+        (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply();
 
         uint16 exitFeesRate;
         (exitFeesRate, _totalSupply) = _beforeEnterOrExitFeesHook(_totalAssets, _totalSupply, false);
@@ -795,7 +795,7 @@ contract Cellar is ERC4626, Ownable {
         address receiver,
         address owner
     ) public override nonReentrant returns (uint256 assets) {
-        (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply(false);
+        (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply();
 
         uint16 exitFeesRate;
         (exitFeesRate, _totalSupply) = _beforeEnterOrExitFeesHook(_totalAssets, _totalSupply, false);
@@ -827,7 +827,7 @@ contract Cellar is ERC4626, Ownable {
      */
     function collectFees() external nonReentrant {
         _checkIfPaused();
-        (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply(true);
+        (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply();
         _beforeEnterOrExitFeesHook(_totalAssets, _totalSupply, false);
     }
 
@@ -953,13 +953,8 @@ contract Cellar is ERC4626, Ownable {
 
     /**
      * @notice Get the Cellars Total Assets, and Total Supply.
-     * @dev bool input is not used, but if it were used the following is true.
-     *      true: return the largest possible total assets
-     *      false: return the smallest possible total assets
      */
-    function _getTotalAssetsAndTotalSupply(
-        bool
-    ) internal view virtual returns (uint256 _totalAssets, uint256 _totalSupply) {
+    function _getTotalAssetsAndTotalSupply() internal view virtual returns (uint256 _totalAssets, uint256 _totalSupply) {
         _totalAssets = _calculateTotalAssets();
         _totalSupply = totalSupply;
     }
@@ -1062,7 +1057,7 @@ contract Cellar is ERC4626, Ownable {
      * @return assets that will be deposited
      */
     function previewMint(uint256 shares) public view override returns (uint256 assets) {
-        (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply(true);
+        (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply();
         (uint16 _enterFeesRate, uint256 _feesAsShares) = _previewBeforeEnterOrExitFeesHook(
             _totalAssets,
             _totalSupply,
@@ -1078,7 +1073,7 @@ contract Cellar is ERC4626, Ownable {
      * @return shares that will be redeemed
      */
     function previewWithdraw(uint256 assets) public view override returns (uint256 shares) {
-        (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply(false);
+        (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply();
         (uint16 _exitFeesRate, uint256 _feesAsShares) = _previewBeforeEnterOrExitFeesHook(
             _totalAssets,
             _totalSupply,
@@ -1094,7 +1089,7 @@ contract Cellar is ERC4626, Ownable {
      * @return shares that will be minted
      */
     function previewDeposit(uint256 assets) public view override returns (uint256 shares) {
-        (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply(true);
+        (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply();
         (uint16 _enterFeesRate, uint256 _feesAsShares) = _previewBeforeEnterOrExitFeesHook(
             _totalAssets,
             _totalSupply,
@@ -1110,7 +1105,7 @@ contract Cellar is ERC4626, Ownable {
      * @return assets that will be returned
      */
     function previewRedeem(uint256 shares) public view override returns (uint256 assets) {
-        (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply(false);
+        (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply();
         (uint16 _exitFeesRate, uint256 _feesAsShares) = _previewBeforeEnterOrExitFeesHook(
             _totalAssets,
             _totalSupply,
@@ -1129,7 +1124,7 @@ contract Cellar is ERC4626, Ownable {
     function _findMax(address owner, bool inShares) internal view virtual returns (uint256 maxOut) {
         _checkIfPaused();
         // Get amount of assets to withdraw.
-        (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply(false);
+        (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply();
         uint256 assets = _convertToAssets(balanceOf[owner], _totalAssets, _totalSupply);
 
         uint256 withdrawable = _calculateTotalWithdrawableAssets();
@@ -1399,7 +1394,7 @@ contract Cellar is ERC4626, Ownable {
         uint192 _cap = shareSupplyCap;
         if ((_cap = shareSupplyCap) == type(uint192).max) return type(uint256).max;
 
-        (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply(true);
+        (uint256 _totalAssets, uint256 _totalSupply) = _getTotalAssetsAndTotalSupply();
         if (_totalSupply >= _cap) return 0;
         else {
             uint256 shareDelta = _cap - _totalSupply;
