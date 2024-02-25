@@ -38,7 +38,7 @@ contract Cellar is ERC4626, Ownable {
     /**
      * @notice `locked` is public, so that the state can be checked even during view function calls.
      */
-    bool internal locked;
+    bool public locked;
 
     /**
      * @notice Whether or not the contract is shutdown in case of an emergency.
@@ -53,7 +53,7 @@ contract Cellar is ERC4626, Ownable {
     /**
      * @notice Stores the position id of the holding position in the creditPositions array.
      */
-    uint32 internal holdingPosition;
+    uint32 public holdingPosition;
 
     /**
      * @notice Sets the end date when the cellar pause mode will be disregarded whatever its state.
@@ -129,7 +129,7 @@ contract Cellar is ERC4626, Ownable {
         }
 
         // Make sure expected price router is equal to price router grabbed from registry.
-        _checkRegistryAddressAgainstExpected(PRICE_ROUTER_REGISTRY_SLOT, expectedPriceRouter);
+        _checkRegistryAddressAgainstExpected(_PRICE_ROUTER_REGISTRY_SLOT, expectedPriceRouter);
 
         priceRouter = PriceRouter(expectedPriceRouter);
         uint256 assetsAfter = totalAssets();
@@ -272,7 +272,7 @@ contract Cellar is ERC4626, Ownable {
     /**
      * @notice Maximum amount of positions a cellar can have in it's credit/debt arrays.
      */
-    uint256 public constant MAX_POSITIONS = 32;
+    uint256 internal constant _MAX_POSITIONS = 32;
 
     /**
      * @notice Allows owner to change the holding position.
@@ -371,11 +371,11 @@ contract Cellar is ERC4626, Ownable {
         });
 
         if (isDebt) {
-            if (debtPositions.length >= MAX_POSITIONS) revert Cellar__PositionArrayFull(MAX_POSITIONS);
+            if (debtPositions.length >= _MAX_POSITIONS) revert Cellar__PositionArrayFull(_MAX_POSITIONS);
             // Add new position at a specified index.
             debtPositions.add(index, positionId);
         } else {
-            if (creditPositions.length >= MAX_POSITIONS) revert Cellar__PositionArrayFull(MAX_POSITIONS);
+            if (creditPositions.length >= _MAX_POSITIONS) revert Cellar__PositionArrayFull(_MAX_POSITIONS);
             // Add new position at a specified index.
             creditPositions.add(index, positionId);
         }
@@ -488,7 +488,7 @@ contract Cellar is ERC4626, Ownable {
     /**
      * @notice View function external contracts can use to see if the cellar is paused.
      */
-    function isPaused() external view returns (bool) {
+    function isPaused() public view returns (bool) {
         if (block.timestamp < endPauseTimestamp) {
             return registry.isCallerPaused(address(this));
         }
@@ -498,10 +498,8 @@ contract Cellar is ERC4626, Ownable {
     /**
      * @notice Pauses all user entry/exits, and strategist rebalances.
      */
-    function _checkIfPaused() internal view {
-        if (block.timestamp < endPauseTimestamp) {
-            if (registry.isCallerPaused(address(this))) revert Cellar__Paused();
-        }
+    function _whenNotPaused() internal view {
+        if (isPaused()) revert Cellar__Paused();
     }
 
     /**
@@ -538,17 +536,17 @@ contract Cellar is ERC4626, Ownable {
     /**
      * @notice Delay between the creation of the cellar and the end of the pause mode the current pause state.
      */
-    uint256 internal constant DELAY_UNTIL_END_PAUSE = 30 days * 9; // 9 months
+    uint256 internal constant _DELAY_UNTIL_END_PAUSE = 30 days * 9; // 9 months
 
     /**
      * @notice Id to get the price router from the registry.
      */
-    uint256 internal constant PRICE_ROUTER_REGISTRY_SLOT = 2;
+    uint256 internal constant _PRICE_ROUTER_REGISTRY_SLOT = 2;
 
     /**
      * @notice The minimum amount of shares to be minted in the contructor.
      */
-    uint256 internal constant MINIMUM_CONSTRUCTOR_MINT = 1e4;
+    uint256 internal constant _MINIMUM_CONSTRUCTOR_MINT = 1e4;
 
     uint8 internal constant _CELLAR_DECIMALS = 18;
 
@@ -592,9 +590,9 @@ contract Cellar is ERC4626, Ownable {
         uint256 _initialDeposit,
         uint192 _shareSupplyCap
     ) ERC4626(_asset) ERC20(_name, _symbol, _CELLAR_DECIMALS) Ownable() {
-        endPauseTimestamp = block.timestamp + DELAY_UNTIL_END_PAUSE;
+        endPauseTimestamp = block.timestamp + _DELAY_UNTIL_END_PAUSE;
         registry = _registry;
-        priceRouter = PriceRouter(_registry.getAddress(PRICE_ROUTER_REGISTRY_SLOT));
+        priceRouter = PriceRouter(_registry.getAddress(_PRICE_ROUTER_REGISTRY_SLOT));
 
         // Initialize holding position.
         addPositionToCatalogue(_holdingPosition);
@@ -604,7 +602,7 @@ contract Cellar is ERC4626, Ownable {
         // Update Share Supply Cap.
         shareSupplyCap = _shareSupplyCap;
 
-        if (_initialDeposit < MINIMUM_CONSTRUCTOR_MINT) revert Cellar__MinimumConstructorMintNotMet();
+        if (_initialDeposit < _MINIMUM_CONSTRUCTOR_MINT) revert Cellar__MinimumConstructorMintNotMet();
 
         // Deposit into Cellar, and mint shares to Deployer address.
         _asset.safeTransferFrom(_owner, address(this), _initialDeposit);
@@ -642,7 +640,7 @@ contract Cellar is ERC4626, Ownable {
      */
     function beforeDeposit(uint256, uint256, address) internal view virtual {
         _whenNotShutdown();
-        _checkIfPaused();
+        _whenNotPaused();
     }
 
     /**
@@ -657,7 +655,7 @@ contract Cellar is ERC4626, Ownable {
      * @notice called at the beginning of withdraw.
      */
     function beforeWithdraw(uint256, uint256, address, address) internal view virtual {
-        _checkIfPaused();
+        _whenNotPaused();
     }
 
     /**
@@ -684,15 +682,17 @@ contract Cellar is ERC4626, Ownable {
      */
     function deposit(uint256 assets, address receiver) public virtual override nonReentrant returns (uint256 shares) {
         // the total supply is the equivalent of total shares after applying the performance and management fees
-        (uint16 enterFeesRate, uint256 _totalAssets, uint256 _totalSupply) = _applyFeesAndGetTotalAssetsAndTotalSupply(
-            true
-        );
+        (
+            uint16 _enterFeesRate,
+            uint256 _totalAssets,
+            uint256 _totalSupply
+        ) = _collectFeesAndGetTotalAssetsAndTotalSupply(true);
 
         // Check for rounding error since we round down in previewDeposit.
         if ((shares = _convertToShares(assets, _totalAssets, _totalSupply)) == 0) revert Cellar__ZeroShares();
 
         // apply enter fees
-        shares = _applyEnterOrExitFees(enterFeesRate, shares, false);
+        shares = _applyEnterOrExitFees(_enterFeesRate, shares, false);
 
         if ((_totalSupply + shares) > shareSupplyCap) revert Cellar__ShareSupplyCapExceeded();
 
@@ -707,15 +707,17 @@ contract Cellar is ERC4626, Ownable {
      */
     function mint(uint256 shares, address receiver) public virtual override nonReentrant returns (uint256 assets) {
         // the total supply is the equivalent of total shares after applying the performance and management fees
-        (uint16 enterFeesRate, uint256 _totalAssets, uint256 _totalSupply) = _applyFeesAndGetTotalAssetsAndTotalSupply(
-            true
-        );
+        (
+            uint16 _enterFeesRate,
+            uint256 _totalAssets,
+            uint256 _totalSupply
+        ) = _collectFeesAndGetTotalAssetsAndTotalSupply(true);
 
         // previewMint rounds up, but initial mint could return zero assets, so check for rounding error.
         if ((assets = _previewMint(shares, _totalAssets, _totalSupply)) == 0) revert Cellar__ZeroAssets();
 
         // apply enter fees
-        assets = _applyEnterOrExitFees(enterFeesRate, assets, true);
+        assets = _applyEnterOrExitFees(_enterFeesRate, assets, true);
 
         if ((_totalSupply + shares) > shareSupplyCap) revert Cellar__ShareSupplyCapExceeded();
 
@@ -762,15 +764,17 @@ contract Cellar is ERC4626, Ownable {
         address owner
     ) public override nonReentrant returns (uint256 shares) {
         // the total supply is the equivalent of total shares after applying the performance and management fees
-        (uint16 exitFeesRate, uint256 _totalAssets, uint256 _totalSupply) = _applyFeesAndGetTotalAssetsAndTotalSupply(
-            false
-        );
+        (
+            uint16 _exitFeesRate,
+            uint256 _totalAssets,
+            uint256 _totalSupply
+        ) = _collectFeesAndGetTotalAssetsAndTotalSupply(false);
 
         // No need to check for rounding error, `previewWithdraw` rounds up.
         shares = _previewWithdraw(assets, _totalAssets, _totalSupply);
 
         // apply exit fees
-        shares = _applyEnterOrExitFees(exitFeesRate, shares, true);
+        shares = _applyEnterOrExitFees(_exitFeesRate, shares, true);
 
         _exit(assets, shares, receiver, owner);
     }
@@ -794,15 +798,17 @@ contract Cellar is ERC4626, Ownable {
         address owner
     ) public override nonReentrant returns (uint256 assets) {
         // the total supply is the equivalent of total shares after applying the performance and management fees
-        (uint16 exitFeesRate, uint256 _totalAssets, uint256 _totalSupply) = _applyFeesAndGetTotalAssetsAndTotalSupply(
-            false
-        );
+        (
+            uint16 _exitFeesRate,
+            uint256 _totalAssets,
+            uint256 _totalSupply
+        ) = _collectFeesAndGetTotalAssetsAndTotalSupply(false);
 
         // Check for rounding error since we round down in previewRedeem.
         if ((assets = _convertToAssets(shares, _totalAssets, _totalSupply)) == 0) revert Cellar__ZeroAssets();
 
         // apply exit fees
-        assets = _applyEnterOrExitFees(exitFeesRate, assets, false);
+        assets = _applyEnterOrExitFees(_exitFeesRate, assets, false);
 
         _exit(assets, shares, receiver, owner);
     }
@@ -837,8 +843,8 @@ contract Cellar is ERC4626, Ownable {
      * @dev Callable by anyone (permissionless).
      */
     function collectFees() external nonReentrant {
-        _checkIfPaused();
-        _applyFeesAndGetTotalAssetsAndTotalSupply(false);
+        _whenNotPaused();
+        _collectFeesAndGetTotalAssetsAndTotalSupply(false);
     }
 
     /**
@@ -848,7 +854,7 @@ contract Cellar is ERC4626, Ownable {
      * @return _totalAssets the total assets in the cellar
      * @return _totalSupply the total supply of shares after fees if any
      */
-    function _applyFeesAndGetTotalAssetsAndTotalSupply(
+    function _collectFeesAndGetTotalAssetsAndTotalSupply(
         bool _isEntering
     ) internal virtual returns (uint16, uint256, uint256) {
         uint256 _totalAssets = _calculateTotalAssets();
@@ -1022,7 +1028,7 @@ contract Cellar is ERC4626, Ownable {
      * @dev Run a re-entrancy check because totalAssets can be wrong if re-entering from deposit/withdraws.
      */
     function totalAssets() public view override returns (uint256 assets) {
-        _checkIfPaused();
+        _whenNotPaused();
         _revertWhenReentrant();
         assets = _calculateTotalAssets();
     }
@@ -1032,7 +1038,7 @@ contract Cellar is ERC4626, Ownable {
      * @dev Run a re-entrancy check because totalAssetsWithdrawable can be wrong if re-entering from deposit/withdraws.
      */
     function totalAssetsWithdrawable() public view returns (uint256 assets) {
-        _checkIfPaused();
+        _whenNotPaused();
         _revertWhenReentrant();
         assets = _calculateTotalWithdrawableAssets();
     }
@@ -1122,7 +1128,7 @@ contract Cellar is ERC4626, Ownable {
      *                 if true then returns value in terms of shares
      */
     function _findMax(address owner, bool inShares) internal view virtual returns (uint256 maxOut) {
-        _checkIfPaused();
+        _whenNotPaused();
         // Get amount of assets to withdraw.
         (uint16 _exitFees, uint256 _totalAssets, uint256 _totalSupply) = _previewTotalAssetsAndTotalSupplyAfterFees(
             false
@@ -1343,7 +1349,7 @@ contract Cellar is ERC4626, Ownable {
     function callOnAdaptor(AdaptorCall[] calldata data) external virtual nonReentrant {
         if (msg.sender != owner() && msg.sender != automationActions) revert Cellar__CallerNotApprovedToRebalance();
         _whenNotShutdown();
-        _checkIfPaused();
+        _whenNotPaused();
         blockExternalReceiver = true;
 
         // Record `totalAssets` and `totalShares` before making any external calls.
