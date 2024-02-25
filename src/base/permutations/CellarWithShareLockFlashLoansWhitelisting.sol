@@ -6,6 +6,9 @@ import { IFlashLoanRecipient, IERC20 } from "@balancer/interfaces/contracts/vaul
 import { CellarWithShareLockPeriod } from "src/base/permutations/CellarWithShareLockPeriod.sol";
 import { EIP712, ECDSA } from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 
+/**
+ * @title Cellar with a Share Lock Perios, Flash Loans, and Whitelisting.
+ */
 contract CellarWithShareLockFlashLoansWhitelisting is CellarWithShareLockPeriod, EIP712 {
     using SafeTransferLib for ERC20;
 

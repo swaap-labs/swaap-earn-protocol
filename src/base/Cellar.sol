@@ -16,7 +16,7 @@ import { FeesManager } from "src/modules/fees/FeesManager.sol";
 /**
  * @title Swaap Cellar
  * @notice A composable ERC4626 that can use arbitrary DeFi assets/positions using adaptors.
- * @author crispymangoes
+ * @dev Forked from https://github.com/PeggyJV/cellar-contracts
  */
 contract Cellar is ERC4626, Ownable {
     using Uint32Array for uint32[];

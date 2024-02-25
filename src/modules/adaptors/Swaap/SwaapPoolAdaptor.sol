@@ -16,14 +16,14 @@ contract SwaapPoolAdaptor is PositionlessAdaptor {
     using SafeTransferLib for ERC20;
 
     //==================== Adaptor Data Specification ====================
-    // adaptorData = abi.encode(ERC20 _spt)
-    // Where:
-    // `_spt` is the Swaap pool token of the Swaap LP market this adaptor is working with
+    // NOT USED
     //================= Configuration Data Specification =================
     // NOT USED
     // **************************** IMPORTANT ****************************
     // This adaptor has the `assetOf` as a spt, and thus relies on the `PriceRouterv2` Swaap
     // Extensions corresponding with the type of spt the Cellar is working with.
+    // This adaptor should be used with the standard `ERC20Adaptor` to handle the standard ERC20 adaptor
+    // functionalities and to verify that the underlying tokens of an spt are used in a position in the Cellar.
     //====================================================================
 
     //============================================ Error Statements ===========================================

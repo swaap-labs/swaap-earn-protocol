@@ -3,6 +3,11 @@ pragma solidity 0.8.21;
 
 import { Cellar, Registry, ERC20, Math } from "src/base/Cellar.sol";
 
+/**
+ * @title Cellar With Share Lock Period
+ * @notice Extends Cellar to add a share lock period.*
+ * @dev Forked from https://github.com/PeggyJV/cellar-contracts
+ */
 contract CellarWithShareLockPeriod is Cellar {
     using Math for uint256;
 

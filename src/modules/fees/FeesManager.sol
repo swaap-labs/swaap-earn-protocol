@@ -8,6 +8,9 @@ import { Registry } from "src/Registry.sol";
 import { Math } from "src/utils/Math.sol";
 import { SafeTransferLib, ERC20 } from "@solmate/utils/SafeTransferLib.sol";
 
+/**
+ * @title Handles Fees collection and distribution for Cellars
+ */
 contract FeesManager {
     using Math for uint256;
     using SafeTransferLib for ERC20;
@@ -160,13 +163,13 @@ contract FeesManager {
         uint16 enterFeesRate; // in bps (max value = 10000)
         uint16 exitFeesRate; // in bps (max value = 10000)
         uint40 previousManagementFeesClaimTime; // last management fees claim time
-        uint48 managementFeesRate;
-        uint64 performanceFeesRate;
-        uint72 highWaterMarkPrice;
+        uint48 managementFeesRate; // in 18 decimals
+        uint64 performanceFeesRate; // in 18 decimals (100% corresponds to 1e18)
+        uint72 highWaterMarkPrice; // the high-water mark price
         uint40 highWaterMarkResetTime; // the owner can choose to reset the high-water mark (at most every HIGH_WATERMARK_RESET_INTERVAL)
         uint256 highWaterMarkResetAssets; // the owner can choose to reset the high-water mark (at most every HIGH_WATERMARK_RESET_ASSETS_TOLERANCE)
         uint64 strategistPlatformCut; // the platform cut for the strategist in 18 decimals
-        address strategistPayoutAddress;
+        address strategistPayoutAddress; // the address to send the strategist's fees to
     }
 
     mapping(address => FeesData) internal cellarFeesData;
@@ -324,6 +327,10 @@ contract FeesManager {
         emit Payout(cellar, strategistPayoutAddress, strategistPayout, protocolPayoutAddress, protocolPayout);
     }
 
+    /**
+     * @notice Sets the protocol payout address
+     * @param newPayoutAddress the new protocol payout address
+     */
     function setProtocolPayoutAddress(address newPayoutAddress) external onlyRegistryOwner {
         _setProtocolPayoutAddress(newPayoutAddress);
     }

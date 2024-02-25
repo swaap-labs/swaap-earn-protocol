@@ -3,6 +3,10 @@ pragma solidity >=0.8.0;
 
 import { ERC20 } from "@solmate/tokens/ERC20.sol";
 
+/**
+ * @title ERC4626
+ * @notice An interface for a contract that represents a pool of assets and shares.
+ */
 abstract contract ERC4626 is ERC20 {
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
