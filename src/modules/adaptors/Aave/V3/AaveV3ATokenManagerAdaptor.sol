@@ -67,7 +67,6 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
      */
     uint256 public immutable minimumHealthFactor;
 
-    // TODO AaveV3AccountHelper's constructor
     constructor(address v3Pool, address v3Oracle, uint256 minHealthFactor) AaveV3AccountHelper(v3Pool) {
         _verifyConstructorMinimumHealthFactor(minHealthFactor);
         aaveOracle = IAaveOracle(v3Oracle);
@@ -105,7 +104,7 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
         ERC20 token = ERC20(IAaveToken(aToken).UNDERLYING_ASSET_ADDRESS());
 
         // instead of transferting the assets to the account, we deposit to the pool on behalf of the account
-        // for gas optimization purposes        
+        // for gas optimization purposes
         token.safeApprove(address(pool), assets);
         pool.supply(address(token), assets, accountAddress, 0);
 
@@ -151,11 +150,6 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
             if (minHealthFactor < minimumHealthFactor) minHealthFactor = minimumHealthFactor;
             if (healthFactor < minHealthFactor) revert AaveV3ATokenAdaptor__HealthFactorTooLow();
         }
-
-        // TODO either remove this or add a check to make sure the receiver is the cellar 
-        // when withdrawing from account extension before transfering to receiver
-        // Transfer assets to receiver.
-        // ERC20(underlyingAsset).safeTransfer(receiver, assets);
     }
 
     /**
@@ -179,7 +173,7 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
 
         // if the account does not exist (yet) but has aToken sent to it, we still want to return 0
         // because the cellar cannot withdraw from it unless it has been created
-        if(!Address.isContract(accountAddress)) return 0;
+        if (!Address.isContract(accountAddress)) return 0;
 
         (
             uint256 totalCollateralBase,
@@ -240,7 +234,7 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
 
         // if the account does not exist (yet) but has aToken sent to it, we still want to return 0
         // because the cellar cannot withdraw from it unless it has been created
-        if(!Address.isContract(accountAddress)) return 0;
+        if (!Address.isContract(accountAddress)) return 0;
 
         return ERC20(aToken).balanceOf(accountAddress);
     }
@@ -305,7 +299,7 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
         address accountAddress = _getAccountAddressAndVerify(accountId, address(this));
 
         AaveV3AccountExtension(accountAddress).withdrawFromAave(address(this), underlyingToken, amountToWithdraw);
-        
+
         // Check that health factor is above adaptor minimum.
         (, , , , , uint256 healthFactor) = pool.getUserAccountData(accountAddress);
         if (healthFactor < minimumHealthFactor) revert AaveV3ATokenAdaptor__HealthFactorTooLow();
@@ -317,7 +311,11 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
      * @param underlyingToken the underlying asset to adjust isolation mode / collateral mode for
      * @param useAsCollateral whether to use the asset as collateral or not
      */
-    function adjustIsolationModeAssetAsCollateral(uint8 accountId, address underlyingToken, bool useAsCollateral) public {
+    function adjustIsolationModeAssetAsCollateral(
+        uint8 accountId,
+        address underlyingToken,
+        bool useAsCollateral
+    ) public {
         // should revert if account extension does not exist
         address accountAddress = _getAccountAddressAndVerify(accountId, address(this));
 
@@ -333,7 +331,7 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
      * @param accountId the id of the account used as an extension to the cellar.
      * @param aToken any aave aToken used in the account that is used by a position in the cellar.
      */
-    function createAccountExtension(uint8 accountId, IAaveToken aToken) public returns(address) {
+    function createAccountExtension(uint8 accountId, IAaveToken aToken) public returns (address) {
         _validateAToken(accountId, aToken);
         return _createAccountExtensionIfNeeded(accountId);
     }
