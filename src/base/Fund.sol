@@ -864,18 +864,24 @@ contract Fund is ERC4626, Ownable {
             return (0, _totalAssets, _totalSupply);
         }
 
-        (uint16 _enterOrExitFeesRate, uint256 _feesAsShares) = FEES_MANAGER.applyFeesBeforeJoinExit(
+        try FEES_MANAGER.applyFeesBeforeJoinExit(
             _totalAssets,
             _totalSupply,
             _isEntering
-        );
+        ) returns(uint16 _enterOrExitFeesRate, uint256 _feesAsShares) {
+            
+            if (_feesAsShares > 0) {
+                _mint(address(FEES_MANAGER), _feesAsShares);
+                _totalSupply += _feesAsShares;
+            }
 
-        if (_feesAsShares > 0) {
-            _mint(address(FEES_MANAGER), _feesAsShares);
-            _totalSupply += _feesAsShares;
+            return (_enterOrExitFeesRate, _totalAssets, _totalSupply);
+
+        } catch {
+            // If fees fail to apply, return with 0 fees. (it should not happen in normal cases)
+            return(0, _totalAssets, _totalSupply);
         }
 
-        return (_enterOrExitFeesRate, _totalAssets, _totalSupply);
     }
 
     uint16 internal constant _BPS_ONE_HUNDRED_PER_CENT = 1e4;

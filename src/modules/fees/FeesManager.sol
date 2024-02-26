@@ -100,6 +100,9 @@ contract FeesManager {
     /// @notice Throws when the high-water mark has not yet expired.
     error FeesManager__HighWaterMarkNotYetExpired();
 
+    /// @notice Throws when the high-water mark price overflows. (unlikely scenario)
+    error FeesManager__WaterMarkPriceOverflow();
+
     // =============================================== CONSTANTS ===============================================
 
     /// @notice Sets the max possible fee cut for funds.
@@ -244,6 +247,8 @@ contract FeesManager {
         }
 
         if (performanceFees > 0) {
+            if(highWaterMarkPrice > type(uint72).max) revert FeesManager__WaterMarkPriceOverflow();
+            
             feeData.highWaterMarkPrice = uint72(highWaterMarkPrice);
             emit PerformanceFeesClaimed(msg.sender, performanceFees, highWaterMarkPrice);
         }
@@ -410,6 +415,8 @@ contract FeesManager {
             // note that the fund will revert if we are calling totalAssets() when it's locked (nonReentrantView)
             uint256 totalAssets = Fund(fund).totalAssets();
             uint256 highWaterMarkPrice = PerformanceFeesLib._calcSharePrice(totalAssets, Fund(fund).totalSupply());
+            if(highWaterMarkPrice > type(uint72).max) revert FeesManager__WaterMarkPriceOverflow();
+
             fundFeesData[fund].highWaterMarkPrice = uint72(highWaterMarkPrice);
             fundFeesData[fund].highWaterMarkResetTime = uint40(block.timestamp);
             fundFeesData[fund].highWaterMarkResetAssets = uint256(totalAssets);
@@ -471,6 +478,7 @@ contract FeesManager {
 
         // calculates the new high-water mark
         uint256 highWaterMarkPrice = PerformanceFeesLib._calcSharePrice(totalAssets, c.totalSupply());
+        if(highWaterMarkPrice > type(uint72).max) revert FeesManager__WaterMarkPriceOverflow();
 
         // updates the high-water mark state
         feeData.highWaterMarkPrice = uint72(highWaterMarkPrice);
