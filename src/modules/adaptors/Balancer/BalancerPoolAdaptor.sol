@@ -3,7 +3,7 @@ pragma solidity 0.8.21;
 
 import { BaseAdaptor, ERC20, SafeTransferLib, Fund, Registry, PriceRouter } from "src/modules/adaptors/BaseAdaptor.sol";
 import { IBalancerQueries } from "src/interfaces/external/Balancer/IBalancerQueries.sol";
-import { IVault, IERC20, IAsset, IFlashLoanRecipient } from "src/interfaces/external/Balancer/IVault.sol";
+import { IVault, IERC20, IAsset } from "src/interfaces/external/Balancer/IVault.sol";
 import { IStakingLiquidityGauge } from "src/interfaces/external/Balancer/IStakingLiquidityGauge.sol";
 import { ILiquidityGaugev3Custom } from "src/interfaces/external/Balancer/ILiquidityGaugev3Custom.sol";
 import { IBasePool } from "src/interfaces/external/Balancer/typically-npm/IBasePool.sol";
@@ -11,13 +11,14 @@ import { ILiquidityGauge } from "src/interfaces/external/Balancer/ILiquidityGaug
 import { Math } from "src/utils/Math.sol";
 import { console } from "@forge-std/Test.sol";
 import { IBalancerMinter } from "src/interfaces/external/IBalancerMinter.sol";
+import { BalancerFlashLoanHelper } from "src/modules/adaptors/Balancer/BalancerFlashLoanHelper.sol";
 
 /**
  * @title Balancer Pool Adaptor
  * @notice Allows Funds to interact with Stable and Boosted Stable Balancer Pools (BPs).
  * @author 0xEinCodes and CrispyMangoes
  */
-contract BalancerPoolAdaptor is BaseAdaptor {
+contract BalancerPoolAdaptor is BaseAdaptor, BalancerFlashLoanHelper {
     using SafeTransferLib for ERC20;
     using Math for uint256;
 
@@ -97,13 +98,6 @@ contract BalancerPoolAdaptor is BaseAdaptor {
     }
 
     //============================================ Global Vars && Specific Adaptor Constants ===========================================
-
-    /**
-     * @notice The Balancer Vault contract
-     * @notice For mainnet use 0xBA12222222228d8Ba445958a75a0704d566BF2C8
-     */
-    IVault public immutable vault;
-
     /**
      * @notice The BalancerMinter contract adhering to IBalancerMinter (custom interface) to access `mint()` to collect $BAL rewards for Fund
      * @notice For mainnet use 0x239e55F427D44C3cc793f49bFB507ebe76638a2b
@@ -125,10 +119,9 @@ contract BalancerPoolAdaptor is BaseAdaptor {
 
     //============================================ Constructor ===========================================
 
-    constructor(address _vault, address _minter, uint32 _balancerSlippage) {
+    constructor(address _vault, address _minter, uint32 _balancerSlippage) BalancerFlashLoanHelper(_vault) {
         if (_balancerSlippage < 0.9e4 || _balancerSlippage > 1e4)
             revert BalancerPoolAdaptor___InvalidConstructorSlippage();
-        vault = IVault(_vault);
         minter = IBalancerMinter(_minter);
         balancerSlippage = _balancerSlippage;
     }
@@ -457,13 +450,6 @@ contract BalancerPoolAdaptor is BaseAdaptor {
      */
     function claimRewards(address gauge) public {
         minter.mint(gauge);
-    }
-
-    /**
-     * @notice Start a flash loan using Balancer.
-     */
-    function makeFlashLoan(IERC20[] memory tokens, uint256[] memory amounts, bytes memory data) public {
-        vault.flashLoan(IFlashLoanRecipient(address(this)), tokens, amounts, data);
     }
 
     //============================================ Helper Functions ===========================================

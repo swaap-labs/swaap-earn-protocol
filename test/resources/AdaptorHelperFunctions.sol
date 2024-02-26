@@ -23,6 +23,7 @@ import { MorphoAaveV3DebtTokenAdaptor } from "src/modules/adaptors/Morpho/Morpho
 // Balancer
 import { IVault, IAsset, IERC20 } from "@balancer/interfaces/contracts/vault/IVault.sol";
 import { BalancerPoolAdaptor } from "src/modules/adaptors/Balancer/BalancerPoolAdaptor.sol";
+import { BalancerFlashLoanHelper } from "src/modules/adaptors/Balancer/BalancerFlashLoanHelper.sol";
 
 // Compound
 import { CTokenAdaptor } from "src/modules/adaptors/Compound/CTokenAdaptor.sol";
@@ -415,7 +416,7 @@ contract AdaptorHelperFunctions {
         uint256[] memory amounts,
         bytes memory data
     ) public pure returns (bytes memory) {
-        return abi.encodeWithSelector(BalancerPoolAdaptor.makeFlashLoan.selector, tokens, amounts, data);
+        return abi.encodeWithSelector(BalancerFlashLoanHelper.makeFlashLoan.selector, tokens, amounts, data);
     }
 
     /**
