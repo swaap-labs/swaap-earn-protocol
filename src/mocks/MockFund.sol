@@ -29,6 +29,6 @@ contract MockFund is Fund {
     {}
 
     function getDelayUntilEndPause() public pure returns (uint256) {
-        return DELAY_UNTIL_END_PAUSE;
+        return _DELAY_UNTIL_END_PAUSE;
     }
 }
