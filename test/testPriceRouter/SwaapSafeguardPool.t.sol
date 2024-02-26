@@ -17,6 +17,7 @@ import { IVault, IAsset, IERC20 } from "@balancer/interfaces/contracts/vault/IVa
 import "test/resources/MainnetStarter.t.sol";
 
 import { AdaptorHelperFunctions } from "test/resources/AdaptorHelperFunctions.sol";
+import { MockDataFeed } from "src/mocks/MockDataFeed.sol";
 
 contract SwaapSafeguarPoolTest is MainnetStarterTest, AdaptorHelperFunctions {
     using Math for uint256;
@@ -25,6 +26,9 @@ contract SwaapSafeguarPoolTest is MainnetStarterTest, AdaptorHelperFunctions {
 
     SwaapSafeguardPoolExtension private swaapSafeguardPoolExtension;
     uint256 public expectedWETH_USDC_SPTPrice;
+
+    MockDataFeed private mockUsdcUsd;
+    MockDataFeed private mockWethUsd;
 
     function setUp() external {
         // Setup forked environment.
@@ -41,6 +45,11 @@ contract SwaapSafeguarPoolTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         // Deploy Required Extensions.
         swaapSafeguardPoolExtension = new SwaapSafeguardPoolExtension(priceRouter, IVault(swaapV2Vault));
+
+        // creating mock oracles to skip time for tests
+        // Setup pricing
+        mockUsdcUsd = new MockDataFeed(USDC_USD_FEED);
+        mockWethUsd = new MockDataFeed(WETH_USD_FEED);
     }
 
     // ======================================= HAPPY PATH =======================================
@@ -87,6 +96,71 @@ contract SwaapSafeguarPoolTest is MainnetStarterTest, AdaptorHelperFunctions {
             )
         );
         swaapSafeguardPoolExtension.getPriceInUSD(USDC_WETH_SPT);
+    }
+
+    function testPoolPricingWithManagementFees(uint256 yearlyFees) external {
+        yearlyFees = bound(yearlyFees, 0.1e16, 5e16); // 0.1% - 5%
+        // Add required pricing.
+        _addChainlinkAsset(USDC, address(mockUsdcUsd), false);
+        _addChainlinkAsset(WETH, address(mockWethUsd), false);
+
+        PriceRouter.AssetSettings memory settings;
+
+        settings = PriceRouter.AssetSettings(EXTENSION_DERIVATIVE, address(swaapSafeguardPoolExtension));
+        priceRouter.addAsset(USDC_WETH_SPT, settings, abi.encode(), expectedWETH_USDC_SPTPrice);
+
+        uint256 sptPriceWithNoFees = priceRouter.getPriceInUSD(USDC_WETH_SPT);
+
+        // set fees
+        // USDC_WETH_SPT setAllowlist setter
+        vm.prank(0x327d92816eCb1E54cb7F41cf498c0387E81baA1d);
+        (bool success, ) = address(USDC_WETH_SPT).call(abi.encodeWithSelector(0x6484e410, yearlyFees)); // set management fees
+        require(success, "failed to set management fees in the pool");
+
+        // skip 8 months (can be any amount of time)
+        uint256 skipTime1 = 8 * 30 days;
+        _moveForwardAndUpdateOracle(skipTime1);
+
+        uint256 calcSptPriceAfterFees = priceRouter.getPriceInUSD(USDC_WETH_SPT);
+        
+        (success, ) = address(USDC_WETH_SPT).call(abi.encodeWithSelector(0x5c91bba0)); // collect fees
+        require(success, "failed to collect management fees in the pool");
+
+        uint256 realSptPriceAfterFees = priceRouter.getPriceInUSD(USDC_WETH_SPT);
+
+        assertApproxEqRel(
+            calcSptPriceAfterFees,
+            realSptPriceAfterFees,
+            0.0001e18,
+            "SPT price should accounted after 8 months of accumulated fees."
+        );
+
+        // skip the rest of the year
+        uint256 skipTime2 = (12 * 30 days) - skipTime1;
+        _moveForwardAndUpdateOracle(skipTime2);
+
+        calcSptPriceAfterFees = priceRouter.getPriceInUSD(USDC_WETH_SPT);
+
+        (success, ) = address(USDC_WETH_SPT).call(abi.encodeWithSelector(0x5c91bba0)); // collect fees
+        require(success, "failed to collect management fees in the pool");
+
+        realSptPriceAfterFees = priceRouter.getPriceInUSD(USDC_WETH_SPT);
+
+        assertApproxEqRel(
+            calcSptPriceAfterFees,
+            realSptPriceAfterFees,
+            0.0001e18,
+            "SPT price should accounted after 4 months of accumulated fees."
+        );
+
+        console.log(sptPriceWithNoFees);
+
+        assertApproxEqRel(
+            realSptPriceAfterFees,
+            (sptPriceWithNoFees * (1e18 - yearlyFees)) / 1e18,
+            0.001e18,
+            "SPT price should be correct after 1 year of accumulated fees."
+        );
     }
 
     // ======================================= HELPER FUNCTIONS =======================================
@@ -202,5 +276,11 @@ contract SwaapSafeguarPoolTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         settings = PriceRouter.AssetSettings(CHAINLINK_DERIVATIVE, priceFeed);
         priceRouter.addAsset(asset, settings, abi.encode(stor), price);
+    }
+
+    function _moveForwardAndUpdateOracle(uint256 delayTimestamp) internal {
+        skip(delayTimestamp);
+        mockUsdcUsd.setMockUpdatedAt(block.timestamp);
+        mockWethUsd.setMockUpdatedAt(block.timestamp);
     }
 }

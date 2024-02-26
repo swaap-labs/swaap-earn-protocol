@@ -3,6 +3,9 @@ pragma solidity 0.8.21;
 
 import { IBalancerPool } from "src/interfaces/external/IBalancerPool.sol";
 import { BalancerPoolExtension, PriceRouter, ERC20, Math, IVault, IERC20 } from "../Balancer/BalancerPoolExtension.sol";
+import { ISafeguardPool } from "src/interfaces/external/ISafeguardPool.sol";
+import { ManagementFeesLib } from "src/modules/fees/ManagementFeesLib.sol";
+import { SafeTransferLib } from "@solmate/utils/SafeTransferLib.sol";
 
 /**
  * @title Swaap Price Router Swaap Safeguard Pool Extension
@@ -17,6 +20,12 @@ contract SwaapSafeguardPoolExtension is BalancerPoolExtension {
 
     error SwaapSafeguardPoolExtension__PoolNotRegistered();
 
+    /**
+     * @notice Swaap Safeguard Pool Extension Constructor
+     * @param _priceRouter the price router
+     * @param _swaapV2Vault the swaap v2 vault
+     * @dev The _swaapV2Vault address on mainnet is 0xd315a9c38ec871068fec378e4ce78af528c76293
+     */
     constructor(PriceRouter _priceRouter, IVault _swaapV2Vault) BalancerPoolExtension(_priceRouter, _swaapV2Vault) {}
 
     /**
@@ -76,7 +85,24 @@ contract SwaapSafeguardPoolExtension is BalancerPoolExtension {
             priceBpt += balances[i].mulDivDown(price, 10 ** ERC20(token).decimals());
         }
 
-        uint256 totalSupply = pool.totalSupply();
+        uint256 totalSupply = _getPoolSupplyAfterFees(pool);
+
         return priceBpt.mulDivDown(Math.WAD, totalSupply); // WAD = 1e18 - pool token decimals
+    }
+
+    /// @return totalSupply the total supply of the pool after accounting for unclaimed fees
+    function _getPoolSupplyAfterFees(IBalancerPool pool) internal view returns (uint256) {
+        uint256 currentSupply = pool.totalSupply();
+
+        (, uint256 managementFeesRate, uint256 previousClaimTime) = ISafeguardPool(address(pool)).getManagementFeesParams();
+
+        uint256 unClaimedFeesAsShares = ManagementFeesLib._calcAccumulatedManagementFees(
+            block.timestamp,
+            previousClaimTime,
+            managementFeesRate,
+            currentSupply
+        );
+
+        return currentSupply + unClaimedFeesAsShares;
     }
 }
