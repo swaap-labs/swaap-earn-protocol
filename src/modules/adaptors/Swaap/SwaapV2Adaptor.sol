@@ -5,25 +5,24 @@ import { BaseAdaptor, ERC20, SafeTransferLib, Fund, Registry, PriceRouter } from
 import { IVault, IERC20, IAsset, IFlashLoanRecipient } from "src/interfaces/external/Balancer/IVault.sol";
 import { IBasePool } from "src/interfaces/external/Balancer/typically-npm/IBasePool.sol";
 import { ISafeguardPool } from "src/interfaces/external/ISafeguardPool.sol";
-import { BaseAdaptor } from "src/modules/adaptors/BaseAdaptor.sol";
+import { ERC20Adaptor } from "src/modules/adaptors/ERC20Adaptor.sol";
 import { PositionlessAdaptor } from "src/modules/adaptors/PositionlessAdaptor.sol";
 
 /**
  * @title Swaap-v2 Adaptor
  * @notice Allows Funds to interact with Swaap Safeguard Pools.
  */
-contract SwaapV2Adaptor is PositionlessAdaptor {
+contract SwaapV2Adaptor is ERC20Adaptor {
+
     using SafeTransferLib for ERC20;
 
     //==================== Adaptor Data Specification ====================
-    // NOT USED
+    // adaptorData = abi.encode(ERC20 token)
+    // Where:
+    // `token` is the underling ERC20 token this adaptor is working with
     //================= Configuration Data Specification =================
-    // NOT USED
-    // **************************** IMPORTANT ****************************
-    // This adaptor has the `assetOf` as a spt, and thus relies on the `PriceRouterv2` Swaap
-    // Extensions corresponding with the type of spt the Fund is working with.
-    // This adaptor should be used with the standard `ERC20Adaptor` to handle the standard ERC20 adaptor
-    // functionalities and to verify that the underlying tokens of an spt are used in a position in the Fund.
+    // isLiquid bool
+    // Indicates whether the position is liquid or not.
     //====================================================================
 
     //============================================ Error Statements ===========================================
@@ -66,7 +65,7 @@ contract SwaapV2Adaptor is PositionlessAdaptor {
     /**
      * @notice Constructs the Swaap V2 Adaptor
      * @param _swaapV2Vault the address of the Swaap-v2 Vault
-     * @param _erc20Adaptor the address of the ERC20 Adaptor
+     * @param _erc20Adaptor the address of the ERC20 Adaptor that tracks the underlying pool tokens
      */
     constructor(address _swaapV2Vault, address _erc20Adaptor) {
         SWAAP_V2_VAULT = IVault(_swaapV2Vault);
@@ -130,7 +129,7 @@ contract SwaapV2Adaptor is PositionlessAdaptor {
         bytes memory userData
     ) internal {
         // verify that the spt is used and tracked in the calling fund
-        _validateTokenIsUsed(targetPool);
+        _verifyUsedPosition(abi.encode(targetPool));       
 
         uint256 length = expectedTokensIn.length;
         if (length != maxAmountsIn.length) revert SwaapV2Adaptor___LengthMismatch();
@@ -194,7 +193,7 @@ contract SwaapV2Adaptor is PositionlessAdaptor {
         for (uint256 i; i < length; ++i) {
             if (address(poolTokens[i]) != address(expectedTokensOut[i]))
                 revert SwaapV2Adaptor___PoolTokenAndExpectedTokenMismatch();
-            _validateTokenIsUsed(expectedTokensOut[i]);
+            _validateTokenOutIsUsed(expectedTokensOut[i]);
             request.assets[i] = IAsset(address(poolTokens[i]));
         }
 
@@ -213,7 +212,7 @@ contract SwaapV2Adaptor is PositionlessAdaptor {
 
     //============================================ Helper Functions ===========================================
 
-    function _validateTokenIsUsed(ERC20 token) internal view {
+    function _validateTokenOutIsUsed(ERC20 token) internal view {
         bytes memory adaptorData = abi.encode(token);
         // This adaptor has no underlying position, so no need to validate token out.
         bytes32 positionHash = keccak256(abi.encode(ERC20_ADAPTOR_IDENTIFIER, false, adaptorData));

@@ -75,7 +75,11 @@ contract SwaapV2AdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         registry.trustPosition(usdcPosition, address(erc20Adaptor), abi.encode(address(USDC))); // holdingPosition for tests
         registry.trustPosition(wethPosition, address(erc20Adaptor), abi.encode(address(WETH))); // holdingPosition for tests
-        registry.trustPosition(safeguardUsdcWethPosition, address(erc20Adaptor), abi.encode(address(USDC_WETH_SPT)));
+        registry.trustPosition(
+            safeguardUsdcWethPosition,
+            address(swaapV2Adaptor),
+            abi.encode(address(USDC_WETH_SPT))
+        );
 
         string memory fundName = "Swaap Fund V0.0";
         uint256 initialDeposit = 1e6;
@@ -168,7 +172,7 @@ contract SwaapV2AdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
      */
     function testAssetsUsed() external {
         bytes memory adaptorData = abi.encode(address(USDC_WETH_SPT));
-        ERC20[] memory actualAsset = erc20Adaptor.assetsUsed(adaptorData);
+        ERC20[] memory actualAsset = swaapV2Adaptor.assetsUsed(adaptorData);
         address actualAssetAddress = address(actualAsset[0]);
         assertEq(actualAssetAddress, address(USDC_WETH_SPT));
     }
