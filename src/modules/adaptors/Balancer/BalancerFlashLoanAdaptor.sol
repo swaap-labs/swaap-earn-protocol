@@ -8,7 +8,7 @@ import { PositionlessAdaptor } from "src/modules/adaptors/PositionlessAdaptor.so
  * @title Balancer FlashLoan Adaptor
  * @notice Allows Funds to initiate a flashloan with balancer's vault.
  */
-abstract contract BalancerFlashLoanAdaptor is BalancerFlashLoanHelper, PositionlessAdaptor {
+contract BalancerFlashLoanAdaptor is BalancerFlashLoanHelper, PositionlessAdaptor {
     //==================== Adaptor Data Specification ====================
     // NOT USED
     //================= Configuration Data Specification =================
@@ -26,6 +26,5 @@ abstract contract BalancerFlashLoanAdaptor is BalancerFlashLoanHelper, Positionl
      */
     function identifier() public pure virtual override returns (bytes32) {
         return keccak256(abi.encode("Balancer FlashLoan Adaptor V 1.0"));
-    }    
-
+    }
 }
