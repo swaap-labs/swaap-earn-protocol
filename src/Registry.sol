@@ -7,8 +7,10 @@ import { ERC20 } from "@solmate/tokens/ERC20.sol";
 import { BaseAdaptor } from "src/modules/adaptors/BaseAdaptor.sol";
 import { PriceRouter } from "src/modules/price-router/PriceRouter.sol";
 import { FeesManager } from "src/modules/fees/FeesManager.sol";
+import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 
 contract Registry is Ownable {
+    using Address for address;
     // ============================================= ADDRESS CONFIG =============================================
 
     /**
@@ -48,6 +50,14 @@ contract Registry is Ownable {
     mapping(address => bool) public approvedForDepositOnBehalf;
 
     FeesManager public immutable FEES_MANAGER;
+
+    /**
+     * @notice Allows caller to call multiple functions in a single TX.
+     * @dev Does NOT return the function return values.
+     */
+    function multicall(bytes[] calldata data) external {
+        for (uint256 i; i < data.length; ++i) address(this).functionDelegateCall(data[i]);
+    }
 
     /**
      * @notice toggles a depositors  ability to deposit into funds on behalf of users.

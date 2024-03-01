@@ -242,6 +242,14 @@ contract PriceRouter is Ownable {
     mapping(bytes32 => uint256) public assetEditableTimestamp;
 
     /**
+     * @notice Allows caller to call multiple functions in a single TX.
+     * @dev Does NOT return the function return values.
+     */
+    function multicall(bytes[] calldata data) external {
+        for (uint256 i; i < data.length; ++i) address(this).functionDelegateCall(data[i]);
+    }
+
+    /**
      * @notice Allows owner to add assets to the price router.
      * @dev Performs a sanity check by comparing the price router computed price to
      * a user input `_expectedAnswer`.
