@@ -37,6 +37,7 @@ library Math {
     }
 
     function mulDivDown(uint256 x, uint256 y, uint256 denominator) internal pure returns (uint256 z) {
+        /// @solidity memory-safe-assembly
         assembly {
             // Store x * y in z for now.
             z := mul(x, y)
@@ -52,6 +53,7 @@ library Math {
     }
 
     function mulDivUp(uint256 x, uint256 y, uint256 denominator) internal pure returns (uint256 z) {
+        /// @solidity memory-safe-assembly
         assembly {
             // Store x * y in z for now.
             z := mul(x, y)

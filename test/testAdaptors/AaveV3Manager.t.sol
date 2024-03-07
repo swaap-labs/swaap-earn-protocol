@@ -33,6 +33,10 @@ contract FundAaveV3Test is MainnetStarterTest, AdaptorHelperFunctions {
     uint32 private usdcPosition = 1;
     uint32 private aV3USDCPosition = 1_000_001;
     uint32 private debtUSDCPosition = 1_000_002;
+    uint32 private aV3WETHPosition = 1_000_003;
+    uint32 private aV3WBTCPosition = 1_000_004;
+    uint32 private debtWETHPosition = 1_000_005;
+
     uint32 private aV3WETHPositionEmode = 10_000_001;
     uint32 private debtWETHPositionEmode = 10_000_002;
 
@@ -236,7 +240,6 @@ contract FundAaveV3Test is MainnetStarterTest, AdaptorHelperFunctions {
 
     function testWithdrawalLogicNoEModeNoDebt() external {
         // Add aV3WETH as a trusted position to the registry, then to the fund.
-        uint32 aV3WETHPosition = 1_000_003;
         registry.trustPosition(
             aV3WETHPosition,
             address(aaveATokenManagerAdaptor),
@@ -340,7 +343,6 @@ contract FundAaveV3Test is MainnetStarterTest, AdaptorHelperFunctions {
         fund.addPositionToCatalogue(aV3WETHPositionEmode);
         fund.addPosition(2, aV3WETHPositionEmode, abi.encode(0), false);
 
-        uint32 debtWETHPosition = 1_000_004;
         registry.trustPosition(
             debtWETHPosition,
             address(aaveDebtManagerAdaptor),
@@ -391,7 +393,6 @@ contract FundAaveV3Test is MainnetStarterTest, AdaptorHelperFunctions {
     function testWithdrawalLogicNoEModeWithDebt() external {
         uint256 initialAssets = fund.totalAssets();
         // Add aV3WETH as a trusted position to the registry, then to the fund.
-        uint32 aV3WETHPosition = 1_000_003;
         registry.trustPosition(
             aV3WETHPosition,
             address(aaveATokenManagerAdaptor),
@@ -400,7 +401,6 @@ contract FundAaveV3Test is MainnetStarterTest, AdaptorHelperFunctions {
         fund.addPositionToCatalogue(aV3WETHPosition);
         fund.addPosition(2, aV3WETHPosition, abi.encode(0), false);
 
-        uint32 debtWETHPosition = 1_000_004;
         registry.trustPosition(
             debtWETHPosition,
             address(aaveDebtManagerAdaptor),
@@ -615,7 +615,6 @@ contract FundAaveV3Test is MainnetStarterTest, AdaptorHelperFunctions {
         fund.setRebalanceDeviation(0.005e18);
 
         // Add WETH, aV3WETH, and dV3WETH as trusted positions to the registry.
-        uint32 aV3WETHPosition = 1_000_003;
         registry.trustPosition(
             aV3WETHPosition,
             address(aaveATokenManagerAdaptor),
@@ -624,7 +623,6 @@ contract FundAaveV3Test is MainnetStarterTest, AdaptorHelperFunctions {
         fund.addPositionToCatalogue(aV3WETHPosition);
         fund.addPosition(2, aV3WETHPosition, abi.encode(0), false);
 
-        uint32 debtWETHPosition = 1_000_004;
         registry.trustPosition(
             debtWETHPosition,
             address(aaveDebtManagerAdaptor),
@@ -759,7 +757,6 @@ contract FundAaveV3Test is MainnetStarterTest, AdaptorHelperFunctions {
 
     function testMultipleATokensAndDebtTokens() external {
         // Add WETH, aV3WETH, and dV3WETH as trusted positions to the registry.
-        uint32 aV3WETHPosition = 1_000_003;
         registry.trustPosition(
             aV3WETHPosition,
             address(aaveATokenManagerAdaptor),
@@ -768,7 +765,6 @@ contract FundAaveV3Test is MainnetStarterTest, AdaptorHelperFunctions {
         fund.addPositionToCatalogue(aV3WETHPosition);
         fund.addPosition(2, aV3WETHPosition, abi.encode(0), false);
 
-        uint32 debtWETHPosition = 1_000_004;
         registry.trustPosition(
             debtWETHPosition,
             address(aaveDebtManagerAdaptor),
@@ -886,13 +882,12 @@ contract FundAaveV3Test is MainnetStarterTest, AdaptorHelperFunctions {
 
         // Debt Position
         // 0) dV3USDC
-        uint32 aV3WETHPosition = 1_000_003;
         registry.trustPosition(
             aV3WETHPosition,
             address(aaveATokenManagerAdaptor),
             abi.encode(DEFAULT_ACCOUNT, address(aV3WETH))
         );
-        uint32 aV3WBTCPosition = 1_000_004;
+
         registry.trustPosition(
             aV3WBTCPosition,
             address(aaveATokenManagerAdaptor),
@@ -957,8 +952,6 @@ contract FundAaveV3Test is MainnetStarterTest, AdaptorHelperFunctions {
             bytes[] memory adaptorCallsForFlashLoan = new bytes[](1);
             Fund.AdaptorCall[] memory dataInsideFlashLoan = new Fund.AdaptorCall[](3);
             bytes[] memory adaptorCallsInsideFlashLoanFirstAdaptor = new bytes[](2);
-            bytes[] memory adaptorCallsInsideFlashLoanSecondAdaptor = new bytes[](2);
-            bytes[] memory adaptorCallsInsideFlashLoanThirdAdaptor = new bytes[](1);
             // Swap USDC for WETH.
             adaptorCallsInsideFlashLoanFirstAdaptor[0] = _createBytesDataForSwapWithUniv3(
                 USDC,
@@ -975,6 +968,7 @@ contract FundAaveV3Test is MainnetStarterTest, AdaptorHelperFunctions {
                 amountToSwap0
             );
             // Lend USDC on Aave specifying to use the max amount available.
+            bytes[] memory adaptorCallsInsideFlashLoanSecondAdaptor = new bytes[](2);
             adaptorCallsInsideFlashLoanSecondAdaptor[0] = _createBytesDataToLendOnAaveV3Manager(
                 DEFAULT_ACCOUNT,
                 aV3WETH,
@@ -985,6 +979,7 @@ contract FundAaveV3Test is MainnetStarterTest, AdaptorHelperFunctions {
                 aV3WBTC,
                 type(uint256).max
             );
+            bytes[] memory adaptorCallsInsideFlashLoanThirdAdaptor = new bytes[](1);
             adaptorCallsInsideFlashLoanThirdAdaptor[0] = _createBytesDataToBorrowFromAaveV3Manager(
                 DEFAULT_ACCOUNT,
                 dV3USDC,

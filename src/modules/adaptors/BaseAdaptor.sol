@@ -228,6 +228,7 @@ abstract contract BaseAdaptor {
         uint256 fundCodeSize;
         address fundAddress = address(this);
 
+        /// @solidity memory-safe-assembly
         assembly {
             fundCodeSize := extcodesize(fundAddress)
         }
