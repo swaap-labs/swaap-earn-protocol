@@ -61,3 +61,17 @@ To run a specific test file use:
 ```bash
 forge test --match-path "path-to-file"
 ```
+
+To get the coverage run:
+
+```bash
+npm run coverage
+```
+
+Use `sample.env` as an example to define `EXCLUDE` in your `.env` which will prune unwanted files from the coverage report. Run the following to visualize the pruned coverage report and open `coverage/index.html`:
+
+```bash
+source .env
+lcov --rc lcov_branch_coverage=1 --output-file forge-pruned-lcov.info --remove lcov.info $EXCLUDE
+genhtml --branch-coverage --output-directory coverage forge-pruned-lcov.info
+```
