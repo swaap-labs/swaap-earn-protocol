@@ -48,6 +48,8 @@ contract ProxyEnterFundViaAggregatorTest is MainnetStarterTest, AdaptorHelperFun
     uint256 private alicePrivateKey = 0xa11ce;
     uint256 private bobPrivateKey = 0xb0b;
 
+    uint256 private _receivedEth;
+
     function setUp() public {
         // Setup forked environment.
         string memory rpcKey = "MAINNET_RPC_URL";
@@ -236,7 +238,7 @@ contract ProxyEnterFundViaAggregatorTest is MainnetStarterTest, AdaptorHelperFun
             "Shares minted should be as reported"
         );
 
-        assertEq(WETH.balanceOf(address(this)), maxAmountToUse - ethTokenIn, "User should hold the remaining WETH");
+        assertEq(_receivedEth, maxAmountToUse - ethTokenIn, "User should hold the remaining ETH");
 
         assertEq(USDC.balanceOf(address(proxy)), 0, "Proxy should not hold any USDC after deposit");
         assertEq(WETH.balanceOf(address(proxy)), 0, "Proxy should not hold any WETH after deposit");
@@ -277,7 +279,7 @@ contract ProxyEnterFundViaAggregatorTest is MainnetStarterTest, AdaptorHelperFun
 
         assertEq(reportedUsedAssets * 1e12, expectedReceivedShares, "User should receive the correct amount of Shares");
 
-        assertEq(WETH.balanceOf(address(this)), maxAmountToUse - ethTokenIn, "User should hold the remaining WETH");
+        assertEq(_receivedEth, maxAmountToUse - ethTokenIn, "User should hold the remaining ETH");
         assertGt(USDC.balanceOf(address(this)), 0, "User should hold the remaining USDC");
 
         assertEq(USDC.balanceOf(address(proxy)), 0, "Proxy should not hold any USDC after deposit");
@@ -544,5 +546,10 @@ contract ProxyEnterFundViaAggregatorTest is MainnetStarterTest, AdaptorHelperFun
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
         signature = abi.encodePacked(r, s, v);
+    }
+
+    // let's the test contract to receive leftover ether from the proxy
+    receive() external payable {
+        _receivedEth = msg.value; // track how much ether was received
     }
 }

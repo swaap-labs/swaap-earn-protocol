@@ -65,7 +65,6 @@ contract ProxyEnterFundViaAggregator is ReentrancyGuard, Pausable, Ownable2Step 
     error ProxyEnterFundViaAggregator__InvalidETHTransferAmount();
     error ProxyEnterFundViaAggregator__MinBoughtTokensNotMet();
     error ProxyEnterFundViaAggregator__MinBoughtSharesNotMet();
-    error ProxyEnterFundViaAggregator__RemainingFundsAfterDeposit();
     error ProxyEnterFundViaAggregator__PermitFailed();
     error ProxyEnterFundViaAggregator__PassedDeadline();
     error ProxyEnterFundViaAggregator__SAME_TOKENS();
@@ -167,21 +166,12 @@ contract ProxyEnterFundViaAggregator is ReentrancyGuard, Pausable, Ownable2Step 
         uint256 permissionSignedAt,
         bytes calldata permitData
     ) external payable whenNotPaused nonReentrant beforeDeadline(deadline) returns (uint256 sharesOut) {
-        _transferFromAll(assetToUse, maxAmountToUse);
-
-        if (_isNative(assetToUse)) {
-            assetToUse = address(WETH);
-        }
-
-        address fundDepositAsset = address(FundWithShareLockFlashLoansWhitelisting(fund).asset());
-
-        uint256 fundDepositAmount = assetToUse != fundDepositAsset
-            ? _tradeAssetsExternally(assetToUse, fundDepositAsset, maxAmountToUse, fillQuote)
-            : maxAmountToUse;
-
-        _getApproval(fundDepositAsset, fund, fundDepositAmount);
-
-        uint256 sharesBefore = FundWithShareLockFlashLoansWhitelisting(fund).balanceOf(msg.sender);
+        (address fundDepositAsset, uint256 fundDepositAmount, uint256 sharesBefore) = _beforeEnter(
+            fund,
+            assetToUse,
+            maxAmountToUse,
+            fillQuote
+        );
 
         FundWithShareLockFlashLoansWhitelisting(fund).whitelistDeposit(
             fundDepositAmount,
@@ -190,15 +180,7 @@ contract ProxyEnterFundViaAggregator is ReentrancyGuard, Pausable, Ownable2Step 
             permitData
         );
 
-        sharesOut = FundWithShareLockFlashLoansWhitelisting(fund).balanceOf(msg.sender) - sharesBefore;
-
-        if (sharesOut < minSharesOut) revert ProxyEnterFundViaAggregator__MinBoughtSharesNotMet();
-
-        // This should never happen as the fund is supposed to take all the funds
-        if (_getBalance(fundDepositAsset) > 0) revert ProxyEnterFundViaAggregator__RemainingFundsAfterDeposit();
-
-        // transfer any remainings from the initial token back to the user
-        _transferAll(assetToUse, _getBalance(assetToUse));
+        sharesOut = _afterEnter(fund, fundDepositAsset, assetToUse, minSharesOut, sharesBefore);
 
         return sharesOut;
     }
@@ -220,33 +202,16 @@ contract ProxyEnterFundViaAggregator is ReentrancyGuard, Pausable, Ownable2Step 
         uint256 deadline,
         Quote calldata fillQuote
     ) external payable whenNotPaused nonReentrant beforeDeadline(deadline) returns (uint256 sharesOut) {
-        _transferFromAll(assetToUse, maxAmountToUse);
-
-        if (_isNative(assetToUse)) {
-            assetToUse = address(WETH);
-        }
-
-        address fundDepositAsset = address(FundWithShareLockFlashLoansWhitelisting(fund).asset());
-
-        uint256 fundDepositAmount = assetToUse != fundDepositAsset
-            ? _tradeAssetsExternally(assetToUse, fundDepositAsset, maxAmountToUse, fillQuote)
-            : maxAmountToUse;
-
-        _getApproval(fundDepositAsset, fund, fundDepositAmount);
-
-        uint256 sharesBefore = FundWithShareLockFlashLoansWhitelisting(fund).balanceOf(msg.sender);
+        (address fundDepositAsset, uint256 fundDepositAmount, uint256 sharesBefore) = _beforeEnter(
+            fund,
+            assetToUse,
+            maxAmountToUse,
+            fillQuote
+        );
 
         FundWithShareLockFlashLoansWhitelisting(fund).deposit(fundDepositAmount, msg.sender);
 
-        sharesOut = FundWithShareLockFlashLoansWhitelisting(fund).balanceOf(msg.sender) - sharesBefore;
-
-        if (sharesOut < minSharesOut) revert ProxyEnterFundViaAggregator__MinBoughtSharesNotMet();
-
-        // This should never happen as the fund is supposed to take all the funds
-        if (_getBalance(fundDepositAsset) > 0) revert ProxyEnterFundViaAggregator__RemainingFundsAfterDeposit();
-
-        // transfer any remainings from the initial token back to the user
-        _transferAll(assetToUse, _getBalance(assetToUse));
+        sharesOut = _afterEnter(fund, fundDepositAsset, assetToUse, minSharesOut, sharesBefore);
 
         return sharesOut;
     }
@@ -272,40 +237,16 @@ contract ProxyEnterFundViaAggregator is ReentrancyGuard, Pausable, Ownable2Step 
         uint256 permissionSignedAt,
         bytes calldata permitData
     ) external payable whenNotPaused nonReentrant beforeDeadline(deadline) returns (uint256 usedAssets) {
-        _transferFromAll(assetToUse, maxAmountToUse);
+        (address fundDepositAsset, , uint256 sharesBefore) = _beforeEnter(fund, assetToUse, maxAmountToUse, fillQuote);
 
-        if (_isNative(assetToUse)) {
-            assetToUse = address(WETH);
-        }
+        usedAssets = FundWithShareLockFlashLoansWhitelisting(fund).whitelistMint(
+            expectedSharesOut,
+            msg.sender,
+            permissionSignedAt,
+            permitData
+        );
 
-        address fundDepositAsset = address(FundWithShareLockFlashLoansWhitelisting(fund).asset());
-
-        uint256 fundDepositAmount = assetToUse != fundDepositAsset
-            ? _tradeAssetsExternally(assetToUse, fundDepositAsset, maxAmountToUse, fillQuote)
-            : maxAmountToUse;
-
-        _getApproval(fundDepositAsset, fund, fundDepositAmount);
-
-        {
-            uint256 sharesBefore = FundWithShareLockFlashLoansWhitelisting(fund).balanceOf(msg.sender);
-
-            usedAssets = FundWithShareLockFlashLoansWhitelisting(fund).whitelistMint(
-                expectedSharesOut,
-                msg.sender,
-                permissionSignedAt,
-                permitData
-            );
-
-            uint256 sharesOut = FundWithShareLockFlashLoansWhitelisting(fund).balanceOf(msg.sender) - sharesBefore;
-
-            if (sharesOut != expectedSharesOut) revert ProxyEnterFundViaAggregator__MinBoughtSharesNotMet();
-        }
-
-        // Tranfer any unused fund asset back to the user
-        _transferAll(fundDepositAsset, _getBalance(fundDepositAsset));
-
-        // transfer any remainings from the initial token back to the user
-        _transferAll(assetToUse, _getBalance(assetToUse));
+        _afterEnter(fund, fundDepositAsset, assetToUse, expectedSharesOut, sharesBefore);
 
         return usedAssets;
     }
@@ -327,35 +268,56 @@ contract ProxyEnterFundViaAggregator is ReentrancyGuard, Pausable, Ownable2Step 
         uint256 deadline,
         Quote calldata fillQuote
     ) external payable whenNotPaused nonReentrant beforeDeadline(deadline) returns (uint256 usedAssets) {
+        (address fundDepositAsset, , uint256 sharesBefore) = _beforeEnter(fund, assetToUse, maxAmountToUse, fillQuote);
+
+        usedAssets = FundWithShareLockFlashLoansWhitelisting(fund).mint(expectedSharesOut, msg.sender);
+
+        _afterEnter(fund, fundDepositAsset, assetToUse, expectedSharesOut, sharesBefore);
+
+        return usedAssets;
+    }
+
+    function _beforeEnter(
+        address fund,
+        address assetToUse,
+        uint256 maxAmountToUse,
+        Quote calldata fillQuote
+    ) internal returns (address fundDepositAsset, uint256 fundDepositAmount, uint256 sharesBefore) {
         _transferFromAll(assetToUse, maxAmountToUse);
 
         if (_isNative(assetToUse)) {
             assetToUse = address(WETH);
         }
 
-        address fundDepositAsset = address(FundWithShareLockFlashLoansWhitelisting(fund).asset());
+        fundDepositAsset = address(FundWithShareLockFlashLoansWhitelisting(fund).asset());
 
-        uint256 fundDepositAmount = assetToUse != fundDepositAsset
+        fundDepositAmount = assetToUse != fundDepositAsset
             ? _tradeAssetsExternally(assetToUse, fundDepositAsset, maxAmountToUse, fillQuote)
             : maxAmountToUse;
 
         _getApproval(fundDepositAsset, fund, fundDepositAmount);
 
-        uint256 sharesBefore = FundWithShareLockFlashLoansWhitelisting(fund).balanceOf(msg.sender);
+        sharesBefore = FundWithShareLockFlashLoansWhitelisting(fund).balanceOf(msg.sender);
 
-        usedAssets = FundWithShareLockFlashLoansWhitelisting(fund).mint(expectedSharesOut, msg.sender);
+        return (fundDepositAsset, fundDepositAmount, sharesBefore);
+    }
 
-        uint256 sharesOut = FundWithShareLockFlashLoansWhitelisting(fund).balanceOf(msg.sender) - sharesBefore;
+    function _afterEnter(
+        address fund,
+        address fundDepositAsset,
+        address assetToUse,
+        uint256 minSharesOut,
+        uint256 sharesBefore
+    ) internal returns (uint256 sharesOut) {
+        sharesOut = FundWithShareLockFlashLoansWhitelisting(fund).balanceOf(msg.sender) - sharesBefore;
 
-        if (sharesOut != expectedSharesOut) revert ProxyEnterFundViaAggregator__MinBoughtSharesNotMet();
+        if (sharesOut < minSharesOut) revert ProxyEnterFundViaAggregator__MinBoughtSharesNotMet();
 
         // Tranfer any unused fund asset back to the user
         _transferAll(fundDepositAsset, _getBalance(fundDepositAsset));
 
         // transfer any remainings from the initial token back to the user
         _transferAll(assetToUse, _getBalance(assetToUse));
-
-        return usedAssets;
     }
 
     function _tradeAssetsExternally(
