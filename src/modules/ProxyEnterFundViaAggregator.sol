@@ -67,7 +67,7 @@ contract ProxyEnterFundViaAggregator is ReentrancyGuard, Pausable, Ownable2Step 
     error ProxyEnterFundViaAggregator__MinBoughtSharesNotMet();
     error ProxyEnterFundViaAggregator__PermitFailed();
     error ProxyEnterFundViaAggregator__PassedDeadline();
-    error ProxyEnterFundViaAggregator__SAME_TOKENS();
+    error ProxyEnterFundViaAggregator__SameTokensInAndOut();
 
     struct Quote {
         address targetAggregator;
@@ -348,7 +348,7 @@ contract ProxyEnterFundViaAggregator is ReentrancyGuard, Pausable, Ownable2Step 
     ) private returns (uint256 boughtAmount) {
         sellToken = _isNative(sellToken) ? address(WETH) : sellToken;
 
-        if (buyToken == sellToken) revert ProxyEnterFundViaAggregator__SAME_TOKENS();
+        if (buyToken == sellToken) revert ProxyEnterFundViaAggregator__SameTokensInAndOut();
 
         _getApproval(sellToken, quote.spender, sellAmount);
 
