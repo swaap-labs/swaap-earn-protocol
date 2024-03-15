@@ -316,6 +316,7 @@ contract FeesManager {
      * @param fund the fund to payout the fees for
      */
     function payoutFees(address fund) public {
+        Fund(fund).collectFees();
         uint256 totalFees = ERC20(fund).balanceOf(address(this));
 
         if (totalFees == 0) {
@@ -366,8 +367,12 @@ contract FeesManager {
      * @dev Callable by Swaap Strategist.
      */
     function setStrategistPayoutAddress(address fund, address newPayoutAddress) external onlyFundOwner(fund) {
-        emit StrategistPayoutAddressChanged(newPayoutAddress);
         FeesData storage feeData = fundFeesData[fund];
+
+        // collect fees and payout the old strategist (if any) before changing the address
+        payoutFees(fund);
+
+        emit StrategistPayoutAddressChanged(newPayoutAddress);
         // no need to check if the address is not valid, the owner can set it to any address
         feeData.strategistPayoutAddress = newPayoutAddress;
     }
