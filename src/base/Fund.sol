@@ -682,17 +682,10 @@ contract Fund is ERC4626, Ownable {
      */
     function deposit(uint256 assets, address receiver) public virtual override nonReentrant returns (uint256 shares) {
         // the total supply is the equivalent of total shares after applying the performance and management fees
-        (
-            uint16 _enterFeesRate,
-            uint256 _totalAssets,
-            uint256 _totalSupply
-        ) = _collectFeesAndGetTotalAssetsAndTotalSupply(true);
+        (uint256 _totalAssets, uint256 _totalSupply) = _collectFeesAndGetTotalAssetsAndTotalSupply(true);
 
         // Check for rounding error since we round down in previewDeposit.
         if ((shares = _convertToShares(assets, _totalAssets, _totalSupply)) == 0) revert Fund__ZeroShares();
-
-        // apply enter fees
-        shares = _applyEnterOrExitFees(_enterFeesRate, shares, false);
 
         if ((_totalSupply + shares) > shareSupplyCap) revert Fund__ShareSupplyCapExceeded();
 
@@ -707,17 +700,10 @@ contract Fund is ERC4626, Ownable {
      */
     function mint(uint256 shares, address receiver) public virtual override nonReentrant returns (uint256 assets) {
         // the total supply is the equivalent of total shares after applying the performance and management fees
-        (
-            uint16 _enterFeesRate,
-            uint256 _totalAssets,
-            uint256 _totalSupply
-        ) = _collectFeesAndGetTotalAssetsAndTotalSupply(true);
+        (uint256 _totalAssets, uint256 _totalSupply) = _collectFeesAndGetTotalAssetsAndTotalSupply(true);
 
         // previewMint rounds up, but initial mint could return zero assets, so check for rounding error.
         if ((assets = _previewMint(shares, _totalAssets, _totalSupply)) == 0) revert Fund__ZeroAssets();
-
-        // apply enter fees
-        assets = _applyEnterOrExitFees(_enterFeesRate, assets, true);
 
         if ((_totalSupply + shares) > shareSupplyCap) revert Fund__ShareSupplyCapExceeded();
 
@@ -764,17 +750,10 @@ contract Fund is ERC4626, Ownable {
         address owner
     ) public override nonReentrant returns (uint256 shares) {
         // the total supply is the equivalent of total shares after applying the performance and management fees
-        (
-            uint16 _exitFeesRate,
-            uint256 _totalAssets,
-            uint256 _totalSupply
-        ) = _collectFeesAndGetTotalAssetsAndTotalSupply(false);
+        (uint256 _totalAssets, uint256 _totalSupply) = _collectFeesAndGetTotalAssetsAndTotalSupply(false);
 
         // No need to check for rounding error, `previewWithdraw` rounds up.
         shares = _previewWithdraw(assets, _totalAssets, _totalSupply);
-
-        // apply exit fees
-        shares = _applyEnterOrExitFees(_exitFeesRate, shares, true);
 
         _exit(assets, shares, receiver, owner);
     }
@@ -798,44 +777,38 @@ contract Fund is ERC4626, Ownable {
         address owner
     ) public override nonReentrant returns (uint256 assets) {
         // the total supply is the equivalent of total shares after applying the performance and management fees
-        (
-            uint16 _exitFeesRate,
-            uint256 _totalAssets,
-            uint256 _totalSupply
-        ) = _collectFeesAndGetTotalAssetsAndTotalSupply(false);
+        (uint256 _totalAssets, uint256 _totalSupply) = _collectFeesAndGetTotalAssetsAndTotalSupply(false);
 
         // Check for rounding error since we round down in previewRedeem.
         if ((assets = _convertToAssets(shares, _totalAssets, _totalSupply)) == 0) revert Fund__ZeroAssets();
-
-        // apply exit fees
-        assets = _applyEnterOrExitFees(_exitFeesRate, assets, false);
 
         _exit(assets, shares, receiver, owner);
     }
 
     /**
      * @notice Called at the beginning of `previewDeposit`, `previewMint`, `previewWithdraw` and `previewRedeem`.
-     * @return _enterOrExitFees the enter or exit fees that should be applied to the operation
-     * @return _totalAssets the total assets in the fund
-     * @return _totalSupply the total supply of shares after fees if any
+     * @return _totalAssets the virtual total assets in the fund after fees if any
+     * @return _totalSupply the virtual total supply of shares after fees if any
      */
     function _previewTotalAssetsAndTotalSupplyAfterFees(
         bool _isEntering
-    ) internal view virtual returns (uint16, uint256, uint256) {
+    ) internal view virtual returns (uint256, uint256) {
         uint256 _totalAssets = _calculateTotalAssets();
         uint256 _totalSupply = totalSupply;
 
         if (isShutdown) {
-            return (0, _totalAssets, _totalSupply);
+            return (_totalAssets, _totalSupply);
         }
 
-        (uint16 _enterOrExitFees, uint256 feesAsShares) = FEES_MANAGER.previewApplyFeesBeforeJoinExit(
+        (uint16 _enterOrExitFeesRate, uint256 _feesAsShares) = FEES_MANAGER.previewApplyFeesBeforeJoinExit(
             _totalAssets,
             _totalSupply,
             _isEntering
         );
 
-        return (_enterOrExitFees, _totalAssets, _totalSupply + feesAsShares);
+        _totalAssets = _applyEnterOrExitFees(_totalAssets, _enterOrExitFeesRate, _isEntering);
+
+        return (_totalAssets, _totalSupply + _feesAsShares);
     }
 
     /**
@@ -850,56 +823,52 @@ contract Fund is ERC4626, Ownable {
     /**
      * @notice Called at the beginning of `deposit`, `mint`, `withdraw` and `redeem`.
      * @dev This function is called before the fund applies fees.
-     * @return _enterOrExitFeesRate the enter or exit fees rate that should be applied to the operation
-     * @return _totalAssets the total assets in the fund
-     * @return _totalSupply the total supply of shares after fees if any
+     * @return _totalAssets the virtual total assets in the fund after enter or exit fees
+     * @return _totalSupply the total supply of shares after management and performance fees
      */
-    function _collectFeesAndGetTotalAssetsAndTotalSupply(
-        bool _isEntering
-    ) internal virtual returns (uint16, uint256, uint256) {
+    function _collectFeesAndGetTotalAssetsAndTotalSupply(bool _isEntering) internal virtual returns (uint256, uint256) {
         uint256 _totalAssets = _calculateTotalAssets();
         uint256 _totalSupply = totalSupply;
 
         if (isShutdown) {
-            return (0, _totalAssets, _totalSupply);
+            return (_totalAssets, _totalSupply);
         }
 
-        try FEES_MANAGER.applyFeesBeforeJoinExit(
-            _totalAssets,
-            _totalSupply,
-            _isEntering
-        ) returns(uint16 _enterOrExitFeesRate, uint256 _feesAsShares) {
-            
+        try FEES_MANAGER.applyFeesBeforeJoinExit(_totalAssets, _totalSupply, _isEntering) returns (
+            uint16 _enterOrExitFeesRate,
+            uint256 _feesAsShares
+        ) {
             if (_feesAsShares > 0) {
                 _mint(address(FEES_MANAGER), _feesAsShares);
                 _totalSupply += _feesAsShares;
             }
 
-            return (_enterOrExitFeesRate, _totalAssets, _totalSupply);
+            _totalAssets = _applyEnterOrExitFees(_totalAssets, _enterOrExitFeesRate, _isEntering);
 
+            return (_totalAssets, _totalSupply);
         } catch {
             // If fees fail to apply, return with 0 fees. (it should not happen in normal cases)
-            return(0, _totalAssets, _totalSupply);
+            return (_totalAssets, _totalSupply);
         }
-
     }
 
     uint16 internal constant _BPS_ONE_HUNDRED_PER_CENT = 1e4;
 
+    /// @return virtualTotalAssets the virtual total assets after applying enter or exit fees
     function _applyEnterOrExitFees(
-        uint16 enterOrExitFeeRate,
-        uint256 assetsOrShares,
-        bool increase
+        uint256 _totalAssets,
+        uint16 _enterOrExitFeeRate,
+        bool _isEntering
     ) internal pure returns (uint256) {
-        if (enterOrExitFeeRate == 0) {
-            return assetsOrShares;
+        if (_enterOrExitFeeRate == 0) {
+            return _totalAssets;
         }
 
-        if (increase) {
-            return assetsOrShares.mulDivUp(_BPS_ONE_HUNDRED_PER_CENT + enterOrExitFeeRate, _BPS_ONE_HUNDRED_PER_CENT);
+        if (_isEntering) {
+            return _totalAssets.mulDivUp(_BPS_ONE_HUNDRED_PER_CENT + _enterOrExitFeeRate, _BPS_ONE_HUNDRED_PER_CENT);
         }
 
-        return assetsOrShares.mulDivDown(_BPS_ONE_HUNDRED_PER_CENT - enterOrExitFeeRate, _BPS_ONE_HUNDRED_PER_CENT);
+        return _totalAssets.mulDivDown(_BPS_ONE_HUNDRED_PER_CENT - _enterOrExitFeeRate, _BPS_ONE_HUNDRED_PER_CENT);
     }
 
     /**
@@ -1077,13 +1046,8 @@ contract Fund is ERC4626, Ownable {
      * @return assets that will be deposited
      */
     function previewMint(uint256 shares) public view override returns (uint256 assets) {
-        (
-            uint16 _enterFeesRate,
-            uint256 _totalAssets,
-            uint256 _totalSupply
-        ) = _previewTotalAssetsAndTotalSupplyAfterFees(true);
+        (uint256 _totalAssets, uint256 _totalSupply) = _previewTotalAssetsAndTotalSupplyAfterFees(true);
         assets = _previewMint(shares, _totalAssets, _totalSupply);
-        assets = _applyEnterOrExitFees(_enterFeesRate, assets, true);
     }
 
     /**
@@ -1092,11 +1056,8 @@ contract Fund is ERC4626, Ownable {
      * @return shares that will be redeemed
      */
     function previewWithdraw(uint256 assets) public view override returns (uint256 shares) {
-        (uint16 _exitFeesRate, uint256 _totalAssets, uint256 _totalSupply) = _previewTotalAssetsAndTotalSupplyAfterFees(
-            false
-        );
+        (uint256 _totalAssets, uint256 _totalSupply) = _previewTotalAssetsAndTotalSupplyAfterFees(false);
         shares = _previewWithdraw(assets, _totalAssets, _totalSupply);
-        shares = _applyEnterOrExitFees(_exitFeesRate, shares, true);
     }
 
     /**
@@ -1105,13 +1066,8 @@ contract Fund is ERC4626, Ownable {
      * @return shares that will be minted
      */
     function previewDeposit(uint256 assets) public view override returns (uint256 shares) {
-        (
-            uint16 _enterFeesRate,
-            uint256 _totalAssets,
-            uint256 _totalSupply
-        ) = _previewTotalAssetsAndTotalSupplyAfterFees(true);
+        (uint256 _totalAssets, uint256 _totalSupply) = _previewTotalAssetsAndTotalSupplyAfterFees(true);
         shares = _convertToShares(assets, _totalAssets, _totalSupply);
-        shares = _applyEnterOrExitFees(_enterFeesRate, shares, false);
     }
 
     /**
@@ -1120,11 +1076,8 @@ contract Fund is ERC4626, Ownable {
      * @return assets that will be returned
      */
     function previewRedeem(uint256 shares) public view override returns (uint256 assets) {
-        (uint16 _exitFeesRate, uint256 _totalAssets, uint256 _totalSupply) = _previewTotalAssetsAndTotalSupplyAfterFees(
-            false
-        );
+        (uint256 _totalAssets, uint256 _totalSupply) = _previewTotalAssetsAndTotalSupplyAfterFees(false);
         assets = _convertToAssets(shares, _totalAssets, _totalSupply);
-        assets = _applyEnterOrExitFees(_exitFeesRate, assets, false);
     }
 
     /**
@@ -1136,12 +1089,9 @@ contract Fund is ERC4626, Ownable {
     function _findMax(address owner, bool inShares) internal view virtual returns (uint256 maxOut) {
         _whenNotPaused();
         // Get amount of assets to withdraw.
-        (uint16 _exitFees, uint256 _totalAssets, uint256 _totalSupply) = _previewTotalAssetsAndTotalSupplyAfterFees(
-            false
-        );
+        (uint256 _totalAssets, uint256 _totalSupply) = _previewTotalAssetsAndTotalSupplyAfterFees(false);
 
         uint256 assets = _convertToAssets(balanceOf[owner], _totalAssets, _totalSupply);
-        assets = _applyEnterOrExitFees(_exitFees, assets, false);
 
         uint256 withdrawable = _calculateTotalWithdrawableAssets();
         maxOut = assets <= withdrawable ? assets : withdrawable;
@@ -1410,15 +1360,12 @@ contract Fund is ERC4626, Ownable {
         uint192 _cap = shareSupplyCap;
         if ((_cap = shareSupplyCap) == type(uint192).max) return type(uint256).max;
 
-        (uint16 _enterFees, uint256 _totalAssets, uint256 _totalSupply) = _previewTotalAssetsAndTotalSupplyAfterFees(
-            true
-        );
+        (uint256 _totalAssets, uint256 _totalSupply) = _previewTotalAssetsAndTotalSupplyAfterFees(true);
 
         if (_totalSupply >= _cap) return 0;
         else {
             uint256 shareDelta = _cap - _totalSupply;
-            uint256 assets = _convertToAssets(shareDelta, _totalAssets, _totalSupply);
-            return _applyEnterOrExitFees(_enterFees, assets, true);
+            return _convertToAssets(shareDelta, _totalAssets, _totalSupply);
         }
     }
 
