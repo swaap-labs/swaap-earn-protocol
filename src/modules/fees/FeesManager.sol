@@ -80,6 +80,20 @@ contract FeesManager {
      */
     event PerformanceFeesRateUpdated(address indexed fund, uint256 performanceFeesRate, uint256 highWaterMarkPrice);
 
+    /**
+     * @notice Emitted when enter fees are updated.
+     * @param fund the fund that had enter fees updated
+     * @param enterFeesRate the new enter fees rate
+     */
+    event EnterFeesUpdated(address indexed fund, uint16 enterFeesRate);
+
+    /**
+     * @notice Emitted when exit fees are updated.
+     * @param fund the fund that had exit fees updated
+     * @param exitFeesRate the new exit fees rate
+     */
+    event ExitFeesUpdated(address indexed fund, uint16 exitFeesRate);
+
     // =============================================== ERRORS ===============================================
 
     /// @notice Throws when the caller is not the fund owner.
@@ -247,8 +261,8 @@ contract FeesManager {
         }
 
         if (performanceFees > 0) {
-            if(highWaterMarkPrice > type(uint72).max) revert FeesManager__WaterMarkPriceOverflow();
-            
+            if (highWaterMarkPrice > type(uint72).max) revert FeesManager__WaterMarkPriceOverflow();
+
             feeData.highWaterMarkPrice = uint72(highWaterMarkPrice);
             emit PerformanceFeesClaimed(msg.sender, performanceFees, highWaterMarkPrice);
         }
@@ -415,7 +429,7 @@ contract FeesManager {
             // note that the fund will revert if we are calling totalAssets() when it's locked (nonReentrantView)
             uint256 totalAssets = Fund(fund).totalAssets();
             uint256 highWaterMarkPrice = PerformanceFeesLib._calcSharePrice(totalAssets, Fund(fund).totalSupply());
-            if(highWaterMarkPrice > type(uint72).max) revert FeesManager__WaterMarkPriceOverflow();
+            if (highWaterMarkPrice > type(uint72).max) revert FeesManager__WaterMarkPriceOverflow();
 
             fundFeesData[fund].highWaterMarkPrice = uint72(highWaterMarkPrice);
             fundFeesData[fund].highWaterMarkResetTime = uint40(block.timestamp);
@@ -442,6 +456,7 @@ contract FeesManager {
             revert FeesManager__InvalidFeesRate();
         }
 
+        emit EnterFeesUpdated(fund, enterFeesRate);
         fundFeesData[fund].enterFeesRate = enterFeesRate;
     }
 
@@ -455,6 +470,7 @@ contract FeesManager {
             revert FeesManager__InvalidFeesRate();
         }
 
+        emit ExitFeesUpdated(fund, exitFeesRate);
         fundFeesData[fund].exitFeesRate = exitFeesRate;
     }
 
@@ -478,7 +494,7 @@ contract FeesManager {
 
         // calculates the new high-water mark
         uint256 highWaterMarkPrice = PerformanceFeesLib._calcSharePrice(totalAssets, c.totalSupply());
-        if(highWaterMarkPrice > type(uint72).max) revert FeesManager__WaterMarkPriceOverflow();
+        if (highWaterMarkPrice > type(uint72).max) revert FeesManager__WaterMarkPriceOverflow();
 
         // updates the high-water mark state
         feeData.highWaterMarkPrice = uint72(highWaterMarkPrice);
