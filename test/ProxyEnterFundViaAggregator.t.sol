@@ -130,7 +130,7 @@ contract ProxyEnterFundViaAggregatorTest is MainnetStarterTest, AdaptorHelperFun
 
         uint256 sharesBalanceBefore = wethFund.balanceOf(address(this));
 
-        uint256 reportedReceivedShares = proxy.depositViaAggregator(
+        uint256 reportedReceivedShares = proxy.deposit(
             address(wethFund),
             address(USDC),
             maxAmountToUse,
@@ -175,7 +175,7 @@ contract ProxyEnterFundViaAggregatorTest is MainnetStarterTest, AdaptorHelperFun
 
         wethFund.enableWhitelist();
 
-        uint256 reportedReceivedShares = proxy.whitelistDepositViaAggregator(
+        uint256 reportedReceivedShares = proxy.whitelistDeposit(
             address(wethFund),
             address(USDC),
             maxAmountToUse,
@@ -215,7 +215,7 @@ contract ProxyEnterFundViaAggregatorTest is MainnetStarterTest, AdaptorHelperFun
 
         uint256 sharesBalanceBefore = usdcFund.balanceOf(address(this));
 
-        uint256 reportedReceivedShares = proxy.depositViaAggregator{ value: maxAmountToUse }(
+        uint256 reportedReceivedShares = proxy.deposit{ value: maxAmountToUse }(
             address(usdcFund),
             address(0),
             maxAmountToUse,
@@ -260,7 +260,7 @@ contract ProxyEnterFundViaAggregatorTest is MainnetStarterTest, AdaptorHelperFun
 
         uint256 expectedReceivedShares = 1e18; // <==> 1 USDC (1e6 decimals)
 
-        uint256 reportedUsedAssets = proxy.mintViaAggregator{ value: maxAmountToUse }(
+        uint256 reportedUsedAssets = proxy.mint{ value: maxAmountToUse }(
             address(usdcFund),
             address(0),
             maxAmountToUse,
@@ -304,7 +304,7 @@ contract ProxyEnterFundViaAggregatorTest is MainnetStarterTest, AdaptorHelperFun
 
         uint256 expectedReceivedShares = 1e14;
 
-        uint256 reportedUsedAssets = proxy.mintViaAggregator(
+        uint256 reportedUsedAssets = proxy.mint(
             address(wethFund),
             address(USDC),
             maxAmountToUse,
@@ -350,7 +350,7 @@ contract ProxyEnterFundViaAggregatorTest is MainnetStarterTest, AdaptorHelperFun
         wethFund.enableWhitelist();
         bytes memory signature = _getWhitelistSignatureForFund(wethFund, alicePrivateKey);
 
-        uint256 reportedUsedAssets = proxy.whitelistMintViaAggregator(
+        uint256 reportedUsedAssets = proxy.whitelistMint(
             address(wethFund),
             address(USDC),
             maxAmountToUse,
@@ -383,7 +383,7 @@ contract ProxyEnterFundViaAggregatorTest is MainnetStarterTest, AdaptorHelperFun
 
         uint256 sharesBalanceBefore = wethFund.balanceOf(address(this));
 
-        uint256 reportedReceivedShares = proxy.depositViaAggregator{ value: maxAmountToUse }(
+        uint256 reportedReceivedShares = proxy.deposit{ value: maxAmountToUse }(
             address(wethFund),
             address(0),
             maxAmountToUse,
@@ -448,7 +448,7 @@ contract ProxyEnterFundViaAggregatorTest is MainnetStarterTest, AdaptorHelperFun
         uint256 sharesBalanceBefore = wethFund.balanceOf(bob);
 
         multicallData[1] = abi.encodeWithSelector(
-            ProxyEnterFundViaAggregator.depositViaAggregator.selector,
+            ProxyEnterFundViaAggregator.deposit.selector,
             address(wethFund),
             address(USDC),
             maxAmountToUse,

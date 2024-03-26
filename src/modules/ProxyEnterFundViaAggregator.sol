@@ -156,7 +156,7 @@ contract ProxyEnterFundViaAggregator is ReentrancyGuard, Pausable, Ownable2Step 
      * @param permissionSignedAt Timestamp when the whitelisting permission was signed at
      * @param permitData Permit data for the whitelisting
      */
-    function whitelistDepositViaAggregator(
+    function whitelistDeposit(
         address fund,
         address assetToUse,
         uint256 maxAmountToUse,
@@ -194,7 +194,7 @@ contract ProxyEnterFundViaAggregator is ReentrancyGuard, Pausable, Ownable2Step 
      * @param deadline Deadline for the action
      * @param fillQuote Quote data for the trade
      */
-    function depositViaAggregator(
+    function deposit(
         address fund,
         address assetToUse,
         uint256 maxAmountToUse,
@@ -227,7 +227,7 @@ contract ProxyEnterFundViaAggregator is ReentrancyGuard, Pausable, Ownable2Step 
      * @param permissionSignedAt Timestamp when the whitelisting permission was signed at
      * @param permitData Permit data for the whitelisting
      */
-    function whitelistMintViaAggregator(
+    function whitelistMint(
         address fund,
         address assetToUse,
         uint256 maxAmountToUse,
@@ -260,7 +260,7 @@ contract ProxyEnterFundViaAggregator is ReentrancyGuard, Pausable, Ownable2Step 
      * @param deadline Deadline for the action
      * @param fillQuote Quote data for the trade
      */
-    function mintViaAggregator(
+    function mint(
         address fund,
         address assetToUse,
         uint256 maxAmountToUse,
