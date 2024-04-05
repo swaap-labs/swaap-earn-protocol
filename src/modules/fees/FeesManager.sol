@@ -386,7 +386,7 @@ contract FeesManager {
      * @param cut the platform cut for the strategist
      * @dev Callable by Swaap Governance.
      */
-    function setStrategistPlatformCut(address fund, uint64 cut) external onlyFundOwner(fund) {
+    function setStrategistPlatformCut(address fund, uint64 cut) external onlyRegistryOwner {
         if (cut > MAX_FEE_CUT) revert FeesManager__InvalidFeesCut();
 
         payoutFees(fund);
