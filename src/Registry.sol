@@ -258,11 +258,6 @@ contract Registry is Ownable {
     error Registry__TargetNotPaused(address target);
 
     /**
-     * @notice Attempted to pause a target that was already paused.
-     */
-    error Registry__TargetAlreadyPaused(address target);
-
-    /**
      * @notice Mapping stores whether or not a fund is paused.
      */
     mapping(address => bool) public isCallerPaused;
@@ -285,7 +280,6 @@ contract Registry is Ownable {
      * @notice Helper function to pause some target.
      */
     function _pauseTarget(address target) internal {
-        if (isCallerPaused[target]) revert Registry__TargetAlreadyPaused(target);
         isCallerPaused[target] = true;
         emit TargetPaused(target);
     }
