@@ -558,7 +558,7 @@ contract Registry is Ownable {
 
         uint256 endPeriod;
         unchecked {
-            endPeriod = fundVolumeData.lastUpdate + fundVolumeData.periodLength;
+            endPeriod = uint256(fundVolumeData.lastUpdate) + uint256(fundVolumeData.periodLength);
         }
 
         if (block.timestamp > endPeriod) {
