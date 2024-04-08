@@ -487,7 +487,10 @@ contract FeesManager {
      */
     function resetHighWaterMark(address fund) external onlyRegistryOwner {
         Fund c = Fund(fund);
+        c.collectFees();
+
         FeesData storage feeData = fundFeesData[fund];
+
         uint256 totalAssets = c.totalAssets();
 
         // checks high-water mark reset conditions
