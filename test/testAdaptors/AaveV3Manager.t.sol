@@ -117,7 +117,7 @@ contract FundAaveV3Test is MainnetStarterTest, AdaptorHelperFunctions {
             address(pool)
         );
 
-        fund = FundWithAaveFlashLoans(deployer.deployContract(fundName, creationCode, constructorArgs, 0));
+        fund = FundWithAaveFlashLoans(deployer.deployContract(fundName, creationCode, constructorArgs));
 
         fund.addAdaptorToCatalogue(address(aaveATokenManagerAdaptor));
         fund.addAdaptorToCatalogue(address(aaveDebtManagerAdaptor));

@@ -70,13 +70,13 @@ contract FundFraxLendCollateralAndDebtTestV2 is MainnetStarterTest, AdaptorHelpe
         creationCode = type(CollateralFTokenAdaptor).creationCode;
         constructorArgs = abi.encode(address(FRAX), minHealthFactor);
         collateralFTokenAdaptor = CollateralFTokenAdaptor(
-            deployer.deployContract("FraxLend Collateral fToken Adaptor V 0.1", creationCode, constructorArgs, 0)
+            deployer.deployContract("FraxLend Collateral fToken Adaptor V 0.1", creationCode, constructorArgs)
         );
 
         creationCode = type(DebtFTokenAdaptor).creationCode;
         constructorArgs = abi.encode(ACCOUNT_FOR_INTEREST, address(FRAX), minHealthFactor);
         debtFTokenAdaptor = DebtFTokenAdaptor(
-            deployer.deployContract("FraxLend debtToken Adaptor V 1.0", creationCode, constructorArgs, 0)
+            deployer.deployContract("FraxLend debtToken Adaptor V 1.0", creationCode, constructorArgs)
         );
 
         PriceRouter.ChainlinkDerivativeStorage memory stor;
@@ -149,7 +149,7 @@ contract FundFraxLendCollateralAndDebtTestV2 is MainnetStarterTest, AdaptorHelpe
             type(uint192).max
         );
 
-        fund = Fund(deployer.deployContract(fundName, creationCode, constructorArgs, 0));
+        fund = Fund(deployer.deployContract(fundName, creationCode, constructorArgs));
 
         fund.addAdaptorToCatalogue(address(collateralFTokenAdaptor));
         fund.addAdaptorToCatalogue(address(debtFTokenAdaptor));

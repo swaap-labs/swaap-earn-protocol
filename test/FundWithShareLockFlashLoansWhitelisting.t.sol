@@ -115,7 +115,7 @@ contract MockFundWithShareLockFlashLoansWhitelistingTest is MainnetStarterTest, 
         );
 
         fund = MockFundWithShareLockFlashLoansWhitelisting(
-            deployer.deployContract(fundName, creationCode, constructorArgs, 0)
+            deployer.deployContract(fundName, creationCode, constructorArgs)
         );
 
         // Set up remaining fund positions.
