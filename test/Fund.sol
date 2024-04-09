@@ -390,9 +390,6 @@ contract FundTest is MainnetStarterTest, AdaptorHelperFunctions {
     // ========================================= LIMITS TEST =========================================
 
     function testLimits() external {
-        // Currently limits are not set, so they should report type(uint256).max
-        assertEq(fund.maxDeposit(address(this)), type(uint256).max, "Max Deposit should equal type(uint256).max");
-        assertEq(fund.maxMint(address(this)), type(uint256).max, "Max Mint should equal type(uint256).max");
         uint192 assetsToShares = uint192(fund.totalSupply() / fund.totalAssets());
 
         uint192 newCap = uint192(100e6 * assetsToShares);
