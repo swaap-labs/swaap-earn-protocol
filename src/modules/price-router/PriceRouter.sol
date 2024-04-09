@@ -157,7 +157,6 @@ contract PriceRouter is Ownable {
     function completeTransition() external {
         address _pendingOwner = pendingOwner;
 
-        if (_pendingOwner == address(0)) revert PriceRouter__TransitionNotPending();
         if (msg.sender != _pendingOwner) revert PriceRouter__OnlyCallableByPendingOwner();
         if (block.timestamp < transitionStart + TRANSITION_PERIOD) revert PriceRouter__TransitionPending();
 
@@ -429,8 +428,6 @@ contract PriceRouter is Ownable {
     function getValue(ERC20 baseAsset, uint256 amount, ERC20 quoteAsset) external view returns (uint256 value) {
         AssetSettings memory baseSettings = getAssetSettings[baseAsset];
         AssetSettings memory quoteSettings = getAssetSettings[quoteAsset];
-        if (baseSettings.derivative == 0) revert PriceRouter__UnsupportedAsset(address(baseAsset));
-        if (quoteSettings.derivative == 0) revert PriceRouter__UnsupportedAsset(address(quoteAsset));
         uint256 priceBaseUSD = _getPriceInUSD(baseAsset, baseSettings);
         uint256 priceQuoteUSD = _getPriceInUSD(quoteAsset, quoteSettings);
         value = _getValueInQuote(priceBaseUSD, priceQuoteUSD, baseAsset.decimals(), quoteAsset.decimals(), amount);
@@ -471,8 +468,6 @@ contract PriceRouter is Ownable {
     function getExchangeRate(ERC20 baseAsset, ERC20 quoteAsset) public view returns (uint256 exchangeRate) {
         AssetSettings memory baseSettings = getAssetSettings[baseAsset];
         AssetSettings memory quoteSettings = getAssetSettings[quoteAsset];
-        if (baseSettings.derivative == 0) revert PriceRouter__UnsupportedAsset(address(baseAsset));
-        if (quoteSettings.derivative == 0) revert PriceRouter__UnsupportedAsset(address(quoteAsset));
 
         exchangeRate = _getExchangeRate(baseAsset, baseSettings, quoteAsset, quoteSettings, quoteAsset.decimals());
     }
@@ -489,13 +484,11 @@ contract PriceRouter is Ownable {
     ) external view returns (uint256[] memory exchangeRates) {
         uint8 quoteAssetDecimals = quoteAsset.decimals();
         AssetSettings memory quoteSettings = getAssetSettings[quoteAsset];
-        if (quoteSettings.derivative == 0) revert PriceRouter__UnsupportedAsset(address(quoteAsset));
 
         uint256 numOfAssets = baseAssets.length;
         exchangeRates = new uint256[](numOfAssets);
         for (uint256 i; i < numOfAssets; ++i) {
             AssetSettings memory baseSettings = getAssetSettings[baseAssets[i]];
-            if (baseSettings.derivative == 0) revert PriceRouter__UnsupportedAsset(address(baseAssets[i]));
             exchangeRates[i] = _getExchangeRate(
                 baseAssets[i],
                 baseSettings,
@@ -547,6 +540,8 @@ contract PriceRouter is Ownable {
             price = _getPriceForTwapDerivative(asset, settings.source);
         } else if (settings.derivative == 3) {
             price = Extension(settings.source).getPriceInUSD(asset);
+        } else if (settings.derivative == 0) {
+            revert PriceRouter__UnsupportedAsset(address(asset));
         } else revert PriceRouter__UnknownDerivative(settings.derivative);
 
         return price;
@@ -603,7 +598,6 @@ contract PriceRouter is Ownable {
         uint256 quotePrice;
         {
             AssetSettings memory quoteSettings = getAssetSettings[quoteAsset];
-            if (quoteSettings.derivative == 0) revert PriceRouter__UnsupportedAsset(address(quoteAsset));
             quotePrice = _getPriceInUSD(quoteAsset, quoteSettings);
         }
         uint256 valueInQuote;
@@ -618,7 +612,6 @@ contract PriceRouter is Ownable {
                 uint256 basePrice;
                 {
                     AssetSettings memory baseSettings = getAssetSettings[baseAsset];
-                    if (baseSettings.derivative == 0) revert PriceRouter__UnsupportedAsset(address(baseAsset));
                     basePrice = _getPriceInUSD(baseAsset, baseSettings);
                 }
                 valueInQuote += _getValueInQuote(

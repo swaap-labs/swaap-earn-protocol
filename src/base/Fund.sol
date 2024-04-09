@@ -132,9 +132,9 @@ contract Fund is ERC4626, Ownable {
         _checkRegistryAddressAgainstExpected(_PRICE_ROUTER_REGISTRY_SLOT, expectedPriceRouter);
 
         priceRouter = PriceRouter(expectedPriceRouter);
-        uint256 assetsAfter = totalAssets();
 
         if (checkTotalAssets) {
+            uint256 assetsAfter = totalAssets();
             if (assetsAfter < minAssets || assetsAfter > maxAssets)
                 revert Fund__TotalAssetDeviatedOutsideRange(assetsAfter, minAssets, maxAssets);
         }
@@ -1358,7 +1358,7 @@ contract Fund is ERC4626, Ownable {
         if (isShutdown) return 0;
 
         uint192 _cap = shareSupplyCap;
-        if ((_cap = shareSupplyCap) == type(uint192).max) return type(uint256).max;
+        if (_cap == type(uint192).max) return type(uint256).max;
 
         (uint256 _totalAssets, uint256 _totalSupply) = _previewTotalAssetsAndTotalSupplyAfterFees(true);
 

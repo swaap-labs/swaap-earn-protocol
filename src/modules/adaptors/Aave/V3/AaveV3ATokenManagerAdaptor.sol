@@ -286,7 +286,7 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
         pool.supply(address(tokenToDeposit), amountToDeposit, accountAddress, 0);
 
         // Zero out approvals if necessary.
-        _revokeExternalApproval(ERC20(tokenToDeposit), address(pool));
+        _revokeExternalApproval(tokenToDeposit, address(pool));
     }
 
     /**

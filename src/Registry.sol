@@ -220,7 +220,6 @@ contract Registry is Ownable {
     function completeTransition() external {
         address _pendingOwner = pendingOwner;
 
-        if (_pendingOwner == address(0)) revert Registry__TransitionNotPending();
         if (msg.sender != _pendingOwner) revert Registry__OnlyCallableByPendingOwner();
         if (block.timestamp < transitionStart + TRANSITION_PERIOD) revert Registry__TransitionPending();
 
@@ -613,9 +612,9 @@ contract Registry is Ownable {
         emit FundTradeVolumeDataUpdated(
             fund,
             fundVolumeData.lastUpdate,
-            fundVolumeData.periodLength,
+            periodLength,
             fundVolumeData.volumeInUSD,
-            fundVolumeData.maxVolumeInUSD
+            maxVolumeInUSD
         );
     }
 }
