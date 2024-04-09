@@ -314,8 +314,8 @@ contract FundAaveTest is MainnetStarterTest, AdaptorHelperFunctions {
         fund.callOnAdaptor(data);
 
         // Remove dV2USDC and aV2USDC positions.
-        fund.removePosition(1, false);
-        fund.removePosition(0, true);
+        fund.removePosition(1, fund.creditPositions(1), false);
+        fund.removePosition(0, fund.debtPositions(0), true);
 
         fund.addPosition(1, aV2WETHPosition, abi.encode(1.1e18), false);
         fund.addPosition(0, debtWETHPosition, abi.encode(0), true);
@@ -558,7 +558,7 @@ contract FundAaveTest is MainnetStarterTest, AdaptorHelperFunctions {
         fund.addPositionToCatalogue(aV2WBTCPosition);
         fund.addPosition(1, aV2WETHPosition, abi.encode(0), false);
         fund.addPosition(2, aV2WBTCPosition, abi.encode(0), false);
-        fund.removePosition(3, false);
+        fund.removePosition(3, fund.creditPositions(3), false);
 
         // Have whale join the fund with 1M USDC.
         uint256 assets = 1_000_000e6;

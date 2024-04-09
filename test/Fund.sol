@@ -425,7 +425,7 @@ contract FundTest is MainnetStarterTest, AdaptorHelperFunctions {
     // ========================================== POSITIONS TEST ==========================================
 
     function testInteractingWithDistrustedPositions() external {
-        fund.removePosition(4, false);
+        fund.removePosition(4, fund.creditPositions(4), false);
         fund.removePositionFromCatalogue(wethPosition); // Removes WETH position from catalogue.
 
         // Fund should not be able to add position to tracked array until it is in the catalogue.
@@ -443,7 +443,7 @@ contract FundTest is MainnetStarterTest, AdaptorHelperFunctions {
         fund.totalAssets();
 
         // Distrusted position is still in tracked array, but strategist/governance can remove it.
-        fund.removePosition(4, false);
+        fund.removePosition(4, fund.creditPositions(4), false);
 
         // If strategist tries adding it back it reverts.
         vm.expectRevert(bytes(abi.encodeWithSelector(Registry.Registry__PositionIsNotTrusted.selector, wethPosition)));
@@ -493,7 +493,7 @@ contract FundTest is MainnetStarterTest, AdaptorHelperFunctions {
         uint256 positionLength = fund.getCreditPositions().length;
 
         // Check that `removePosition` actually removes it.
-        fund.removePosition(4, false);
+        fund.removePosition(4, fund.creditPositions(4), false);
 
         assertEq(
             positionLength - 1,
@@ -537,7 +537,7 @@ contract FundTest is MainnetStarterTest, AdaptorHelperFunctions {
                 )
             )
         );
-        fund.removePosition(4, false);
+        fund.removePosition(4, wethPosition, false);
 
         // Check that `addPosition` reverts if position is not trusted.
         vm.expectRevert(bytes(abi.encodeWithSelector(Fund.Fund__PositionNotInCatalogue.selector, 0)));
@@ -550,7 +550,7 @@ contract FundTest is MainnetStarterTest, AdaptorHelperFunctions {
         // Set Fund WETH balance to 0.
         deal(address(WETH), address(fund), 0);
 
-        fund.removePosition(4, false);
+        fund.removePosition(4, fund.creditPositions(4), false);
 
         // Check that addPosition sets position data.
         fund.addPosition(4, wethPosition, abi.encode(true), false);
@@ -581,7 +581,7 @@ contract FundTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         vm.expectRevert(bytes(abi.encodeWithSelector(Fund.Fund__RemovingHoldingPosition.selector)));
         // Try removing the holding position.
-        fund.removePosition(1, false);
+        fund.removePosition(1, usdcCLRPosition, false);
 
         // Set holding position back to USDC.
         fund.setHoldingPosition(usdcPosition);
@@ -617,10 +617,10 @@ contract FundTest is MainnetStarterTest, AdaptorHelperFunctions {
         assertEq(fund.getDebtPositions().length, 2, "Debt positions should be length 2.");
 
         // Remove all debt.
-        fund.removePosition(0, true);
+        fund.removePosition(0, fund.debtPositions(0), true);
         assertEq(fund.getDebtPositions().length, 1, "Debt positions should be length 1.");
 
-        fund.removePosition(0, true);
+        fund.removePosition(0, fund.debtPositions(0), true);
         assertEq(fund.getDebtPositions().length, 0, "Debt positions should be length 1.");
 
         // Add debt positions back.
@@ -629,6 +629,10 @@ contract FundTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         fund.addPosition(0, debtWbtcPosition, abi.encode(0), true);
         assertEq(fund.getDebtPositions().length, 2, "Debt positions should be length 2.");
+
+        // revert for wrong expected position
+        vm.expectRevert(bytes(abi.encodeWithSelector(Fund.Fund__WrongPositionId.selector)));
+        fund.removePosition(2, usdcPosition, false);
 
         // Check force position out logic.
         // Give Fund 1 WEI WETH.
@@ -642,7 +646,7 @@ contract FundTest is MainnetStarterTest, AdaptorHelperFunctions {
                 )
             )
         );
-        fund.removePosition(2, false);
+        fund.removePosition(2, wethPosition, false);
 
         // Try forcing out the wrong position.
         vm.expectRevert(bytes(abi.encodeWithSelector(Fund.Fund__FailedToForceOutPosition.selector)));
@@ -1029,7 +1033,7 @@ contract FundTest is MainnetStarterTest, AdaptorHelperFunctions {
         assertEq(debtFund.getDebtPositions().length, 2, "Fund should have 2 debt positions");
 
         // removing WBTC should decrement number of debt positions.
-        debtFund.removePosition(0, true);
+        debtFund.removePosition(0, debtWbtcPosition, true);
         assertEq(debtFund.getDebtPositions().length, 1, "Fund should have 1 debt position");
 
         // Adding a debt position, but specifying it as a credit position should revert.

@@ -326,7 +326,7 @@ contract FundAaveV3MorphoTest is MainnetStarterTest, AdaptorHelperFunctions {
 
     function testTakingOutLoansInUntrackedPosition(uint256 assets) external {
         _setupFundForBorrowing(fund);
-        fund.removePosition(0, true);
+        fund.removePosition(0, fund.debtPositions(0), true);
 
         assets = bound(assets, 0.01e18, 1_000e18);
         deal(address(WETH), address(this), assets);
@@ -603,7 +603,7 @@ contract FundAaveV3MorphoTest is MainnetStarterTest, AdaptorHelperFunctions {
             data[0] = Fund.AdaptorCall({ adaptor: address(p2pATokenAdaptor), callData: adaptorCalls });
         }
         fund.callOnAdaptor(data);
-        fund.removePosition(3, false);
+        fund.removePosition(3, fund.creditPositions(3), false);
 
         // assets = bound(assets, 1e18, 400e18);
         assets = 400e18;

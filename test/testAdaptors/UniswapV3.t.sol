@@ -553,7 +553,7 @@ contract UniswapV3AdaptorTest is MainnetStarterTest, AdaptorHelperFunctions, ERC
     // ========================================== REVERT TEST ==========================================
     function testUsingUntrackedLPPosition() external {
         // Remove USDC WETH LP position from fund.
-        fund.removePosition(1, false);
+        fund.removePosition(1, fund.creditPositions(1), false);
 
         // Strategist tries to move funds into USDC WETH LP position.
         uint256 assets = 100_000e6;

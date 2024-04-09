@@ -227,6 +227,11 @@ contract Fund is ERC4626, Ownable {
     error Fund__RemovingHoldingPosition();
 
     /**
+     * @notice Attempted to remove an index with an unexpected positionId.
+     */
+    error Fund__WrongPositionId();
+
+    /**
      * @notice Attempted to add an invalid holding position.
      * @param positionId the id of the invalid position.
      */
@@ -391,11 +396,14 @@ contract Fund is ERC4626, Ownable {
      * @notice Remove the position at a given index from the list of positions used by the fund.
      * @dev Called by strategist.
      * @param index index at which to remove the position
+     * @param expectedPositionId id of the position to remove
      * @dev Callable by Swaap Strategist.
      */
-    function removePosition(uint32 index, bool inDebtArray) external onlyOwner {
+    function removePosition(uint32 index, uint32 expectedPositionId, bool inDebtArray) external onlyOwner {
         // Get position being removed.
         uint32 positionId = inDebtArray ? debtPositions[index] : creditPositions[index];
+
+        if (expectedPositionId != positionId) revert Fund__WrongPositionId();
 
         // Only remove position if it is empty, and if it is not the holding position.
         uint256 positionBalance = _balanceOf(positionId);
