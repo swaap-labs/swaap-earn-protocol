@@ -366,7 +366,7 @@ contract FeesManager {
     /**
      * @notice Sets the Strategists payout address
      * @param newPayoutAddress the new strategist payout address
-     * @dev Callable by Swaap Strategist.
+     * @dev Callable by the Fund's owner.
      */
     function setStrategistPayoutAddress(address fund, address newPayoutAddress) external onlyFundOwner(fund) {
         FeesData storage feeData = fundFeesData[fund];
@@ -384,9 +384,9 @@ contract FeesManager {
     /**
      * @notice Sets the Strategists cut of platform fees
      * @param cut the platform cut for the strategist
-     * @dev Callable by Swaap Governance.
+     * @dev Callable by Registry owner.
      */
-    function setStrategistPlatformCut(address fund, uint64 cut) external onlyFundOwner(fund) {
+    function setStrategistPlatformCut(address fund, uint64 cut) external onlyRegistryOwner {
         if (cut > MAX_FEE_CUT) revert FeesManager__InvalidFeesCut();
 
         payoutFees(fund);

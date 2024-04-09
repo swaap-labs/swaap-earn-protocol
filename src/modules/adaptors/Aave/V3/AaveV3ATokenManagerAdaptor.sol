@@ -19,7 +19,7 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
     // adaptorData = abi.encode(uint8 accountId, address aToken)
     // Where:
     // `accountId` is the account extension id this adaptor is working with
-    // `aToken` is the aToken address position this adaptor is working with
+    // `aToken` is the aToken address the position this adaptor is working with
     //================= Configuration Data Specification =================
     // configurationData = abi.encode(minimumHealthFactor uint256)
     // Where:
@@ -31,9 +31,9 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
     //      position reverts if a user withdraw lowers health factor below minimum
     //
     // **************************** IMPORTANT ****************************
-    // Funds with multiple aToken positions MUST only specify minimum
-    // health factor on ONE of the positions. Failing to do so will result
-    // in user withdraws temporarily being blocked.
+    // It's advised for Funds with multiple aToken positions to specify the minimum
+    // health factor on ONE of the positions only as withdrawing from multiple positions
+    // can lead to a lower health factor than expected and thus revert.
     // An aToken should always have a position in the fund as well as a position
     // for its underlying asset. The adapter does not check the latter for gas optimzation purposes.
     //====================================================================

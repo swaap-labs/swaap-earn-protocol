@@ -82,7 +82,7 @@ contract FundWithShareLockPeriod is Fund {
     /**
      * @notice Allows share lock period to be updated.
      * @param newLock the new lock period
-     * @dev Callable by Swaap Strategist.
+     * @dev Callable by Fund's owner.
      */
     function setShareLockPeriod(uint256 newLock) external onlyOwner {
         if (newLock < MINIMUM_SHARE_LOCK_PERIOD || newLock > MAXIMUM_SHARE_LOCK_PERIOD)

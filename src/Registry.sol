@@ -549,8 +549,9 @@ contract Registry is Ownable {
     mapping(address => FundVolumeData) public fundsAdaptorVolumeData;
 
     /**
-     * @notice View the amount of assets in each Fund Position.
-     * @dev If the fund volume parameters were not set, the fund won't be able to trade.
+     * @notice Updates and checks if the fund's traded volume is violated.
+     * @param volumeInUSD the volume in USD to add to the fund's traded volume.
+     * @dev If the fund volume parameters were not set, the fund won't be able to trade on reblances.
      */
     function checkAndUpdateFundTradeVolume(uint256 volumeInUSD) external {
         // caller should be the fund through the swap adapters
@@ -590,7 +591,7 @@ contract Registry is Ownable {
      * @param fund the address of the fund
      * @param periodLength the length of the period in seconds
      * @param maxVolumeInUSD the max volume an adaptor can trade in a period
-     * @param resetVolume the current volume an adaptor has traded
+     * @param resetVolume reset or not the current volume an adaptor has traded
      */
     function setMaxAllowedAdaptorVolumeParams(
         address fund,

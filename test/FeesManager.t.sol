@@ -191,10 +191,11 @@ contract FeesManagerTest is MainnetStarterTest, AdaptorHelperFunctions {
         feesManager.setExitFees(address(fund), 0);
 
         vm.expectRevert(FeesManager.FeesManager__OnlyFundOwner.selector);
-        feesManager.setStrategistPlatformCut(address(fund), 0);
-
-        vm.expectRevert(FeesManager.FeesManager__OnlyFundOwner.selector);
         feesManager.setStrategistPayoutAddress(address(fund), address(this));
+
+        vm.prank(fundOwner);
+        vm.expectRevert(FeesManager.FeesManager__OnlyRegistryOwner.selector);
+        feesManager.setStrategistPlatformCut(address(fund), 0);
 
         vm.prank(fundOwner);
         vm.expectRevert(FeesManager.FeesManager__OnlyRegistryOwner.selector);

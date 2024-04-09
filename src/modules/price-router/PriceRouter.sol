@@ -356,6 +356,7 @@ contract PriceRouter is Ownable {
      * @param _settings the settings for `_asset`
      *        @dev The `derivative` value in settings MUST be non zero.
      * @param _storage arbitrary bytes data used to configure `_asset` pricing
+     * @param _expectedAnswer the expected answer for the asset from  `_getPriceInUSD`
      */
     function _updateAsset(
         ERC20 _asset,
