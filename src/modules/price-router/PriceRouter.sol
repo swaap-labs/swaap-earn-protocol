@@ -236,6 +236,12 @@ contract PriceRouter is Ownable {
      */
     error PriceRouter__MinPriceGreaterThanMaxPrice(uint256 min, uint256 max);
 
+    /// @dev The price buffer for Chainlink aggregator minimum price.
+    uint256 internal constant _CHAINLINK_MIN_PRICE_BUFFER = 1.1e18; // 10%
+
+    /// @dev The price buffer for Chainlink aggregator maximum price.
+    uint256 internal constant _CHAINLINK_MAX_PRICE_BUFFER = 0.9e18; // 10%
+
     /**
      * @notice The allowed deviation between the expected answer vs the actual answer.
      */
@@ -379,8 +385,8 @@ contract PriceRouter is Ownable {
         } else revert PriceRouter__UnknownDerivative(_settings.derivative);
 
         // Check `_getPriceInUSD` against `_expectedAnswer`.
-        uint256 minAnswer = _expectedAnswer.mulWadDown((1e18 - EXPECTED_ANSWER_DEVIATION));
-        uint256 maxAnswer = _expectedAnswer.mulWadDown((1e18 + EXPECTED_ANSWER_DEVIATION));
+        uint256 minAnswer = _expectedAnswer.mulWadDown((Math.WAD - EXPECTED_ANSWER_DEVIATION));
+        uint256 maxAnswer = _expectedAnswer.mulWadDown((Math.WAD + EXPECTED_ANSWER_DEVIATION));
 
         getAssetSettings[_asset] = _settings;
         uint256 answer = _getPriceInUSD(_asset, _settings);
@@ -684,8 +690,8 @@ contract PriceRouter is Ownable {
 
         // Add a ~10% buffer to minimum and maximum price from Chainlink because Chainlink can stop updating
         // its price before/above the min/max price.
-        uint256 bufferedMinPrice = (minFromChainklink * 1.1e18) / 1e18;
-        uint256 bufferedMaxPrice = (maxFromChainlink * 0.9e18) / 1e18;
+        uint256 bufferedMinPrice = (minFromChainklink * _CHAINLINK_MIN_PRICE_BUFFER) / Math.WAD;
+        uint256 bufferedMaxPrice = (maxFromChainlink * _CHAINLINK_MAX_PRICE_BUFFER) / Math.WAD;
 
         if (parameters.min == 0) {
             // Revert if bufferedMinPrice overflows because uint80 is too small to hold the minimum price,

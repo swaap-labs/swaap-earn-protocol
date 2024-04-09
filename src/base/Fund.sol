@@ -94,6 +94,8 @@ contract Fund is ERC4626, Ownable {
     }
 
     // ========================================= PRICE ROUTER CACHE =========================================
+    /// @dev Represents 100% in basis points, where 1 basis point is 1/100th of 1%.
+    uint16 internal constant _BPS_ONE_HUNDRED_PER_CENT = 1e4;
 
     /**
      * @notice Cached price router contract.
@@ -124,8 +126,8 @@ contract Fund is ERC4626, Ownable {
 
         if (checkTotalAssets) {
             uint256 assetsBefore = totalAssets();
-            minAssets = assetsBefore.mulDivDown(1e4 - allowableRange, 1e4);
-            maxAssets = assetsBefore.mulDivDown(1e4 + allowableRange, 1e4);
+            minAssets = assetsBefore.mulDivDown(_BPS_ONE_HUNDRED_PER_CENT - allowableRange, _BPS_ONE_HUNDRED_PER_CENT);
+            maxAssets = assetsBefore.mulDivDown(_BPS_ONE_HUNDRED_PER_CENT + allowableRange, _BPS_ONE_HUNDRED_PER_CENT);
         }
 
         // Make sure expected price router is equal to price router grabbed from registry.
@@ -851,8 +853,6 @@ contract Fund is ERC4626, Ownable {
             return (_totalAssets, _totalSupply);
         }
     }
-
-    uint16 internal constant _BPS_ONE_HUNDRED_PER_CENT = 1e4;
 
     /// @return virtualTotalAssets the virtual total assets after applying enter or exit fees
     function _applyEnterOrExitFees(

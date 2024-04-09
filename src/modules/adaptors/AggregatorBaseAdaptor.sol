@@ -29,6 +29,12 @@ abstract contract AggregatorBaseAdaptor is PositionlessAdaptor {
      */
     bytes32 public immutable erc20AdaptorIdentifier;
 
+    /// @dev Represents 100% in basis points, where 1 basis point is 1/100th of 1%. Used for slippage
+    uint256 internal constant _BPS_ONE_HUNDRED_PER_CENT = 1e4;
+
+    /// @dev Default slippage tolerance for swaps.
+    uint32 internal constant _DEFAULT_SLIPPAGE = 0.96e4; // 4%
+
     constructor(address _erc20Adaptor) {
         erc20AdaptorIdentifier = BaseAdaptor(_erc20Adaptor).identifier();
     }
@@ -89,7 +95,8 @@ abstract contract AggregatorBaseAdaptor is PositionlessAdaptor {
 
             // check if the trade slippage is within the limit
             uint256 maxSlippage = customSlippage < slippage() ? slippage() : customSlippage;
-            if (valueOutInTokenIn < tokenInAmountIn.mulDivDown(maxSlippage, 1e4)) revert BaseAdaptor__Slippage();
+            if (valueOutInTokenIn < tokenInAmountIn.mulDivDown(maxSlippage, _BPS_ONE_HUNDRED_PER_CENT))
+                revert BaseAdaptor__Slippage();
 
             // check that the permitted volume per period was not surpassed
             uint256 swapVolumeInUSD = _getSwapValueInUSD(tokenInPriceInUSD, tokenInAmountIn, tokenInDecimals);
@@ -153,7 +160,11 @@ abstract contract AggregatorBaseAdaptor is PositionlessAdaptor {
     }
 
     // =============================================== Slippage ===============================================
+    /**
+     * @notice Slippage tolerance for swaps.
+     * @return slippage in basis points.
+     */
     function slippage() public pure virtual override returns (uint32) {
-        return 0.96e4;
+        return _DEFAULT_SLIPPAGE; // 4%
     }
 }
