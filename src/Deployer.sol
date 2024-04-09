@@ -10,13 +10,20 @@ contract Deployer is Owned {
     error Deployer__NotADeployer();
 
     /**
+     * @notice Emitted on `adjustDeployer` calls.
+     * @param deployer the address of the deployer
+     * @param state the new state of the deployer
+     */
+    event DeployerAdjusted(address indexed deployer, bool state);
+
+    /**
      * @notice Emitted on `deployContract` calls.
      * @param name string name used to derive salt for deployment
      * @param contractAddress the newly deployed contract address
      * @param creationCodeHash keccak256 hash of the creation code
      *        - useful to determine creation code is the same across multiple chains
      */
-    event ContractDeployed(string name, address contractAddress, bytes32 creationCodeHash);
+    event ContractDeployed(string indexed name, address contractAddress, bytes32 creationCodeHash);
 
     constructor(address _owner, address[] memory _deployers) Owned(_owner) {
         for (uint256 i; i < _deployers.length; ++i) adjustDeployer(_deployers[i], true);
@@ -24,6 +31,7 @@ contract Deployer is Owned {
 
     function adjustDeployer(address _deployer, bool _state) public onlyOwner {
         isDeployer[_deployer] = _state;
+        emit DeployerAdjusted(_deployer, _state);
     }
 
     /**

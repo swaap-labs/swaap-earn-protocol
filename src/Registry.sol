@@ -32,7 +32,7 @@ contract Registry is Ownable {
      * @param depositor depositor address
      * @param state the new state of the depositor privilege
      */
-    event DepositorOnBehalfChanged(address depositor, bool state);
+    event DepositorOnBehalfChanged(address indexed depositor, bool state);
 
     /**
      * @notice The unique ID that the next registered contract will have.
@@ -133,17 +133,17 @@ contract Registry is Ownable {
     /**
      * @notice Emitted when an ownership transition is started.
      */
-    event OwnerTransitionStarted(address newOwner, uint256 startTime);
+    event OwnerTransitionStarted(address indexed pendingOwner, uint256 startTime);
 
     /**
      * @notice Emitted when an ownership transition is cancelled.
      */
-    event OwnerTransitionCancelled();
+    event OwnerTransitionCancelled(address indexed pendingOwner);
 
     /**
      * @notice Emitted when an ownership transition is completed.
      */
-    event OwnerTransitionComplete(address newOwner);
+    event OwnerTransitionComplete(address indexed newOwner);
 
     /**
      * @notice Attempted to call a function intended for Zero Id address.
@@ -193,6 +193,8 @@ contract Registry is Ownable {
         if (pendingOwner != address(0)) revert Registry__TransitionPending();
         if (newOwner == address(0)) revert Registry__NewOwnerCanNotBeZero();
 
+        emit OwnerTransitionStarted(newOwner, transitionStart);
+
         pendingOwner = newOwner;
         transitionStart = block.timestamp;
     }
@@ -201,8 +203,12 @@ contract Registry is Ownable {
      * @notice Allows Zero Id address to cancel an ongoing owner transition.
      */
     function cancelTransition() external {
+        address _pendingOwner = pendingOwner;
+
         if (msg.sender != getAddress[0]) revert Registry__OnlyCallableByZeroId();
-        if (pendingOwner == address(0)) revert Registry__TransitionNotPending();
+        if (_pendingOwner == address(0)) revert Registry__TransitionNotPending();
+
+        emit OwnerTransitionCancelled(_pendingOwner);
 
         pendingOwner = address(0);
         transitionStart = 0;
@@ -212,11 +218,15 @@ contract Registry is Ownable {
      * @notice Allows pending owner to complete the ownership transition.
      */
     function completeTransition() external {
-        if (pendingOwner == address(0)) revert Registry__TransitionNotPending();
-        if (msg.sender != pendingOwner) revert Registry__OnlyCallableByPendingOwner();
+        address _pendingOwner = pendingOwner;
+
+        if (_pendingOwner == address(0)) revert Registry__TransitionNotPending();
+        if (msg.sender != _pendingOwner) revert Registry__OnlyCallableByPendingOwner();
         if (block.timestamp < transitionStart + TRANSITION_PERIOD) revert Registry__TransitionPending();
 
-        _transferOwnership(pendingOwner);
+        _transferOwnership(_pendingOwner);
+
+        emit OwnerTransitionComplete(_pendingOwner);
 
         pendingOwner = address(0);
         transitionStart = 0;
@@ -235,12 +245,12 @@ contract Registry is Ownable {
     /**
      * @notice Emitted when a target is paused.
      */
-    event TargetPaused(address target);
+    event TargetPaused(address indexed target);
 
     /**
      * @notice Emitted when a target is unpaused.
      */
-    event TargetUnpaused(address target);
+    event TargetUnpaused(address indexed target);
 
     /**
      * @notice Attempted to unpause a target that was not paused.
@@ -292,6 +302,18 @@ contract Registry is Ownable {
     // ============================================ ADAPTOR LOGIC ============================================
 
     /**
+     * @notice Emitted when an adaptor is trusted.
+     * @param adaptor address of the trusted adaptor
+     */
+    event Registry__AdaptorTrusted(address indexed adaptor);
+
+    /**
+     * @notice Emitted when an adaptor is not trusted.
+     * @param adaptor address of the distrusted adaptor
+     */
+    event Registry__AdaptorDistrusted(address indexed adaptor);
+
+    /**
      * @notice Attempted to trust an adaptor with non unique identifier.
      */
     error Registry__IdentifierNotUnique();
@@ -326,6 +348,7 @@ contract Registry is Ownable {
         if (isIdentifierUsed[identifier]) revert Registry__IdentifierNotUnique();
         isAdaptorTrusted[adaptor] = true;
         isIdentifierUsed[identifier] = true;
+        emit Registry__AdaptorTrusted(adaptor);
     }
 
     /**
@@ -336,6 +359,8 @@ contract Registry is Ownable {
         if (!isAdaptorTrusted[adaptor]) revert Registry__AdaptorNotTrusted(adaptor);
         // Set trust to false.
         isAdaptorTrusted[adaptor] = false;
+
+        emit Registry__AdaptorDistrusted(adaptor);
 
         // We are NOT resetting `isIdentifierUsed` because if this adaptor is distrusted, then something needs
         // to change about the new one being re-trusted.
@@ -370,13 +395,13 @@ contract Registry is Ownable {
      * @param isDebt bool indicating whether this position takes on debt or not
      * @param adaptorData arbitrary bytes used to configure this position
      */
-    event Registry__PositionTrusted(uint32 id, address adaptor, bool isDebt, bytes adaptorData);
+    event Registry__PositionTrusted(uint32 indexed id, address indexed adaptor, bool isDebt, bytes adaptorData);
 
     /**
      * @notice Emitted when a position is distrusted.
      * @param id the positions id
      */
-    event Registry__PositionDistrusted(uint32 id);
+    event Registry__PositionDistrusted(uint32 indexed id);
 
     /**
      * @notice Attempted to trust a position not being used.

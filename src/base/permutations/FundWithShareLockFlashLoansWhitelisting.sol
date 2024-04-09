@@ -23,6 +23,9 @@ contract FundWithShareLockFlashLoansWhitelisting is FundWithShareLockPeriod, EIP
     address public immutable balancerVault;
     bool public isWhitelistEnabled;
 
+    /// @notice Emitted when the whitelisting requirement to enter is enabled or disabled.
+    event WhitelistingChanged(bool isWhitelistEnabled);
+
     constructor(
         address _owner,
         Registry _registry,
@@ -187,6 +190,7 @@ contract FundWithShareLockFlashLoansWhitelisting is FundWithShareLockPeriod, EIP
      */
     function enableWhitelist() external onlyOwner {
         isWhitelistEnabled = true;
+        emit WhitelistingChanged(true);
     }
 
     /**
@@ -194,5 +198,6 @@ contract FundWithShareLockFlashLoansWhitelisting is FundWithShareLockPeriod, EIP
      */
     function disableWhitelist() external onlyOwner {
         isWhitelistEnabled = false;
+        emit WhitelistingChanged(false);
     }
 }

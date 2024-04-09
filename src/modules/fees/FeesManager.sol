@@ -18,21 +18,23 @@ contract FeesManager {
     // =============================================== EVENTS ===============================================
     /**
      * @notice Emitted when strategist platform fee cut is changed.
+     * @param fund the fund that had the strategist platform fee cut changed
      * @param newPlatformCut value strategist platform fee cut was changed to
      */
-    event StrategistPlatformCutChanged(uint64 newPlatformCut);
+    event StrategistPlatformCutChanged(address indexed fund, uint64 newPlatformCut);
 
     /**
      * @notice Emitted when strategists payout address is changed.
+     * @param fund the fund that had the strategist payout address changed
      * @param newPayoutAddress value strategists payout address was changed to
      */
-    event StrategistPayoutAddressChanged(address newPayoutAddress);
+    event StrategistPayoutAddressChanged(address indexed fund, address indexed newPayoutAddress);
 
     /**
      * @notice Emitted when protocol payout address is changed.
      * @param newPayoutAddress value protocol payout address was changed to
      */
-    event ProtocolPayoutAddressChanged(address newPayoutAddress);
+    event ProtocolPayoutAddressChanged(address indexed newPayoutAddress);
 
     /**
      * @notice Emitted when a fund's fees are paid out.
@@ -372,7 +374,7 @@ contract FeesManager {
         // collect fees and payout the old strategist (if any) before changing the address
         payoutFees(fund);
 
-        emit StrategistPayoutAddressChanged(newPayoutAddress);
+        emit StrategistPayoutAddressChanged(fund, newPayoutAddress);
         // no need to check if the address is not valid, the owner can set it to any address
         feeData.strategistPayoutAddress = newPayoutAddress;
     }
@@ -391,7 +393,7 @@ contract FeesManager {
 
         FeesData storage feeData = fundFeesData[fund];
 
-        emit StrategistPlatformCutChanged(cut);
+        emit StrategistPlatformCutChanged(fund, cut);
         feeData.strategistPlatformCut = cut;
     }
 

@@ -1178,7 +1178,7 @@ contract Fund is ERC4626, Ownable {
     /**
      * @notice Emitted when `setAutomationActions` is called.
      */
-    event Fund__AutomationActionsUpdated(address newAutomationActions);
+    event Fund__AutomationActionsUpdated(address indexed newAutomationActions);
 
     /**
      * @notice The Automation Actions contract that can rebalance this Fund.
@@ -1273,7 +1273,7 @@ contract Fund is ERC4626, Ownable {
     /**
      * @notice Emitted when adaptor calls are made.
      */
-    event AdaptorCalled(address adaptor, bytes data);
+    event AdaptorCalled(address indexed adaptor, bytes data);
 
     /**
      * @notice Internal helper function that accepts an Adaptor Call array, and makes calls to each adaptor.

@@ -70,17 +70,17 @@ contract PriceRouter is Ownable {
     /**
      * @notice Emitted when an ownership transition is started.
      */
-    event OwnerTransitionStarted(address newOwner, uint256 startTime);
+    event OwnerTransitionStarted(address indexed pendingOwner, uint256 startTime);
 
     /**
      * @notice Emitted when an ownership transition is cancelled.
      */
-    event OwnerTransitionCancelled();
+    event OwnerTransitionCancelled(address indexed pendingOwner);
 
     /**
      * @notice Emitted when an ownership transition is completed.
      */
-    event OwnerTransitionComplete(address newOwner);
+    event OwnerTransitionComplete(address indexed newOwner);
 
     /**
      * @notice Attempted to call a function intended for Zero Id address.
@@ -130,6 +130,8 @@ contract PriceRouter is Ownable {
         if (pendingOwner != address(0)) revert PriceRouter__TransitionPending();
         if (newOwner == address(0)) revert PriceRouter__NewOwnerCanNotBeZero();
 
+        emit OwnerTransitionStarted(newOwner, transitionStart);
+
         pendingOwner = newOwner;
         transitionStart = block.timestamp;
     }
@@ -138,8 +140,12 @@ contract PriceRouter is Ownable {
      * @notice Allows Zero Id address to cancel an ongoing owner transition.
      */
     function cancelTransition() external {
+        address _pendingOwner = pendingOwner;
+
         if (msg.sender != registry.getAddress(0)) revert PriceRouter__OnlyCallableByZeroId();
-        if (pendingOwner == address(0)) revert PriceRouter__TransitionNotPending();
+        if (_pendingOwner == address(0)) revert PriceRouter__TransitionNotPending();
+
+        emit OwnerTransitionCancelled(_pendingOwner);
 
         pendingOwner = address(0);
         transitionStart = 0;
@@ -149,11 +155,15 @@ contract PriceRouter is Ownable {
      * @notice Allows pending owner to complete the ownership transition.
      */
     function completeTransition() external {
-        if (pendingOwner == address(0)) revert PriceRouter__TransitionNotPending();
-        if (msg.sender != pendingOwner) revert PriceRouter__OnlyCallableByPendingOwner();
+        address _pendingOwner = pendingOwner;
+
+        if (_pendingOwner == address(0)) revert PriceRouter__TransitionNotPending();
+        if (msg.sender != _pendingOwner) revert PriceRouter__OnlyCallableByPendingOwner();
         if (block.timestamp < transitionStart + TRANSITION_PERIOD) revert PriceRouter__TransitionPending();
 
-        _transferOwnership(pendingOwner);
+        _transferOwnership(_pendingOwner);
+
+        emit OwnerTransitionComplete(_pendingOwner);
 
         pendingOwner = address(0);
         transitionStart = 0;
