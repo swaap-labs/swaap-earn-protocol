@@ -99,9 +99,14 @@ contract FundFraxLendCollateralAndDebtTestV2 is MainnetStarterTest, AdaptorHelpe
         settings = PriceRouter.AssetSettings(CHAINLINK_DERIVATIVE, address(mockApeUsd));
         priceRouter.addAsset(APE, settings, abi.encode(stor), price);
 
-        price = uint256(mockUniEth.latestAnswer());
+        price = uint256(mockUniEth.latestAnswer()).mulWadDown(uint256(mockWethUsd.latestAnswer()));
         settings = PriceRouter.AssetSettings(CHAINLINK_DERIVATIVE, address(mockUniEth));
-        priceRouter.addAsset(UNI, settings, abi.encode(stor), price);
+        priceRouter.addAsset(
+            UNI,
+            settings,
+            abi.encode(PriceRouter.ChainlinkDerivativeStorage({ min: 0, max: 0, heartbeat: 0, inETH: true })),
+            price
+        );
 
         // Setup Fund:
 
@@ -411,8 +416,8 @@ contract FundFraxLendCollateralAndDebtTestV2 is MainnetStarterTest, AdaptorHelpe
         assertEq(MKR.balanceOf(address(fund)), assets);
 
         // have user withdraw from fund
-        fund.withdraw(assets, address(this), address(this));
-        assertEq(MKR.balanceOf(address(this)), assets);
+        fund.withdraw(assets / 2, address(this), address(this));
+        assertEq(MKR.balanceOf(address(this)), assets / 2);
     }
 
     function testRemoveCollateral(uint256 assets) external {

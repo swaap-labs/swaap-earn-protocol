@@ -655,6 +655,11 @@ contract PriceRouter is Ownable {
     error PriceRouter__BufferedMinOverflow();
 
     /**
+     * @notice Aggregator price feed is not in the expected decimals. (8 when in USD or 18 when in ETH)
+     */
+    error PriceRouter__InvalidPriceDecimals();
+
+    /**
      * @notice Returns Chainlink Derivative Storage
      */
     mapping(ERC20 => ChainlinkDerivativeStorage) public getChainlinkDerivativeStorage;
@@ -703,6 +708,12 @@ contract PriceRouter is Ownable {
 
         if (parameters.min >= parameters.max)
             revert PriceRouter__MinPriceGreaterThanMaxPrice(parameters.min, parameters.max);
+
+        if (parameters.inETH) {
+            if (aggregator.decimals() != 18) revert PriceRouter__InvalidPriceDecimals();
+        } else {
+            if (aggregator.decimals() != 8) revert PriceRouter__InvalidPriceDecimals();
+        }
 
         parameters.heartbeat = parameters.heartbeat != 0 ? parameters.heartbeat : DEFAULT_HEART_BEAT;
 

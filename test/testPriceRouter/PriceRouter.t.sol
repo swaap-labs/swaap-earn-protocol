@@ -98,6 +98,36 @@ contract PriceRouterTest is MainnetStarterTest, AdaptorHelperFunctions {
         assertTrue(priceRouter.isSupported(BOND), "Asset should be supported");
     }
 
+    function testWrongChainlinkDecimals() external {
+        PriceRouter.AssetSettings memory settings;
+
+        uint256 price = uint256(IChainlinkAggregator(WETH_USD_FEED).latestAnswer());
+        settings = PriceRouter.AssetSettings(CHAINLINK_DERIVATIVE, WETH_USD_FEED);
+        vm.expectRevert(abi.encodeWithSelector(PriceRouter.PriceRouter__InvalidPriceDecimals.selector));
+        priceRouter.addAsset(
+            FRAX,
+            settings,
+            abi.encode(PriceRouter.ChainlinkDerivativeStorage({ min: 0, max: 0, heartbeat: 0, inETH: true })),
+            price
+        );
+
+        // price = uint256(mockWethUsd.latestAnswer());
+        // settings = PriceRouter.AssetSettings(CHAINLINK_DERIVATIVE, address(mockWethUsd));
+        // priceRouter.addAsset(WETH, settings, abi.encode(stor), price);
+
+        price = uint256(IChainlinkAggregator(BOND_ETH_FEED).latestAnswer()).mulWadDown(
+            uint256(IChainlinkAggregator(WETH_USD_FEED).latestAnswer())
+        );
+        settings = PriceRouter.AssetSettings(CHAINLINK_DERIVATIVE, BOND_ETH_FEED);
+        vm.expectRevert(abi.encodeWithSelector(PriceRouter.PriceRouter__InvalidPriceDecimals.selector));
+        priceRouter.addAsset(
+            CVX,
+            settings,
+            abi.encode(PriceRouter.ChainlinkDerivativeStorage({ min: 0, max: 0, heartbeat: 0, inETH: false })),
+            price
+        );
+    }
+
     function testMinPriceGreaterThanMaxPrice() external {
         // Make sure adding an asset with an invalid price range fails.
         uint80 minPrice = 2e8;

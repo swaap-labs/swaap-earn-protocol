@@ -103,9 +103,14 @@ contract FundFraxLendCollateralAndDebtTestV1 is MainnetStarterTest, AdaptorHelpe
         settings = PriceRouter.AssetSettings(CHAINLINK_DERIVATIVE, address(mockWbtcUsd));
         priceRouter.addAsset(WBTC, settings, abi.encode(stor), price);
 
-        price = uint256(mockCvxEth.latestAnswer());
+        price = uint256(mockCvxEth.latestAnswer()).mulWadDown(uint256(mockWethUsd.latestAnswer()));
         settings = PriceRouter.AssetSettings(CHAINLINK_DERIVATIVE, address(mockCvxEth));
-        priceRouter.addAsset(CVX, settings, abi.encode(stor), price);
+        priceRouter.addAsset(
+            CVX,
+            settings,
+            abi.encode(PriceRouter.ChainlinkDerivativeStorage({ min: 0, max: 0, heartbeat: 0, inETH: true })),
+            price
+        );
 
         // Setup Fund:
 
