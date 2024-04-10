@@ -215,6 +215,11 @@ contract PriceRouter is Ownable {
     error PriceRouter__AssetNotEditable(address asset);
 
     /**
+     * @notice Attempted to edit an asset that is pending edit.
+     */
+    error PriceRouter__AssetPendingEdit(address asset);
+
+    /**
      * @notice Attempted to cancel the editing of an asset that is not pending edit.
      */
     error PriceRouter__AssetNotPendingEdit(address asset);
@@ -298,6 +303,9 @@ contract PriceRouter is Ownable {
      * @param _storage arbitrary bytes data used to configure `_asset` pricing
      */
     function startEditAsset(ERC20 _asset, AssetSettings memory _settings, bytes memory _storage) external onlyOwner {
+        // Make sure the asset does not have a pending edit.
+        if (assetEditableHash[_asset] != bytes32(0)) revert PriceRouter__AssetPendingEdit(address(_asset));
+
         // Make sure the asset has been added.
         if (getAssetSettings[_asset].derivative == 0) revert PriceRouter__AssetNotAdded(address(_asset));
 

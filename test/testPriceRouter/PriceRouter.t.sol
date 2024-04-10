@@ -522,6 +522,10 @@ contract PriceRouterTest is MainnetStarterTest, AdaptorHelperFunctions {
         // bytes32 editHash = keccak256(abi.encode(USDC, settings, abi.encode(0)));
         priceRouter.startEditAsset(USDC, settings, abi.encode(0));
 
+        // try to edit the asset again while another one is pending.
+        vm.expectRevert(abi.encodeWithSelector(PriceRouter.PriceRouter__AssetPendingEdit.selector, address(USDC)));
+        priceRouter.startEditAsset(USDC, settings, abi.encode(0));
+
         assertEq(
             expectedEditHash,
             priceRouter.assetEditableHash(USDC),
