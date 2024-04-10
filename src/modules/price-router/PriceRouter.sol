@@ -29,16 +29,16 @@ contract PriceRouter is Ownable {
     event AddAsset(address indexed asset);
 
     event IntentToEditAsset(
-        address asset,
+        address indexed asset,
         AssetSettings _settings,
         bytes _storage,
         bytes32 editHash,
         uint256 assetEditableAt
     );
 
-    event EditAssetCancelled(address asset, bytes32 editHash);
+    event EditAssetCancelled(address indexed asset, bytes32 editHash);
 
-    event EditAssetComplete(address asset, bytes32 editHash);
+    event EditAssetComplete(address indexed asset, bytes32 editHash);
 
     Registry public immutable registry;
     ERC20 public immutable WETH;
@@ -247,9 +247,9 @@ contract PriceRouter is Ownable {
     uint64 public constant EDIT_ASSET_DELAY = 7 days;
 
     /**
-     * @notice Stores the timestamp when an asset can be editted.
+     * @notice Stores the info that an asset can be editted to.
      */
-    mapping(bytes32 => uint256) public assetEditableTimestamp;
+    mapping(ERC20 => bytes32) public assetEditableHash;
 
     /**
      * @notice Allows caller to call multiple functions in a single TX.
@@ -294,10 +294,11 @@ contract PriceRouter is Ownable {
     function startEditAsset(ERC20 _asset, AssetSettings memory _settings, bytes memory _storage) external onlyOwner {
         // Make sure the asset has been added.
         if (getAssetSettings[_asset].derivative == 0) revert PriceRouter__AssetNotAdded(address(_asset));
-        bytes32 editHash = keccak256(abi.encode(_asset, _settings, _storage));
 
         uint256 assetEditableAt = block.timestamp + EDIT_ASSET_DELAY;
-        assetEditableTimestamp[editHash] = assetEditableAt;
+        bytes32 editHash = keccak256(abi.encode(_asset, _settings, _storage, assetEditableAt));
+
+        assetEditableHash[_asset] = editHash;
 
         emit IntentToEditAsset(address(_asset), _settings, _storage, editHash, assetEditableAt);
     }
@@ -309,22 +310,25 @@ contract PriceRouter is Ownable {
      * @param _settings the settings for `_asset`
      *        @dev The `derivative` value in settings MUST be non zero.
      * @param _storage arbitrary bytes data used to configure `_asset` pricing
+     * @param assetEditableAt the timestamp after which `_asset` is editable
+     * @param _expectedAnswer the expected answer for the asset from  `_getPriceInUSD`
      */
     function completeEditAsset(
         ERC20 _asset,
         AssetSettings memory _settings,
         bytes memory _storage,
+        uint256 assetEditableAt,
         uint256 _expectedAnswer
     ) external onlyOwner {
-        bytes32 editHash = keccak256(abi.encode(_asset, _settings, _storage));
+        bytes32 expectedEditHash = keccak256(abi.encode(_asset, _settings, _storage, assetEditableAt));
 
         // Make sure asset can be edited.
-        uint256 assetEditableAt = assetEditableTimestamp[editHash];
-        if (assetEditableAt == 0 || block.timestamp < assetEditableAt)
+        bytes32 editHash = assetEditableHash[_asset];
+        if (editHash == bytes32(0) || editHash != expectedEditHash || block.timestamp < assetEditableAt)
             revert PriceRouter__AssetNotEditable(address(_asset));
 
-        // Reset edit timestamp.
-        assetEditableTimestamp[editHash] = 0;
+        // Reset asset editable inputs.
+        delete assetEditableHash[_asset];
 
         // Edit the asset.
         _updateAsset(_asset, _settings, _storage, _expectedAnswer);
@@ -335,18 +339,14 @@ contract PriceRouter is Ownable {
     /**
      * @notice Cancel a pending edit for `_asset`.
      * @param _asset the asset to cancel editing of in the pricing router
-     * @param _settings the settings for `_asset`
-     *        @dev The `derivative` value in settings MUST be non zero.
-     * @param _storage arbitrary bytes data used to configure `_asset` pricing
      */
-    function cancelEditAsset(ERC20 _asset, AssetSettings memory _settings, bytes memory _storage) external onlyOwner {
-        bytes32 editHash = keccak256(abi.encode(_asset, _settings, _storage));
+    function cancelEditAsset(ERC20 _asset) external onlyOwner {
+        bytes32 editHash = assetEditableHash[_asset];
 
-        // Make sure asset is pending edit.
-        uint256 assetEditableAt = assetEditableTimestamp[editHash];
-        if (assetEditableAt == 0) revert PriceRouter__AssetNotPendingEdit(address(_asset));
+        // make sure the asset was pending to edit.
+        if (editHash == bytes32(0)) revert PriceRouter__AssetNotPendingEdit(address(_asset));
 
-        assetEditableTimestamp[editHash] = 0;
+        delete assetEditableHash[_asset];
 
         emit EditAssetCancelled(address(_asset), editHash);
     }
