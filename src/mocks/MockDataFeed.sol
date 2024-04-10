@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.21;
 
-import { IChainlinkAggregator } from "src/interfaces/external/IChainlinkAggregator.sol";
+import { IChainlinkAggregatorProxy } from "src/interfaces/external/IChainlinkAggregatorProxy.sol";
 
 contract MockDataFeed {
     int256 public mockAnswer;
     uint256 public mockUpdatedAt;
 
-    IChainlinkAggregator public immutable realFeed;
+    IChainlinkAggregatorProxy public immutable realFeed;
 
     constructor(address _realFeed) {
-        realFeed = IChainlinkAggregator(_realFeed);
+        realFeed = IChainlinkAggregatorProxy(_realFeed);
     }
 
     function aggregator() external view returns (address) {

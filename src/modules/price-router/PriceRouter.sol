@@ -5,6 +5,7 @@ import { SafeTransferLib } from "@solmate/utils/SafeTransferLib.sol";
 import { ERC20 } from "@solmate/tokens/ERC20.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { IChainlinkAggregator } from "src/interfaces/external/IChainlinkAggregator.sol";
+import { IChainlinkAggregatorProxy } from "src/interfaces/external/IChainlinkAggregatorProxy.sol";
 import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import { Math } from "src/utils/Math.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
@@ -692,7 +693,7 @@ contract PriceRouter is Ownable {
         ChainlinkDerivativeStorage memory parameters = abi.decode(_storage, (ChainlinkDerivativeStorage));
 
         // Use Chainlink to get the min and max of the asset.
-        IChainlinkAggregator aggregator = IChainlinkAggregator(IChainlinkAggregator(_source).aggregator());
+        IChainlinkAggregator aggregator = IChainlinkAggregator(IChainlinkAggregatorProxy(_source).aggregator());
         uint256 minFromChainklink = uint256(uint192(aggregator.minAnswer()));
         uint256 maxFromChainlink = uint256(uint192(aggregator.maxAnswer()));
 
