@@ -454,7 +454,7 @@ contract PriceRouterTest is MainnetStarterTest, AdaptorHelperFunctions {
         // doug still tries to claim ownership.
         vm.warp(block.timestamp + priceRouter.TRANSITION_PERIOD() / 2);
         vm.startPrank(doug);
-        vm.expectRevert(bytes(abi.encodeWithSelector(PriceRouter.PriceRouter__TransitionNotPending.selector)));
+        vm.expectRevert(bytes(abi.encodeWithSelector(PriceRouter.PriceRouter__OnlyCallableByPendingOwner.selector)));
         priceRouter.completeTransition();
         vm.stopPrank();
 
@@ -489,7 +489,7 @@ contract PriceRouterTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         // Doug tries completing it.
         vm.startPrank(doug);
-        vm.expectRevert(bytes(abi.encodeWithSelector(PriceRouter.PriceRouter__TransitionNotPending.selector)));
+        vm.expectRevert(bytes(abi.encodeWithSelector(PriceRouter.PriceRouter__OnlyCallableByPendingOwner.selector)));
         priceRouter.completeTransition();
         vm.stopPrank();
     }

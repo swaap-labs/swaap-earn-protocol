@@ -66,7 +66,7 @@ contract FundWithShareLockFlashLoansWhitelisting is FundWithShareLockPeriod, EIP
     error Fund__CallerNotBalancerVault();
 
     /**
-     * @notice Allows strategist to utilize balancer flashloans while rebalancing the fund.
+     * @notice Allows rebalancers to utilize balancer flashloans while rebalancing the fund.
      * @dev Balancer does not provide an initiator, so instead insure we are in the `callOnAdaptor` context
      *      by reverting if `blockExternalReceiver` is false.
      */

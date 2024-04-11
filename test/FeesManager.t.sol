@@ -1121,30 +1121,79 @@ contract FeesManagerTest is MainnetStarterTest, AdaptorHelperFunctions {
     function testHighWaterMarkReset() external {
         FeesManager feesManager = FeesManager(fund.FEES_MANAGER());
 
-        // is epected to work just fine as highWaterMarkPrice is not set at this stage
-        feesManager.resetHighWaterMark(address(fund));
+        uint256 performanceFeesRate = Math.WAD / 100; // 1%
 
-        // is epected to fail as we just updated the highWaterMarkPrice state
+        feesManager.setPerformanceFees(address(fund), performanceFeesRate);
+
+        uint256 prevHighWaterMarkPrice = feesManager.getFundFeesData(address(fund)).highWaterMarkPrice;
+
+        uint256 perfFactor = Math.WAD / 10; // 10% performance
+        deal(address(USDC), address(fund), (initialAssets * (Math.WAD + perfFactor)) / Math.WAD);
+
+        // is expected to fail as we just updated the highWaterMarkPrice state
         vm.expectRevert(FeesManager.FeesManager__HighWaterMarkNotYetExpired.selector);
         feesManager.resetHighWaterMark(address(fund));
 
         _moveForwardAndUpdateOracle(31 days);
 
-        // is epected to work just fine as we passed HIGH_WATERMARK_RESET_INTERVAL
+        // is expected to work just fine as enough time has passed
+        feesManager.resetHighWaterMark(address(fund));
+        assertEq(
+            feesManager.getFundFeesData(address(fund)).highWaterMarkPrice,
+            ((prevHighWaterMarkPrice * (Math.WAD + perfFactor - (perfFactor * performanceFeesRate) / Math.WAD)) /
+                Math.WAD),
+            "Water mark price should reset after taking the fees into account."
+        );
+
+        assertEq(
+            feesManager.getFundFeesData(address(fund)).highWaterMarkResetTime,
+            block.timestamp,
+            "Water mark reset time should be updated."
+        );
+
+        perfFactor = Math.WAD; // 100% performance
+        deal(address(USDC), address(fund), (fund.totalAssets() * (Math.WAD + perfFactor)) / Math.WAD);
+        prevHighWaterMarkPrice = feesManager.getFundFeesData(address(fund)).highWaterMarkPrice;
+
+        _moveForwardAndUpdateOracle(1 days);
+
+        // is expected to work just fine as total assets increased significantly
+        feesManager.resetHighWaterMark(address(fund));
+        assertApproxEqAbs(
+            feesManager.getFundFeesData(address(fund)).highWaterMarkPrice,
+            ((prevHighWaterMarkPrice * (Math.WAD + perfFactor - (perfFactor * performanceFeesRate) / Math.WAD)) /
+                Math.WAD),
+            1,
+            "Water mark price should reset after taking the fees into account."
+        );
+
+        assertEq(
+            feesManager.getFundFeesData(address(fund)).highWaterMarkResetTime,
+            block.timestamp,
+            "Water mark reset time should be updated."
+        );
+
+        // is expected to fail as we just updated the highWaterMarkPrice state
+        vm.expectRevert(FeesManager.FeesManager__HighWaterMarkNotYetExpired.selector);
         feesManager.resetHighWaterMark(address(fund));
 
-        // is epected to fail as we just updated the highWaterMarkPrice state
+        _moveForwardAndUpdateOracle(31 days);
+
+        // is expected to work just fine as we passed HIGH_WATERMARK_RESET_INTERVAL
+        feesManager.resetHighWaterMark(address(fund));
+
+        // is expected to fail as we just updated the highWaterMarkPrice state
         vm.expectRevert(FeesManager.FeesManager__HighWaterMarkNotYetExpired.selector);
         feesManager.resetHighWaterMark(address(fund));
 
         deal(address(USDC), address(fund), (fund.totalAssets() * 2), true);
-        // is epected to work just fine as we passed HIGH_WATERMARK_RESET_INTERVAL
+        // is expected to work just fine as we passed HIGH_WATERMARK_RESET_INTERVAL
         feesManager.resetHighWaterMark(address(fund));
 
         vm.expectRevert(FeesManager.FeesManager__HighWaterMarkNotYetExpired.selector);
         feesManager.resetHighWaterMark(address(fund));
 
-        // is epected to fail as we just updated the highWaterMarkPrice state
+        // is expected to fail as we just updated the highWaterMarkPrice state
         vm.expectRevert(FeesManager.FeesManager__HighWaterMarkNotYetExpired.selector);
         feesManager.resetHighWaterMark(address(fund));
     }

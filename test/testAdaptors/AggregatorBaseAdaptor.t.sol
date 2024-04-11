@@ -421,7 +421,7 @@ contract FundAggregatorBaseAdaptorTest is MainnetStarterTest, AdaptorHelperFunct
         adaptorCalls[0] = _createBytesDataToSwap(from, to, fromAmount, maxSlippage, slippageSwapData);
         data[0] = Fund.AdaptorCall({ adaptor: address(mockAggregatorAdaptor), callData: adaptorCalls });
 
-        vm.expectRevert(abi.encodeWithSelector(PriceRouter.PriceRouter__UnknownDerivative.selector, 0));
+        vm.expectRevert(abi.encodeWithSelector(PriceRouter.PriceRouter__UnsupportedAsset.selector, DAI));
         fund.callOnAdaptor(data);
     }
 

@@ -7,6 +7,9 @@ import { CREATE3 } from "@solmate/utils/CREATE3.sol";
 contract Deployer is Owned {
     mapping(address => bool) public isDeployer;
 
+    /**
+     * @notice Raised when a non-deployer tries to deploy a contract.
+     */
     error Deployer__NotADeployer();
 
     /**
@@ -44,14 +47,12 @@ contract Deployer is Owned {
      *        - can be obtained by calling type(contractName).creationCode
      * @param constructorArgs the contract constructor arguments if any
      *        - must be of form abi.encode(arg1, arg2, ...)
-     * @param value non zero if constructor needs to be payable
      */
     function deployContract(
         string calldata name,
         bytes memory creationCode,
-        bytes calldata constructorArgs,
-        uint256 value
-    ) external returns (address) {
+        bytes calldata constructorArgs
+    ) external payable returns (address) {
         if (!isDeployer[msg.sender]) revert Deployer__NotADeployer();
 
         bytes32 creationCodeHash = keccak256(creationCode);
@@ -63,7 +64,7 @@ contract Deployer is Owned {
 
         bytes32 salt = convertNameToBytes32(name);
 
-        address contractAddress = CREATE3.deploy(salt, creationCode, value);
+        address contractAddress = CREATE3.deploy(salt, creationCode, msg.value);
 
         emit ContractDeployed(name, contractAddress, creationCodeHash);
 

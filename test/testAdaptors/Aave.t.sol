@@ -41,12 +41,12 @@ contract FundAaveTest is MainnetStarterTest, AdaptorHelperFunctions {
         creationCode = type(AaveATokenAdaptor).creationCode;
         constructorArgs = abi.encode(address(pool), address(WETH), 1.05e18);
         aaveATokenAdaptor = AaveATokenAdaptor(
-            deployer.deployContract("Aave AToken Adaptor V0.0", creationCode, constructorArgs, 0)
+            deployer.deployContract("Aave AToken Adaptor V0.0", creationCode, constructorArgs)
         );
         creationCode = type(AaveDebtTokenAdaptor).creationCode;
         constructorArgs = abi.encode(address(pool), 1.05e18);
         aaveDebtTokenAdaptor = AaveDebtTokenAdaptor(
-            deployer.deployContract("Aave DebtToken Adaptor V0.0", creationCode, constructorArgs, 0)
+            deployer.deployContract("Aave DebtToken Adaptor V0.0", creationCode, constructorArgs)
         );
 
         PriceRouter.ChainlinkDerivativeStorage memory stor;
@@ -99,7 +99,7 @@ contract FundAaveTest is MainnetStarterTest, AdaptorHelperFunctions {
             address(pool)
         );
 
-        fund = FundWithAaveFlashLoans(deployer.deployContract(fundName, creationCode, constructorArgs, 0));
+        fund = FundWithAaveFlashLoans(deployer.deployContract(fundName, creationCode, constructorArgs));
 
         fund.addAdaptorToCatalogue(address(aaveATokenAdaptor));
         fund.addAdaptorToCatalogue(address(aaveDebtTokenAdaptor));

@@ -16,8 +16,9 @@ contract AaveV3DebtManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
     using SafeTransferLib for ERC20;
 
     //==================== Adaptor Data Specification ====================
-    // adaptorData = abi.encode(address debtToken)
+    // adaptorData = abi.encode(uint8 accountId, address debtToken)
     // Where:
+    // `accountId` is the account extension id this adaptor is working with
     // `debtToken` is the debtToken address position this adaptor is working with
     //================= Configuration Data Specification =================
     // NOT USED
@@ -78,17 +79,17 @@ contract AaveV3DebtManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
      * @notice Returns the funds balance of the positions debtToken.
      */
     function balanceOf(bytes memory adaptorData) public view override returns (uint256) {
-        (address accountAddress, address token) = _extractAdaptorData(adaptorData, msg.sender);
+        (address accountAddress, address debtToken) = _extractAdaptorData(adaptorData, msg.sender);
         // no need to check if the account extension exists, if it does not it can't / shouldn't have any debt as aave debt is not transferable
-        return ERC20(token).balanceOf(accountAddress);
+        return ERC20(debtToken).balanceOf(accountAddress);
     }
 
     /**
      * @notice Returns the positions debtToken underlying asset.
      */
     function assetOf(bytes memory adaptorData) public view override returns (ERC20) {
-        (, address token) = _extractAdaptorData(adaptorData, msg.sender);
-        return ERC20(IAaveToken(token).UNDERLYING_ASSET_ADDRESS());
+        (, address debtToken) = _extractAdaptorData(adaptorData, msg.sender);
+        return ERC20(IAaveToken(debtToken).UNDERLYING_ASSET_ADDRESS());
     }
 
     /**

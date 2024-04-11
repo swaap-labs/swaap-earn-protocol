@@ -174,7 +174,7 @@ contract FundTest is MainnetStarterTest, AdaptorHelperFunctions {
             type(uint192).max
         );
 
-        return MockFund(deployer.deployContract(mockFundName, creationCode, constructorArgs, 0));
+        return MockFund(deployer.deployContract(mockFundName, creationCode, constructorArgs));
     }
 
     // ========================================= INITIALIZATION TEST =========================================

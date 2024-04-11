@@ -30,8 +30,7 @@ contract Fund is ERC4626, Ownable {
 
     /**
      * @notice The maximum amount of shares that can be in circulation.
-     * @dev Can be decreased by the strategist.
-     * @dev Can be increased by Swaap Governance.
+     * @dev Can be increase or decreased by Fund's Owner.
      */
     uint192 public shareSupplyCap;
 
@@ -46,7 +45,7 @@ contract Fund is ERC4626, Ownable {
     bool public isShutdown;
 
     /**
-     * @notice This bool is used to stop strategists from abusing Base Adaptor functions(deposit/withdraw).
+     * @notice This bool is used to stop rebalancers from abusing Base Adaptor functions(deposit/withdraw).
      */
     bool public blockExternalReceiver;
 
@@ -104,7 +103,7 @@ contract Fund is ERC4626, Ownable {
     PriceRouter public priceRouter;
 
     /**
-     * @notice Updates the fund to use the lastest price router in the registry.
+     * @notice Updates the fund to use the latest price router in the registry.
      * @param checkTotalAssets If true totalAssets is checked before and after updating the price router,
      *        and is verified to be withing a +- 5% envelope.
      *        If false totalAssets is only called after updating the price router.]
@@ -114,7 +113,7 @@ contract Fund is ERC4626, Ownable {
      * @param expectedPriceRouter The registry price router differed from the expected price router.
      * @dev `allowableRange` reverts from arithmetic underflow if it is greater than 10_000, this is
      *      desired behavior.
-     * @dev Callable by Swaap Governance.
+     * @dev Callable by the Fund's owner.
      */
     function cachePriceRouter(
         bool checkTotalAssets,
@@ -134,9 +133,9 @@ contract Fund is ERC4626, Ownable {
         _checkRegistryAddressAgainstExpected(_PRICE_ROUTER_REGISTRY_SLOT, expectedPriceRouter);
 
         priceRouter = PriceRouter(expectedPriceRouter);
-        uint256 assetsAfter = totalAssets();
 
         if (checkTotalAssets) {
+            uint256 assetsAfter = totalAssets();
             if (assetsAfter < minAssets || assetsAfter > maxAssets)
                 revert Fund__TotalAssetDeviatedOutsideRange(assetsAfter, minAssets, maxAssets);
         }
@@ -168,12 +167,12 @@ contract Fund is ERC4626, Ownable {
     event PositionSwapped(uint32 newPosition1, uint32 newPosition2, uint256 index1, uint256 index2);
 
     /**
-     * @notice Emitted when Governance adds/removes a position to/from the funds catalogue.
+     * @notice Emitted when owner adds/removes a position to/from the funds catalogue.
      */
     event PositionCatalogueAltered(uint32 positionId, bool inCatalogue);
 
     /**
-     * @notice Emitted when Governance adds/removes an adaptor to/from the funds catalogue.
+     * @notice Emitted when owner adds/removes an adaptor to/from the funds catalogue.
      */
     event AdaptorCatalogueAltered(address adaptor, bool inCatalogue);
 
@@ -277,13 +276,13 @@ contract Fund is ERC4626, Ownable {
     }
 
     /**
-     * @notice Maximum amount of positions a fund can have in it's credit/debt arrays.
+     * @notice Maximum amount of positions a fund can have in its credit/debt arrays.
      */
     uint256 internal constant _MAX_POSITIONS = 32;
 
     /**
      * @notice Allows owner to change the holding position.
-     * @dev Callable by Swaap Strategist.
+     * @dev Callable by the Fund's owner.
      */
     function setHoldingPosition(uint32 positionId) public onlyOwner {
         if (!isPositionUsed[positionId]) revert Fund__PositionNotUsed(positionId);
@@ -293,18 +292,18 @@ contract Fund is ERC4626, Ownable {
     }
 
     /**
-     * @notice Positions the strategist is approved to use without any governance intervention.
+     * @notice Positions the rebalancers can use.
      */
     mapping(uint32 => bool) public positionCatalogue;
 
     /**
-     * @notice Adaptors the strategist is approved to use without any governance intervention.
+     * @notice Adaptors the rebalancers can use.
      */
     mapping(address => bool) public adaptorCatalogue;
 
     /**
-     * @notice Allows Governance to add positions to this fund's catalogue.
-     * @dev Callable by Swaap Governance.
+     * @notice Allows the Owner to add positions to this fund's catalogue.
+     * @dev Callable by the Fund's owner.
      */
     function addPositionToCatalogue(uint32 positionId) public onlyOwner {
         // Make sure position is not paused and is trusted.
@@ -314,8 +313,8 @@ contract Fund is ERC4626, Ownable {
     }
 
     /**
-     * @notice Allows Governance to remove positions from this fund's catalogue.
-     * @dev Callable by Swaap Strategist.
+     * @notice Allows owner to remove positions from this fund's catalogue.
+     * @dev Callable by the Fund's owner.
      */
     function removePositionFromCatalogue(uint32 positionId) external onlyOwner {
         positionCatalogue[positionId] = false;
@@ -323,8 +322,8 @@ contract Fund is ERC4626, Ownable {
     }
 
     /**
-     * @notice Allows Governance to add adaptors to this fund's catalogue.
-     * @dev Callable by Swaap Governance.
+     * @notice Allows owner to add adaptors to this fund's catalogue.
+     * @dev Callable by the Fund's owner.
      */
     function addAdaptorToCatalogue(address adaptor) external onlyOwner {
         // Make sure adaptor is not paused and is trusted.
@@ -334,8 +333,8 @@ contract Fund is ERC4626, Ownable {
     }
 
     /**
-     * @notice Allows Governance to remove adaptors from this fund's catalogue.
-     * @dev Callable by Swaap Strategist.
+     * @notice Allows owner to remove adaptors from this fund's catalogue.
+     * @dev Callable by the Fund's owner.
      */
     function removeAdaptorFromCatalogue(address adaptor) external onlyOwner {
         adaptorCatalogue[adaptor] = false;
@@ -347,7 +346,7 @@ contract Fund is ERC4626, Ownable {
      * @param index index at which to insert the position
      * @param positionId id of position to add
      * @param configurationData data used to configure how the position behaves
-     * @dev Callable by Swaap Strategist.
+     * @dev Callable by the Fund's owner.
      */
     function addPosition(
         uint32 index,
@@ -394,10 +393,8 @@ contract Fund is ERC4626, Ownable {
 
     /**
      * @notice Remove the position at a given index from the list of positions used by the fund.
-     * @dev Called by strategist.
+     * @dev Callable by the Fund's owner.
      * @param index index at which to remove the position
-     * @param expectedPositionId id of the position to remove
-     * @dev Callable by Swaap Strategist.
      */
     function removePosition(uint32 index, uint32 expectedPositionId, bool inDebtArray) external onlyOwner {
         // Get position being removed.
@@ -413,8 +410,8 @@ contract Fund is ERC4626, Ownable {
     }
 
     /**
-     * @notice Allows Swaap Governance to forceably remove a position from the Fund without checking its balance is zero.
-     * @dev Callable by Swaap Governance.
+     * @notice Allows Fund's owner to forceably remove a position from the Fund without checking its balance is zero.
+     * @dev Callable by the Fund's owner.
      */
     function forcePositionOut(uint32 index, uint32 positionId, bool inDebtArray) external onlyOwner {
         // Get position being removed.
@@ -450,7 +447,7 @@ contract Fund is ERC4626, Ownable {
      * @param index1 index of first position to swap
      * @param index2 index of second position to swap
      * @param inDebtArray bool indicating to switch positions in the debt array, or the credit array.
-     * @dev Callable by Swaap Strategist.
+     * @dev Callable by the Fund's owner.
      */
     function swapPositions(uint32 index1, uint32 index2, bool inDebtArray) external onlyOwner {
         // Get the new positions that will be at each index.
@@ -506,7 +503,7 @@ contract Fund is ERC4626, Ownable {
     }
 
     /**
-     * @notice Pauses all user entry/exits, and strategist rebalances.
+     * @notice Pauses all user entry/exits, and rebalances.
      */
     function _whenNotPaused() internal view {
         if (isPaused()) revert Fund__Paused();
@@ -521,7 +518,7 @@ contract Fund is ERC4626, Ownable {
 
     /**
      * @notice Shutdown the fund. Used in an emergency or if the fund has been deprecated.
-     * @dev Callable by Swaap Strategist.
+     * @dev Callable by the Fund's owner.
      */
     function initiateShutdown() external onlyOwner {
         _whenNotShutdown();
@@ -532,7 +529,7 @@ contract Fund is ERC4626, Ownable {
 
     /**
      * @notice Restart the fund.
-     * @dev Callable by Swaap Strategist.
+     * @dev Callable by the Fund's owner.
      */
     function liftShutdown() external onlyOwner {
         if (!isShutdown) revert Fund__ContractNotShutdown();
@@ -544,7 +541,7 @@ contract Fund is ERC4626, Ownable {
     // =========================================== CONSTRUCTOR ===========================================
 
     /**
-     * @notice Delay between the creation of the fund and the end of the pause mode the current pause state.
+     * @notice Delay between the creation of the fund and the end of the pause period.
      */
     uint256 internal constant _DELAY_UNTIL_END_PAUSE = 30 days * 9; // 9 months
 
@@ -694,7 +691,6 @@ contract Fund is ERC4626, Ownable {
         // the total supply is the equivalent of total shares after applying the performance and management fees
         (uint256 _totalAssets, uint256 _totalSupply) = _collectFeesAndGetTotalAssetsAndTotalSupply(true);
 
-        // Check for rounding error since we round down in previewDeposit.
         if ((shares = _convertToShares(assets, _totalAssets, _totalSupply)) == 0) revert Fund__ZeroShares();
 
         if ((_totalSupply + shares) > shareSupplyCap) revert Fund__ShareSupplyCapExceeded();
@@ -789,7 +785,6 @@ contract Fund is ERC4626, Ownable {
         // the total supply is the equivalent of total shares after applying the performance and management fees
         (uint256 _totalAssets, uint256 _totalSupply) = _collectFeesAndGetTotalAssetsAndTotalSupply(false);
 
-        // Check for rounding error since we round down in previewRedeem.
         if ((assets = _convertToAssets(shares, _totalAssets, _totalSupply)) == 0) revert Fund__ZeroAssets();
 
         _exit(assets, shares, receiver, owner);
@@ -1198,7 +1193,7 @@ contract Fund is ERC4626, Ownable {
      * @notice Set the Automation Actions contract.
      * @param _registryId Registry Id to get the automation action.
      * @param _expectedAutomationActions The registry automation actions differed from the expected automation actions.
-     * @dev Callable by Swaap Governance.
+     * @dev Callable by the Fund's owner.
      */
     function setAutomationActions(uint256 _registryId, address _expectedAutomationActions) external onlyOwner {
         _checkRegistryAddressAgainstExpected(_registryId, _expectedAutomationActions);
@@ -1238,7 +1233,7 @@ contract Fund is ERC4626, Ownable {
     error Fund__InvalidRebalanceDeviation(uint256 requested, uint256 max);
 
     /**
-     * @notice Strategist attempted to use an adaptor that is either paused or is not trusted by governance.
+     * @notice CallOnAdaptor attempted to use an adaptor that is either paused or is not trusted by the Fund.
      * @param adaptor the adaptor address that is paused or not trusted.
      */
     error Fund__CallToAdaptorNotAllowed(address adaptor);
@@ -1254,9 +1249,9 @@ contract Fund is ERC4626, Ownable {
     uint256 public allowedRebalanceDeviation = 0.0003e18;
 
     /**
-     * @notice Allows governance to change this funds rebalance deviation.
+     * @notice Allows owner to change this funds rebalance deviation.
      * @param newDeviation the new rebalance deviation value.
-     * @dev Callable by Swaap Governance.
+     * @dev Callable by the Fund's owner.
      */
     function setRebalanceDeviation(uint256 newDeviation) external onlyOwner {
         if (newDeviation > MAX_REBALANCE_DEVIATION)
@@ -1299,16 +1294,16 @@ contract Fund is ERC4626, Ownable {
     }
 
     /**
-     * @notice Allows strategists to manage their Fund using arbitrary logic calls to adaptors.
-     * @dev There are several safety checks in this function to prevent strategists from abusing it.
+     * @notice Allows owner or Automation Actions to manage the Fund using arbitrary logic calls to trusted adaptors.
+     * @dev There are several safety checks in this function to prevent rebalancers from abusing it.
      *      - `blockExternalReceiver`
      *      - `totalAssets` must not change by much
      *      - `totalShares` must remain constant
      *      - adaptors must be set up to be used with this fund
-     * @dev Since `totalAssets` is allowed to deviate slightly, strategists could abuse this by sending
-     *      multiple `callOnAdaptor` calls rapidly, to gradually change the share price.
-     *      To mitigate this, rate limiting will be put in place on the Swaap side.
-     * @dev Callable by Swaap Strategist, and Automation Actions contract.
+     * @dev Since `totalAssets` is allowed to deviate slightly, rebalancers could abuse this by sending
+     *      multiple `callOnAdaptor` calls rapidly, to gradually change the share price (for example when swapping unfairly).
+     *      To mitigate this, a Fund can be limited in the total volume that can be done in a period of time by the Registry.
+     * @dev Callable by the Fund's owner, and Automation Actions address.
      */
     function callOnAdaptor(AdaptorCall[] calldata data) external virtual nonReentrant {
         if (msg.sender != owner() && msg.sender != automationActions) revert Fund__CallerNotApprovedToRebalance();
@@ -1351,7 +1346,7 @@ contract Fund is ERC4626, Ownable {
 
     /**
      * @notice Increases the share supply cap.
-     * @dev Callable by Swaap Governance.
+     * @dev Callable by the Fund's owner.
      */
     function setShareSupplyCap(uint192 _newShareSupplyCap) public onlyOwner {
         shareSupplyCap = _newShareSupplyCap;

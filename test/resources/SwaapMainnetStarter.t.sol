@@ -53,12 +53,12 @@ contract MainnetStarterTest is Test, MainnetAddresses {
         // Deploy the registry.
         creationCode = type(Registry).creationCode;
         constructorArgs = abi.encode(address(this), address(this), address(this), address(this));
-        registry = Registry(deployer.deployContract("Registry V0.0", creationCode, constructorArgs, 0));
+        registry = Registry(deployer.deployContract("Registry V0.0", creationCode, constructorArgs));
 
         // Deploy the price router.
         creationCode = type(PriceRouter).creationCode;
         constructorArgs = abi.encode(address(this), registry, WETH);
-        priceRouter = PriceRouter(deployer.deployContract("PriceRouter V0.0", creationCode, constructorArgs, 0));
+        priceRouter = PriceRouter(deployer.deployContract("PriceRouter V0.0", creationCode, constructorArgs));
 
         // Update price router in registry.
         registry.setAddress(2, address(priceRouter));
@@ -66,13 +66,13 @@ contract MainnetStarterTest is Test, MainnetAddresses {
         // Deploy ERC20Adaptor.
         creationCode = type(ERC20Adaptor).creationCode;
         constructorArgs = hex"";
-        erc20Adaptor = ERC20Adaptor(deployer.deployContract("ERC20 Adaptor V0.0", creationCode, constructorArgs, 0));
+        erc20Adaptor = ERC20Adaptor(deployer.deployContract("ERC20 Adaptor V0.0", creationCode, constructorArgs));
 
         // Deploy SwapWithUniswapAdaptor.
         creationCode = type(SwapWithUniswapAdaptor).creationCode;
         constructorArgs = abi.encode(uniV2Router, uniV3Router);
         swapWithUniswapAdaptor = SwapWithUniswapAdaptor(
-            deployer.deployContract("Swap With Uniswap Adaptor V0.0", creationCode, constructorArgs, 0)
+            deployer.deployContract("Swap With Uniswap Adaptor V0.0", creationCode, constructorArgs)
         );
 
         // Trust Adaptors in Regsitry.
@@ -115,8 +115,6 @@ contract MainnetStarterTest is Test, MainnetAddresses {
         );
 
         return
-            FundWithShareLockFlashLoansWhitelisting(
-                deployer.deployContract(fundName, creationCode, constructorArgs, 0)
-            );
+            FundWithShareLockFlashLoansWhitelisting(deployer.deployContract(fundName, creationCode, constructorArgs));
     }
 }
