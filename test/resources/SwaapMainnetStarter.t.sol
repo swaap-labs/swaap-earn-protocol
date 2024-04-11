@@ -90,8 +90,7 @@ contract MainnetStarterTest is Test, MainnetAddresses {
         ERC20 holdingAsset,
         uint32 holdingPosition,
         bytes memory holdingPositionConfig,
-        uint256 initialDeposit,
-        address vault // flashloan vault
+        uint256 initialDeposit
     ) internal returns (FundWithShareLockFlashLoansWhitelisting) {
         // Approve new fund to spend assets.
         address fundAddress = deployer.getAddress(fundName);
@@ -110,8 +109,7 @@ contract MainnetStarterTest is Test, MainnetAddresses {
             holdingPosition,
             holdingPositionConfig,
             initialDeposit,
-            type(uint192).max,
-            vault
+            type(uint192).max
         );
 
         return

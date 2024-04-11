@@ -49,6 +49,14 @@ contract Registry is Ownable {
      */
     mapping(address => bool) public approvedForDepositOnBehalf;
 
+    /**
+     * @notice In order to receive a flash loan from a source, it must be approved first.
+     */
+    mapping(address => bool) public approvedFlashLoanSource;
+
+    /**
+     * @notice The FeesManager contract.
+     */
     FeesManager public immutable FEES_MANAGER;
 
     /**
@@ -237,6 +245,23 @@ contract Registry is Ownable {
     function _checkOwner() internal view override {
         require(owner() == _msgSender(), "Ownable: caller is not the owner");
         if (transitionStart != 0) revert Registry__TransitionPending();
+    }
+
+    // ============================================ Flashloan LOGIC ============================================
+
+    /**
+     * @notice Emitted when a flashloan source is added or removed
+     */
+    event FlashLoanSourceChanged(address indexed source, bool state);
+
+    /**
+     * @notice Allows to set or remove a flashloan source
+     * @param source Address from which the flashloan can be received
+     * @param state The authorization state
+     */
+    function setApprovedFlashLoanSource(address source, bool state) external onlyOwner {
+        approvedFlashLoanSource[source] = state;
+        emit FlashLoanSourceChanged(source, state);
     }
 
     // ============================================ PAUSE LOGIC ============================================

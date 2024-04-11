@@ -13,8 +13,7 @@ contract MockFundWithShareLockFlashLoansWhitelisting is FundWithShareLockFlashLo
         uint32 _holdingPosition,
         bytes memory _holdingPositionConfig,
         uint256 _initialDeposit,
-        uint192 _shareSupplyCap,
-        address _balancerVault
+        uint192 _shareSupplyCap
     )
         FundWithShareLockFlashLoansWhitelisting(
             _owner,
@@ -25,8 +24,7 @@ contract MockFundWithShareLockFlashLoansWhitelisting is FundWithShareLockFlashLo
             _holdingPosition,
             _holdingPositionConfig,
             _initialDeposit,
-            _shareSupplyCap,
-            _balancerVault
+            _shareSupplyCap
         )
     {}
 
