@@ -1134,7 +1134,7 @@ contract FeesManagerTest is MainnetStarterTest, AdaptorHelperFunctions {
         vm.expectRevert(FeesManager.FeesManager__HighWaterMarkNotYetExpired.selector);
         feesManager.resetHighWaterMark(address(fund));
 
-        _moveForwardAndUpdateOracle(31 days);
+        _moveForwardAndUpdateOracle(91 days);
 
         // is expected to work just fine as enough time has passed
         feesManager.resetHighWaterMark(address(fund));
@@ -1177,7 +1177,7 @@ contract FeesManagerTest is MainnetStarterTest, AdaptorHelperFunctions {
         vm.expectRevert(FeesManager.FeesManager__HighWaterMarkNotYetExpired.selector);
         feesManager.resetHighWaterMark(address(fund));
 
-        _moveForwardAndUpdateOracle(31 days);
+        _moveForwardAndUpdateOracle(91 days);
 
         // is expected to work just fine as we passed HIGH_WATERMARK_RESET_INTERVAL
         feesManager.resetHighWaterMark(address(fund));

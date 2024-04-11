@@ -140,7 +140,7 @@ contract FeesManager {
     uint256 public constant MAX_EXIT_FEES = _BPS_ONE_HUNDRED_PER_CENT / 10; // 10%
 
     /// @notice Sets the high-water mark reset interval for funds.
-    uint256 public constant HIGH_WATERMARK_RESET_INTERVAL = 1 * 30 days; // 1 months
+    uint256 public constant HIGH_WATERMARK_RESET_INTERVAL = 3 * 30 days; // 3 months
 
     /// @notice Sets the high-water mark reset interval for funds.
     uint256 public constant HIGH_WATERMARK_RESET_ASSET_THRESHOLD = Math.WAD + Math.WAD / 2; // 50%
