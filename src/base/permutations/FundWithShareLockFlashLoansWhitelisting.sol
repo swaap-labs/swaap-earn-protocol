@@ -49,7 +49,7 @@ contract FundWithShareLockFlashLoansWhitelisting is FundWithShareLockPeriod, EIP
             _initialDeposit,
             _shareSupplyCap
         )
-        EIP712("FundWithShareLockFlashLoansWhitelisting", "1.0")
+        EIP712(_name, "1.0")
     {
         balancerVault = _balancerVault;
     }
