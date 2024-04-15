@@ -55,6 +55,12 @@ contract Registry is Ownable {
     mapping(address => bool) public approvedFlashLoanSource;
 
     /**
+     * @notice Defines spender address of an aggregator
+     * @dev if spender address is 0, the aggregator was not approved
+     */
+    mapping(address => address) public aggregatorSpender;
+
+    /**
      * @notice The FeesManager contract.
      */
     FeesManager public immutable FEES_MANAGER;
@@ -543,6 +549,29 @@ contract Registry is Ownable {
      */
     function revertIfPositionIsNotTrusted(uint32 positionId) public view {
         if (!isPositionTrusted[positionId]) revert Registry__PositionIsNotTrusted(positionId);
+    }
+
+    // ========================================= APPROVED AGGREGATOR SPENDER LOGIC =========================================
+
+    /**
+     * @notice Emitted when an aggregator spender is changed or removed
+     */
+    event AggregatorSpenderChanged(address indexed aggregator, address indexed spender);
+
+    /**
+     * @notice Trust aggregator and add the corresponding spender
+     */
+    function changeAggregatorSpender(address aggregator, address spender) external {
+        aggregatorSpender[aggregator] = spender;
+        emit AggregatorSpenderChanged(aggregator, spender);
+    }
+
+    /**
+     * @notice Untrust aggregator and remove spender
+     */
+    function removeAggregatorSpender(address aggregator) external {
+        delete aggregatorSpender[aggregator];
+        emit AggregatorSpenderChanged(aggregator, address(0));
     }
 
     // ========================================== LIMIT ADAPTOR SWAP VOLUME LOGIC ==========================================

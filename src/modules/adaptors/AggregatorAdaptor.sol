@@ -7,10 +7,10 @@ import { PositionlessAdaptor } from "src/modules/adaptors/PositionlessAdaptor.so
 import { BaseAdaptor } from "src/modules/adaptors/BaseAdaptor.sol";
 
 /**
- * @title Aggregator Base Adaptor Contract
+ * @title Aggregator Adaptor Contract
  * @notice Allows Funds to swap with aggregators.
  */
-abstract contract AggregatorBaseAdaptor is PositionlessAdaptor {
+contract AggregatorAdaptor is PositionlessAdaptor {
     using SafeTransferLib for ERC20;
     using Math for uint256;
     using Address for address;
@@ -23,6 +23,11 @@ abstract contract AggregatorBaseAdaptor is PositionlessAdaptor {
     // This adaptor has NO underlying position, its only purpose is to
     // expose the swap function to strategists during rebalances.
     //====================================================================
+
+    /**
+     * @notice Emitted when an aggregator's spender is not set in the Registry (not approved)
+     */
+    error AggregatorAdaptor__AggregatorSpenderNotSet(address aggregator);
 
     /**
      * @notice The erc20 adaptor contract used by the funds on the current network.
@@ -47,24 +52,33 @@ abstract contract AggregatorBaseAdaptor is PositionlessAdaptor {
      * of the adaptor is more difficult.
      */
     function identifier() public pure virtual override returns (bytes32) {
-        return keccak256("Aggregator Base Adaptor V 1.0");
+        return keccak256("Aggregator Adaptor V 1.0");
     }
 
     //============================================ Strategist Functions ===========================================
 
     /**
      * @notice Allows strategists to make ERC20 swaps using an aggregator.
+     * @param aggregator The aggregator's address
+     * @param tokenIn The sold token
+     * @param tokenOut The bought token
+     * @param amount The maximum amount sold
+     * @param customSlippage The custom slippage allowed with the trade
+     * @param swapCallData The calldata used to trade via the aggregator
      */
-    function _swapWithAggregator(
+    function swapWithAggregator(
+        address aggregator,
         ERC20 tokenIn,
         ERC20 tokenOut,
         uint256 amount,
-        address target,
-        address spender,
         uint32 customSlippage,
         bytes memory swapCallData
-    ) internal {
+    ) external {
         _validateTokenOutIsUsed(address(tokenOut));
+
+        address spender = Fund(address(this)).registry().aggregatorSpender(aggregator);
+
+        if (spender == address(0)) revert AggregatorAdaptor__AggregatorSpenderNotSet(aggregator);
 
         tokenIn.safeApprove(spender, amount);
 
@@ -73,7 +87,7 @@ abstract contract AggregatorBaseAdaptor is PositionlessAdaptor {
         uint256 tokenOutBalance = tokenOut.balanceOf(address(this));
 
         // Perform Swap.
-        target.functionCall(swapCallData);
+        aggregator.functionCall(swapCallData);
 
         uint256 tokenInAmountIn = tokenInBalance - tokenIn.balanceOf(address(this));
         uint256 tokenOutAmountOut = tokenOut.balanceOf(address(this)) - tokenOutBalance;
