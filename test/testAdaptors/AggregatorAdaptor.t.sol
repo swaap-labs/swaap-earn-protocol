@@ -111,7 +111,15 @@ contract FundAggregatorAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
         {
             Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
             bytes[] memory adaptorCalls = new bytes[](1);
-            adaptorCalls[0] = _createBytesDataToSwap(paraswapAugustus, USDC, WETH, assets, maxSlippage, swapCallData);
+            adaptorCalls[0] = _createBytesDataToSwap(
+                paraswapAugustus,
+                USDC,
+                WETH,
+                assets,
+                0,
+                maxSlippage,
+                swapCallData
+            );
 
             data[0] = Fund.AdaptorCall({ adaptor: address(aggregatorAdaptor), callData: adaptorCalls });
             fund.callOnAdaptor(data);
@@ -163,7 +171,7 @@ contract FundAggregatorAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
         {
             Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
             bytes[] memory adaptorCalls = new bytes[](1);
-            adaptorCalls[0] = _createBytesDataToSwap(oneInchV5, USDC, WETH, assets, maxSlippage, swapCallData);
+            adaptorCalls[0] = _createBytesDataToSwap(oneInchV5, USDC, WETH, assets, 0, maxSlippage, swapCallData);
 
             data[0] = Fund.AdaptorCall({ adaptor: address(aggregatorAdaptor), callData: adaptorCalls });
             fund.callOnAdaptor(data);
@@ -207,7 +215,7 @@ contract FundAggregatorAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
 
         Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
-        adaptorCalls[0] = _createBytesDataToSwap(address(this), from, to, assets, maxSlippage, slippageSwapData);
+        adaptorCalls[0] = _createBytesDataToSwap(address(this), from, to, assets, 0, maxSlippage, slippageSwapData);
 
         data[0] = Fund.AdaptorCall({ adaptor: address(aggregatorAdaptor), callData: adaptorCalls });
 
@@ -272,7 +280,7 @@ contract FundAggregatorAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
         initLastUpdate = newLastUpdate;
 
         // Make the swap.
-        adaptorCalls[0] = _createBytesDataToSwap(address(this), from, to, fromAmount, maxSlippage, slippageSwapData);
+        adaptorCalls[0] = _createBytesDataToSwap(address(this), from, to, fromAmount, 0, maxSlippage, slippageSwapData);
         data[0] = Fund.AdaptorCall({ adaptor: address(aggregatorAdaptor), callData: adaptorCalls });
         fund.callOnAdaptor(data);
 
@@ -426,7 +434,7 @@ contract FundAggregatorAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
         );
 
         // Make the swap.
-        adaptorCalls[0] = _createBytesDataToSwap(address(this), from, to, fromAmount, maxSlippage, slippageSwapData);
+        adaptorCalls[0] = _createBytesDataToSwap(address(this), from, to, fromAmount, 0, maxSlippage, slippageSwapData);
         data[0] = Fund.AdaptorCall({ adaptor: address(aggregatorAdaptor), callData: adaptorCalls });
         fund.callOnAdaptor(data);
 
@@ -443,7 +451,7 @@ contract FundAggregatorAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
         );
 
         // Make the swap.
-        adaptorCalls[0] = _createBytesDataToSwap(address(this), from, to, fromAmount, maxSlippage, slippageSwapData);
+        adaptorCalls[0] = _createBytesDataToSwap(address(this), from, to, fromAmount, 0, maxSlippage, slippageSwapData);
         data[0] = Fund.AdaptorCall({ adaptor: address(aggregatorAdaptor), callData: adaptorCalls });
         vm.expectRevert(bytes(abi.encodeWithSelector(BaseAdaptor.BaseAdaptor__Slippage.selector)));
         fund.callOnAdaptor(data);
@@ -458,7 +466,7 @@ contract FundAggregatorAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
         );
 
         // Make the swap.
-        adaptorCalls[0] = _createBytesDataToSwap(address(this), from, to, fromAmount, 0, slippageSwapData);
+        adaptorCalls[0] = _createBytesDataToSwap(address(this), from, to, fromAmount, 0, 0, slippageSwapData);
         data[0] = Fund.AdaptorCall({ adaptor: address(aggregatorAdaptor), callData: adaptorCalls });
         vm.expectRevert(bytes(abi.encodeWithSelector(BaseAdaptor.BaseAdaptor__Slippage.selector)));
         fund.callOnAdaptor(data);
@@ -482,6 +490,7 @@ contract FundAggregatorAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
                 from,
                 to,
                 fromAmount,
+                0,
                 maxSlippage,
                 slippageSwapData
             );
@@ -522,7 +531,7 @@ contract FundAggregatorAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
             fromAmount,
             maxSlippage + 1
         );
-        adaptorCalls[0] = _createBytesDataToSwap(address(this), from, to, fromAmount, maxSlippage, slippageSwapData);
+        adaptorCalls[0] = _createBytesDataToSwap(address(this), from, to, fromAmount, 0, maxSlippage, slippageSwapData);
         data[0] = Fund.AdaptorCall({ adaptor: address(aggregatorAdaptor), callData: adaptorCalls });
 
         vm.expectRevert(
@@ -542,7 +551,7 @@ contract FundAggregatorAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
             fromAmount,
             maxSlippage + 1
         );
-        adaptorCalls[0] = _createBytesDataToSwap(address(this), from, to, fromAmount, maxSlippage, slippageSwapData);
+        adaptorCalls[0] = _createBytesDataToSwap(address(this), from, to, fromAmount, 0, maxSlippage, slippageSwapData);
         data[0] = Fund.AdaptorCall({ adaptor: address(aggregatorAdaptor), callData: adaptorCalls });
 
         vm.expectRevert(abi.encodeWithSelector(PriceRouter.PriceRouter__UnsupportedAsset.selector, DAI));
@@ -570,13 +579,61 @@ contract FundAggregatorAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
 
         Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
-        adaptorCalls[0] = _createBytesDataToSwap(address(this), from, to, assets, maxSlippage, slippageSwapData);
+        adaptorCalls[0] = _createBytesDataToSwap(address(this), from, to, assets, 0, maxSlippage, slippageSwapData);
 
         data[0] = Fund.AdaptorCall({ adaptor: address(aggregatorAdaptor), callData: adaptorCalls });
 
         vm.expectRevert(
             abi.encodeWithSelector(AggregatorAdaptor.AggregatorAdaptor__AggregatorSpenderNotSet.selector, address(this))
         );
+        fund.callOnAdaptor(data);
+    }
+
+    function testRevertIfMinOutNotMet() external {
+        // approve aggregator and spender
+        registry.changeAggregatorSpender(address(this), address(this));
+
+        // Deposit into Fund.
+        uint256 assets = 10_000_000e6;
+        deal(address(USDC), address(this), assets);
+        fund.deposit(assets, address(this));
+
+        registry.setMaxAllowedAdaptorVolumeParams(
+            address(fund),
+            1 days, // period length
+            type(uint80).max, // max volume traded
+            true // reset volume
+        );
+
+        ERC20 from = USDC;
+        ERC20 to = WETH;
+        uint256 fromAmount = 1_000e6;
+        uint32 maxSlippage = 1e4 - (1e4 - aggregatorAdaptor.slippage()) / 2;
+
+        bytes memory slippageSwapData = abi.encodeWithSignature(
+            "slippageSwap(address,address,uint256,uint32)",
+            from,
+            to,
+            fromAmount,
+            maxSlippage + 1
+        );
+
+        Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
+        bytes[] memory adaptorCalls = new bytes[](1);
+
+        adaptorCalls[0] = _createBytesDataToSwap(
+            address(this),
+            from,
+            to,
+            assets,
+            type(uint256).max,
+            maxSlippage,
+            slippageSwapData
+        );
+
+        data[0] = Fund.AdaptorCall({ adaptor: address(aggregatorAdaptor), callData: adaptorCalls });
+
+        vm.expectRevert(abi.encodeWithSelector(AggregatorAdaptor.AggregatorAdaptor__MinimumAmountOutNotMet.selector));
         fund.callOnAdaptor(data);
     }
 
@@ -608,7 +665,7 @@ contract FundAggregatorAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
 
         Fund.AdaptorCall[] memory data = new Fund.AdaptorCall[](1);
         bytes[] memory adaptorCalls = new bytes[](1);
-        adaptorCalls[0] = _createBytesDataToSwap(address(this), from, to, assets, maxSlippage, slippageSwapData);
+        adaptorCalls[0] = _createBytesDataToSwap(address(this), from, to, assets, 0, maxSlippage, slippageSwapData);
 
         data[0] = Fund.AdaptorCall({ adaptor: address(aggregatorAdaptor), callData: adaptorCalls });
 
@@ -636,7 +693,7 @@ contract FundAggregatorAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
         fund.callOnAdaptor(data);
 
         // call wrong aggregator
-        adaptorCalls[0] = _createBytesDataToSwap(address(1), from, to, assets, maxSlippage, slippageSwapData);
+        adaptorCalls[0] = _createBytesDataToSwap(address(1), from, to, assets, 0, maxSlippage, slippageSwapData);
 
         data[0] = Fund.AdaptorCall({ adaptor: address(aggregatorAdaptor), callData: adaptorCalls });
 
@@ -648,7 +705,7 @@ contract FundAggregatorAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
         // remove spender
         registry.changeAggregatorSpender(address(this), address(0));
 
-        adaptorCalls[0] = _createBytesDataToSwap(address(this), from, to, assets, maxSlippage, slippageSwapData);
+        adaptorCalls[0] = _createBytesDataToSwap(address(this), from, to, assets, 0, maxSlippage, slippageSwapData);
 
         data[0] = Fund.AdaptorCall({ adaptor: address(aggregatorAdaptor), callData: adaptorCalls });
 
@@ -681,7 +738,8 @@ contract FundAggregatorAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
         address aggregator,
         ERC20 tokenIn,
         ERC20 tokenOut,
-        uint256 amount,
+        uint256 maxAmountIn,
+        uint256 minAmountOut,
         uint32 slippage,
         bytes memory _swapCallData
     ) internal pure virtual returns (bytes memory) {
@@ -691,7 +749,8 @@ contract FundAggregatorAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions
                 aggregator,
                 tokenIn,
                 tokenOut,
-                amount,
+                maxAmountIn,
+                minAmountOut,
                 slippage,
                 _swapCallData
             );

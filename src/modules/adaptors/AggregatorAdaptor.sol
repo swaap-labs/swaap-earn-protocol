@@ -30,6 +30,11 @@ contract AggregatorAdaptor is PositionlessAdaptor {
     error AggregatorAdaptor__AggregatorSpenderNotSet(address aggregator);
 
     /**
+     * @notice Emitted when an aggregator's spender is not set in the Registry (not approved)
+     */
+    error AggregatorAdaptor__MinimumAmountOutNotMet();
+
+    /**
      * @notice The erc20 adaptor contract used by the funds on the current network.
      */
     bytes32 public immutable erc20AdaptorIdentifier;
@@ -62,7 +67,8 @@ contract AggregatorAdaptor is PositionlessAdaptor {
      * @param aggregator The aggregator's address
      * @param tokenIn The sold token
      * @param tokenOut The bought token
-     * @param amount The maximum amount sold
+     * @param maxAmountIn The maximum amount sold
+     * @param minAmountOut The minimum amount bought
      * @param customSlippage The custom slippage allowed with the trade
      * @param swapCallData The calldata used to trade via the aggregator
      */
@@ -70,7 +76,8 @@ contract AggregatorAdaptor is PositionlessAdaptor {
         address aggregator,
         ERC20 tokenIn,
         ERC20 tokenOut,
-        uint256 amount,
+        uint256 maxAmountIn,
+        uint256 minAmountOut,
         uint32 customSlippage,
         bytes memory swapCallData
     ) external {
@@ -80,7 +87,7 @@ contract AggregatorAdaptor is PositionlessAdaptor {
 
         if (spender == address(0)) revert AggregatorAdaptor__AggregatorSpenderNotSet(aggregator);
 
-        tokenIn.safeApprove(spender, amount);
+        tokenIn.safeApprove(spender, maxAmountIn);
 
         // Save token balances.
         uint256 tokenInBalance = tokenIn.balanceOf(address(this));
@@ -91,6 +98,8 @@ contract AggregatorAdaptor is PositionlessAdaptor {
 
         uint256 tokenInAmountIn = tokenInBalance - tokenIn.balanceOf(address(this));
         uint256 tokenOutAmountOut = tokenOut.balanceOf(address(this)) - tokenOutBalance;
+
+        if (tokenOutAmountOut < minAmountOut) revert AggregatorAdaptor__MinimumAmountOutNotMet();
 
         (uint256 tokenInPriceInUSD, uint256 tokenOutPriceInUSD) = _getTokenPricesInUSD(tokenIn, tokenOut);
 
