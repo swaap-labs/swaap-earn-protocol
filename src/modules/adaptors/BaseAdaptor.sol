@@ -202,7 +202,8 @@ abstract contract BaseAdaptor {
     }
 
     /**
-     * @notice Helper function that validates external receivers are allowed.
+     * @notice Verifies if the configured minimum health factor is in the allowed range.
+     * @param minimumHealthFactor the configured minimum health factor to verify.
      */
     function _verifyConstructorMinimumHealthFactor(uint256 minimumHealthFactor) internal pure {
         if (minimumHealthFactor < MINIMUM_CONSTRUCTOR_HEALTH_FACTOR())

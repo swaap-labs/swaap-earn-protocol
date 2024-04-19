@@ -32,7 +32,7 @@ contract Registry is Ownable {
      * @param depositor depositor address
      * @param state the new state of the depositor privilege
      */
-    event DepositorOnBehalfChanged(address depositor, bool state);
+    event DepositorOnBehalfChanged(address indexed depositor, bool state);
 
     /**
      * @notice The unique ID that the next registered contract will have.
@@ -49,6 +49,20 @@ contract Registry is Ownable {
      */
     mapping(address => bool) public approvedForDepositOnBehalf;
 
+    /**
+     * @notice In order to receive a flash loan from a source, it must be approved first.
+     */
+    mapping(address => bool) public approvedFlashLoanSource;
+
+    /**
+     * @notice Defines spender address of an aggregator
+     * @dev if spender address is 0, the aggregator was not approved
+     */
+    mapping(address => address) public aggregatorSpender;
+
+    /**
+     * @notice The FeesManager contract.
+     */
     FeesManager public immutable FEES_MANAGER;
 
     /**
@@ -133,17 +147,17 @@ contract Registry is Ownable {
     /**
      * @notice Emitted when an ownership transition is started.
      */
-    event OwnerTransitionStarted(address newOwner, uint256 startTime);
+    event OwnerTransitionStarted(address indexed pendingOwner, uint256 startTime);
 
     /**
      * @notice Emitted when an ownership transition is cancelled.
      */
-    event OwnerTransitionCancelled();
+    event OwnerTransitionCancelled(address indexed pendingOwner);
 
     /**
      * @notice Emitted when an ownership transition is completed.
      */
-    event OwnerTransitionComplete(address newOwner);
+    event OwnerTransitionComplete(address indexed newOwner);
 
     /**
      * @notice Attempted to call a function intended for Zero Id address.
@@ -193,6 +207,8 @@ contract Registry is Ownable {
         if (pendingOwner != address(0)) revert Registry__TransitionPending();
         if (newOwner == address(0)) revert Registry__NewOwnerCanNotBeZero();
 
+        emit OwnerTransitionStarted(newOwner, transitionStart);
+
         pendingOwner = newOwner;
         transitionStart = block.timestamp;
     }
@@ -201,8 +217,12 @@ contract Registry is Ownable {
      * @notice Allows Zero Id address to cancel an ongoing owner transition.
      */
     function cancelTransition() external {
+        address _pendingOwner = pendingOwner;
+
         if (msg.sender != getAddress[0]) revert Registry__OnlyCallableByZeroId();
-        if (pendingOwner == address(0)) revert Registry__TransitionNotPending();
+        if (_pendingOwner == address(0)) revert Registry__TransitionNotPending();
+
+        emit OwnerTransitionCancelled(_pendingOwner);
 
         pendingOwner = address(0);
         transitionStart = 0;
@@ -212,11 +232,14 @@ contract Registry is Ownable {
      * @notice Allows pending owner to complete the ownership transition.
      */
     function completeTransition() external {
-        if (pendingOwner == address(0)) revert Registry__TransitionNotPending();
-        if (msg.sender != pendingOwner) revert Registry__OnlyCallableByPendingOwner();
+        address _pendingOwner = pendingOwner;
+
+        if (msg.sender != _pendingOwner) revert Registry__OnlyCallableByPendingOwner();
         if (block.timestamp < transitionStart + TRANSITION_PERIOD) revert Registry__TransitionPending();
 
-        _transferOwnership(pendingOwner);
+        _transferOwnership(_pendingOwner);
+
+        emit OwnerTransitionComplete(_pendingOwner);
 
         pendingOwner = address(0);
         transitionStart = 0;
@@ -230,27 +253,39 @@ contract Registry is Ownable {
         if (transitionStart != 0) revert Registry__TransitionPending();
     }
 
+    // ============================================ Flashloan LOGIC ============================================
+
+    /**
+     * @notice Emitted when a flashloan source is added or removed
+     */
+    event FlashLoanSourceChanged(address indexed source, bool state);
+
+    /**
+     * @notice Allows to set or remove a flashloan source
+     * @param source Address from which the flashloan can be received
+     * @param state The authorization state
+     */
+    function setApprovedFlashLoanSource(address source, bool state) external onlyOwner {
+        approvedFlashLoanSource[source] = state;
+        emit FlashLoanSourceChanged(source, state);
+    }
+
     // ============================================ PAUSE LOGIC ============================================
 
     /**
      * @notice Emitted when a target is paused.
      */
-    event TargetPaused(address target);
+    event TargetPaused(address indexed target);
 
     /**
      * @notice Emitted when a target is unpaused.
      */
-    event TargetUnpaused(address target);
+    event TargetUnpaused(address indexed target);
 
     /**
      * @notice Attempted to unpause a target that was not paused.
      */
     error Registry__TargetNotPaused(address target);
-
-    /**
-     * @notice Attempted to pause a target that was already paused.
-     */
-    error Registry__TargetAlreadyPaused(address target);
 
     /**
      * @notice Mapping stores whether or not a fund is paused.
@@ -275,7 +310,6 @@ contract Registry is Ownable {
      * @notice Helper function to pause some target.
      */
     function _pauseTarget(address target) internal {
-        if (isCallerPaused[target]) revert Registry__TargetAlreadyPaused(target);
         isCallerPaused[target] = true;
         emit TargetPaused(target);
     }
@@ -290,6 +324,18 @@ contract Registry is Ownable {
     }
 
     // ============================================ ADAPTOR LOGIC ============================================
+
+    /**
+     * @notice Emitted when an adaptor is trusted.
+     * @param adaptor address of the trusted adaptor
+     */
+    event Registry__AdaptorTrusted(address indexed adaptor);
+
+    /**
+     * @notice Emitted when an adaptor is not trusted.
+     * @param adaptor address of the distrusted adaptor
+     */
+    event Registry__AdaptorDistrusted(address indexed adaptor);
 
     /**
      * @notice Attempted to trust an adaptor with non unique identifier.
@@ -326,6 +372,7 @@ contract Registry is Ownable {
         if (isIdentifierUsed[identifier]) revert Registry__IdentifierNotUnique();
         isAdaptorTrusted[adaptor] = true;
         isIdentifierUsed[identifier] = true;
+        emit Registry__AdaptorTrusted(adaptor);
     }
 
     /**
@@ -336,6 +383,8 @@ contract Registry is Ownable {
         if (!isAdaptorTrusted[adaptor]) revert Registry__AdaptorNotTrusted(adaptor);
         // Set trust to false.
         isAdaptorTrusted[adaptor] = false;
+
+        emit Registry__AdaptorDistrusted(adaptor);
 
         // We are NOT resetting `isIdentifierUsed` because if this adaptor is distrusted, then something needs
         // to change about the new one being re-trusted.
@@ -370,13 +419,13 @@ contract Registry is Ownable {
      * @param isDebt bool indicating whether this position takes on debt or not
      * @param adaptorData arbitrary bytes used to configure this position
      */
-    event Registry__PositionTrusted(uint32 id, address adaptor, bool isDebt, bytes adaptorData);
+    event Registry__PositionTrusted(uint32 indexed id, address indexed adaptor, bool isDebt, bytes adaptorData);
 
     /**
      * @notice Emitted when a position is distrusted.
      * @param id the positions id
      */
-    event Registry__PositionDistrusted(uint32 id);
+    event Registry__PositionDistrusted(uint32 indexed id);
 
     /**
      * @notice Attempted to trust a position not being used.
@@ -502,6 +551,29 @@ contract Registry is Ownable {
         if (!isPositionTrusted[positionId]) revert Registry__PositionIsNotTrusted(positionId);
     }
 
+    // ========================================= APPROVED AGGREGATOR SPENDER LOGIC =========================================
+
+    /**
+     * @notice Emitted when an aggregator spender is changed or removed
+     */
+    event AggregatorSpenderChanged(address indexed aggregator, address indexed spender);
+
+    /**
+     * @notice Trust aggregator and add the corresponding spender
+     */
+    function changeAggregatorSpender(address aggregator, address spender) external {
+        aggregatorSpender[aggregator] = spender;
+        emit AggregatorSpenderChanged(aggregator, spender);
+    }
+
+    /**
+     * @notice Untrust aggregator and remove spender
+     */
+    function removeAggregatorSpender(address aggregator) external {
+        delete aggregatorSpender[aggregator];
+        emit AggregatorSpenderChanged(aggregator, address(0));
+    }
+
     // ========================================== LIMIT ADAPTOR SWAP VOLUME LOGIC ==========================================
 
     event FundTradeVolumeDataUpdated(
@@ -525,8 +597,9 @@ contract Registry is Ownable {
     mapping(address => FundVolumeData) public fundsAdaptorVolumeData;
 
     /**
-     * @notice View the amount of assets in each Fund Position.
-     * @dev If the fund volume parameters were not set, the fund won't be able to trade.
+     * @notice Updates and checks if the fund's traded volume is violated.
+     * @param volumeInUSD the volume in USD to add to the fund's traded volume.
+     * @dev If the fund volume parameters were not set, the fund won't be able to trade on reblances.
      */
     function checkAndUpdateFundTradeVolume(uint256 volumeInUSD) external {
         // caller should be the fund through the swap adapters
@@ -539,7 +612,7 @@ contract Registry is Ownable {
 
         uint256 endPeriod;
         unchecked {
-            endPeriod = fundVolumeData.lastUpdate + fundVolumeData.periodLength;
+            endPeriod = uint256(fundVolumeData.lastUpdate) + uint256(fundVolumeData.periodLength);
         }
 
         if (block.timestamp > endPeriod) {
@@ -566,7 +639,7 @@ contract Registry is Ownable {
      * @param fund the address of the fund
      * @param periodLength the length of the period in seconds
      * @param maxVolumeInUSD the max volume an adaptor can trade in a period
-     * @param resetVolume the current volume an adaptor has traded
+     * @param resetVolume reset or not the current volume an adaptor has traded
      */
     function setMaxAllowedAdaptorVolumeParams(
         address fund,
@@ -588,9 +661,9 @@ contract Registry is Ownable {
         emit FundTradeVolumeDataUpdated(
             fund,
             fundVolumeData.lastUpdate,
-            fundVolumeData.periodLength,
+            periodLength,
             fundVolumeData.volumeInUSD,
-            fundVolumeData.maxVolumeInUSD
+            maxVolumeInUSD
         );
     }
 }

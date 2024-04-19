@@ -94,7 +94,7 @@ contract FundWithShareLockPeriodTest is MainnetStarterTest, AdaptorHelperFunctio
             type(uint192).max
         );
 
-        fund = FundWithShareLockPeriod(deployer.deployContract(fundName, creationCode, constructorArgs, 0));
+        fund = FundWithShareLockPeriod(deployer.deployContract(fundName, creationCode, constructorArgs));
 
         // Set up remaining fund positions.
         fund.addPositionToCatalogue(wethPosition);
@@ -216,7 +216,7 @@ contract FundWithShareLockPeriodTest is MainnetStarterTest, AdaptorHelperFunctio
         );
 
         FundWithShareLockPeriod fundA = FundWithShareLockPeriod(
-            deployer.deployContract(fundName, creationCode, constructorArgs, 0)
+            deployer.deployContract(fundName, creationCode, constructorArgs)
         );
 
         fundA.addPositionToCatalogue(wethPosition);

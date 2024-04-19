@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.8.0;
+pragma solidity 0.8.21;
 
 import { ManagementFeesLib } from "src/modules/fees/ManagementFeesLib.sol";
 import { PerformanceFeesLib } from "src/modules/fees/PerformanceFeesLib.sol";
@@ -18,21 +18,23 @@ contract FeesManager {
     // =============================================== EVENTS ===============================================
     /**
      * @notice Emitted when strategist platform fee cut is changed.
+     * @param fund the fund that had the strategist platform fee cut changed
      * @param newPlatformCut value strategist platform fee cut was changed to
      */
-    event StrategistPlatformCutChanged(uint64 newPlatformCut);
+    event StrategistPlatformCutChanged(address indexed fund, uint64 newPlatformCut);
 
     /**
      * @notice Emitted when strategists payout address is changed.
+     * @param fund the fund that had the strategist payout address changed
      * @param newPayoutAddress value strategists payout address was changed to
      */
-    event StrategistPayoutAddressChanged(address newPayoutAddress);
+    event StrategistPayoutAddressChanged(address indexed fund, address indexed newPayoutAddress);
 
     /**
      * @notice Emitted when protocol payout address is changed.
      * @param newPayoutAddress value protocol payout address was changed to
      */
-    event ProtocolPayoutAddressChanged(address newPayoutAddress);
+    event ProtocolPayoutAddressChanged(address indexed newPayoutAddress);
 
     /**
      * @notice Emitted when a fund's fees are paid out.
@@ -80,6 +82,20 @@ contract FeesManager {
      */
     event PerformanceFeesRateUpdated(address indexed fund, uint256 performanceFeesRate, uint256 highWaterMarkPrice);
 
+    /**
+     * @notice Emitted when enter fees are updated.
+     * @param fund the fund that had enter fees updated
+     * @param enterFeesRate the new enter fees rate
+     */
+    event EnterFeesUpdated(address indexed fund, uint16 enterFeesRate);
+
+    /**
+     * @notice Emitted when exit fees are updated.
+     * @param fund the fund that had exit fees updated
+     * @param exitFeesRate the new exit fees rate
+     */
+    event ExitFeesUpdated(address indexed fund, uint16 exitFeesRate);
+
     // =============================================== ERRORS ===============================================
 
     /// @notice Throws when the caller is not the fund owner.
@@ -124,7 +140,7 @@ contract FeesManager {
     uint256 public constant MAX_EXIT_FEES = _BPS_ONE_HUNDRED_PER_CENT / 10; // 10%
 
     /// @notice Sets the high-water mark reset interval for funds.
-    uint256 public constant HIGH_WATERMARK_RESET_INTERVAL = 1 * 30 days; // 1 months
+    uint256 public constant HIGH_WATERMARK_RESET_INTERVAL = 3 * 30 days; // 3 months
 
     /// @notice Sets the high-water mark reset interval for funds.
     uint256 public constant HIGH_WATERMARK_RESET_ASSET_THRESHOLD = Math.WAD + Math.WAD / 2; // 50%
@@ -247,8 +263,8 @@ contract FeesManager {
         }
 
         if (performanceFees > 0) {
-            if(highWaterMarkPrice > type(uint72).max) revert FeesManager__WaterMarkPriceOverflow();
-            
+            if (highWaterMarkPrice > type(uint72).max) revert FeesManager__WaterMarkPriceOverflow();
+
             feeData.highWaterMarkPrice = uint72(highWaterMarkPrice);
             emit PerformanceFeesClaimed(msg.sender, performanceFees, highWaterMarkPrice);
         }
@@ -302,6 +318,7 @@ contract FeesManager {
      * @param fund the fund to payout the fees for
      */
     function payoutFees(address fund) public {
+        Fund(fund).collectFees();
         uint256 totalFees = ERC20(fund).balanceOf(address(this));
 
         if (totalFees == 0) {
@@ -349,11 +366,15 @@ contract FeesManager {
     /**
      * @notice Sets the Strategists payout address
      * @param newPayoutAddress the new strategist payout address
-     * @dev Callable by Swaap Strategist.
+     * @dev Callable by the Fund's owner.
      */
     function setStrategistPayoutAddress(address fund, address newPayoutAddress) external onlyFundOwner(fund) {
-        emit StrategistPayoutAddressChanged(newPayoutAddress);
         FeesData storage feeData = fundFeesData[fund];
+
+        // collect fees and payout the old strategist (if any) before changing the address
+        payoutFees(fund);
+
+        emit StrategistPayoutAddressChanged(fund, newPayoutAddress);
         // no need to check if the address is not valid, the owner can set it to any address
         feeData.strategistPayoutAddress = newPayoutAddress;
     }
@@ -363,16 +384,16 @@ contract FeesManager {
     /**
      * @notice Sets the Strategists cut of platform fees
      * @param cut the platform cut for the strategist
-     * @dev Callable by Swaap Governance.
+     * @dev Callable by Registry owner.
      */
-    function setStrategistPlatformCut(address fund, uint64 cut) external onlyFundOwner(fund) {
+    function setStrategistPlatformCut(address fund, uint64 cut) external onlyRegistryOwner {
         if (cut > MAX_FEE_CUT) revert FeesManager__InvalidFeesCut();
 
         payoutFees(fund);
 
         FeesData storage feeData = fundFeesData[fund];
 
-        emit StrategistPlatformCutChanged(cut);
+        emit StrategistPlatformCutChanged(fund, cut);
         feeData.strategistPlatformCut = cut;
     }
 
@@ -415,7 +436,7 @@ contract FeesManager {
             // note that the fund will revert if we are calling totalAssets() when it's locked (nonReentrantView)
             uint256 totalAssets = Fund(fund).totalAssets();
             uint256 highWaterMarkPrice = PerformanceFeesLib._calcSharePrice(totalAssets, Fund(fund).totalSupply());
-            if(highWaterMarkPrice > type(uint72).max) revert FeesManager__WaterMarkPriceOverflow();
+            if (highWaterMarkPrice > type(uint72).max) revert FeesManager__WaterMarkPriceOverflow();
 
             fundFeesData[fund].highWaterMarkPrice = uint72(highWaterMarkPrice);
             fundFeesData[fund].highWaterMarkResetTime = uint40(block.timestamp);
@@ -442,6 +463,7 @@ contract FeesManager {
             revert FeesManager__InvalidFeesRate();
         }
 
+        emit EnterFeesUpdated(fund, enterFeesRate);
         fundFeesData[fund].enterFeesRate = enterFeesRate;
     }
 
@@ -455,6 +477,7 @@ contract FeesManager {
             revert FeesManager__InvalidFeesRate();
         }
 
+        emit ExitFeesUpdated(fund, exitFeesRate);
         fundFeesData[fund].exitFeesRate = exitFeesRate;
     }
 
@@ -464,7 +487,10 @@ contract FeesManager {
      */
     function resetHighWaterMark(address fund) external onlyRegistryOwner {
         Fund c = Fund(fund);
+        c.collectFees();
+
         FeesData storage feeData = fundFeesData[fund];
+
         uint256 totalAssets = c.totalAssets();
 
         // checks high-water mark reset conditions
@@ -478,7 +504,7 @@ contract FeesManager {
 
         // calculates the new high-water mark
         uint256 highWaterMarkPrice = PerformanceFeesLib._calcSharePrice(totalAssets, c.totalSupply());
-        if(highWaterMarkPrice > type(uint72).max) revert FeesManager__WaterMarkPriceOverflow();
+        if (highWaterMarkPrice > type(uint72).max) revert FeesManager__WaterMarkPriceOverflow();
 
         // updates the high-water mark state
         feeData.highWaterMarkPrice = uint72(highWaterMarkPrice);

@@ -7,10 +7,10 @@ import { PositionlessAdaptor } from "src/modules/adaptors/PositionlessAdaptor.so
 import { BaseAdaptor } from "src/modules/adaptors/BaseAdaptor.sol";
 
 /**
- * @title Aggregator Base Adaptor Contract
+ * @title Aggregator Adaptor Contract
  * @notice Allows Funds to swap with aggregators.
  */
-abstract contract AggregatorBaseAdaptor is PositionlessAdaptor {
+contract AggregatorAdaptor is PositionlessAdaptor {
     using SafeTransferLib for ERC20;
     using Math for uint256;
     using Address for address;
@@ -25,9 +25,25 @@ abstract contract AggregatorBaseAdaptor is PositionlessAdaptor {
     //====================================================================
 
     /**
+     * @notice Emitted when an aggregator's spender is not set in the Registry (not approved)
+     */
+    error AggregatorAdaptor__AggregatorSpenderNotSet(address aggregator);
+
+    /**
+     * @notice Emitted when an aggregator's spender is not set in the Registry (not approved)
+     */
+    error AggregatorAdaptor__MinimumAmountOutNotMet();
+
+    /**
      * @notice The erc20 adaptor contract used by the funds on the current network.
      */
     bytes32 public immutable erc20AdaptorIdentifier;
+
+    /// @dev Represents 100% in basis points, where 1 basis point is 1/100th of 1%. Used for slippage
+    uint256 internal constant _BPS_ONE_HUNDRED_PER_CENT = 1e4;
+
+    /// @dev Default slippage tolerance for swaps.
+    uint32 internal constant _DEFAULT_SLIPPAGE = 0.96e4; // 4%
 
     constructor(address _erc20Adaptor) {
         erc20AdaptorIdentifier = BaseAdaptor(_erc20Adaptor).identifier();
@@ -41,36 +57,49 @@ abstract contract AggregatorBaseAdaptor is PositionlessAdaptor {
      * of the adaptor is more difficult.
      */
     function identifier() public pure virtual override returns (bytes32) {
-        return keccak256("Aggregator Base Adaptor V 1.0");
+        return keccak256("Aggregator Adaptor V 1.0");
     }
 
     //============================================ Strategist Functions ===========================================
 
     /**
      * @notice Allows strategists to make ERC20 swaps using an aggregator.
+     * @param aggregator The aggregator's address
+     * @param tokenIn The sold token
+     * @param tokenOut The bought token
+     * @param maxAmountIn The maximum amount sold
+     * @param minAmountOut The minimum amount bought
+     * @param customSlippage The custom slippage allowed with the trade
+     * @param swapCallData The calldata used to trade via the aggregator
      */
-    function _swapWithAggregator(
+    function swapWithAggregator(
+        address aggregator,
         ERC20 tokenIn,
         ERC20 tokenOut,
-        uint256 amount,
-        address target,
-        address spender,
+        uint256 maxAmountIn,
+        uint256 minAmountOut,
         uint32 customSlippage,
         bytes memory swapCallData
-    ) internal {
+    ) external {
         _validateTokenOutIsUsed(address(tokenOut));
 
-        tokenIn.safeApprove(spender, amount);
+        address spender = Fund(address(this)).registry().aggregatorSpender(aggregator);
+
+        if (spender == address(0)) revert AggregatorAdaptor__AggregatorSpenderNotSet(aggregator);
+
+        tokenIn.safeApprove(spender, maxAmountIn);
 
         // Save token balances.
         uint256 tokenInBalance = tokenIn.balanceOf(address(this));
         uint256 tokenOutBalance = tokenOut.balanceOf(address(this));
 
         // Perform Swap.
-        target.functionCall(swapCallData);
+        aggregator.functionCall(swapCallData);
 
         uint256 tokenInAmountIn = tokenInBalance - tokenIn.balanceOf(address(this));
         uint256 tokenOutAmountOut = tokenOut.balanceOf(address(this)) - tokenOutBalance;
+
+        if (tokenOutAmountOut < minAmountOut) revert AggregatorAdaptor__MinimumAmountOutNotMet();
 
         (uint256 tokenInPriceInUSD, uint256 tokenOutPriceInUSD) = _getTokenPricesInUSD(tokenIn, tokenOut);
 
@@ -89,7 +118,8 @@ abstract contract AggregatorBaseAdaptor is PositionlessAdaptor {
 
             // check if the trade slippage is within the limit
             uint256 maxSlippage = customSlippage < slippage() ? slippage() : customSlippage;
-            if (valueOutInTokenIn < tokenInAmountIn.mulDivDown(maxSlippage, 1e4)) revert BaseAdaptor__Slippage();
+            if (valueOutInTokenIn < tokenInAmountIn.mulDivDown(maxSlippage, _BPS_ONE_HUNDRED_PER_CENT))
+                revert BaseAdaptor__Slippage();
 
             // check that the permitted volume per period was not surpassed
             uint256 swapVolumeInUSD = _getSwapValueInUSD(tokenInPriceInUSD, tokenInAmountIn, tokenInDecimals);
@@ -153,7 +183,11 @@ abstract contract AggregatorBaseAdaptor is PositionlessAdaptor {
     }
 
     // =============================================== Slippage ===============================================
+    /**
+     * @notice Slippage tolerance for swaps.
+     * @return slippage in basis points.
+     */
     function slippage() public pure virtual override returns (uint32) {
-        return 0.96e4;
+        return _DEFAULT_SLIPPAGE; // 4%
     }
 }

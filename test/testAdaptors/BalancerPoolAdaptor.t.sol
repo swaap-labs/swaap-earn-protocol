@@ -180,7 +180,7 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
             type(uint192).max,
             vault
         );
-        fund = FundWithBalancerFlashLoans(deployer.deployContract(fundName, creationCode, constructorArgs, 0));
+        fund = FundWithBalancerFlashLoans(deployer.deployContract(fundName, creationCode, constructorArgs));
 
         fund.addAdaptorToCatalogue(address(balancerPoolAdaptor));
         fund.addAdaptorToCatalogue(address(erc20Adaptor));
@@ -222,7 +222,7 @@ contract BalancerPoolAdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
             type(uint192).max,
             vault
         );
-        wethFund = FundWithBalancerFlashLoans(deployer.deployContract(fundName, creationCode, constructorArgs, 0));
+        wethFund = FundWithBalancerFlashLoans(deployer.deployContract(fundName, creationCode, constructorArgs));
 
         wethFund.addAdaptorToCatalogue(address(balancerPoolAdaptor));
         wethFund.addAdaptorToCatalogue(address(erc20Adaptor));

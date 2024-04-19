@@ -95,7 +95,7 @@ contract FundAaveV3Test is MainnetStarterTest, AdaptorHelperFunctions {
             address(pool)
         );
 
-        fund = FundWithAaveFlashLoans(deployer.deployContract(fundName, creationCode, constructorArgs, 0));
+        fund = FundWithAaveFlashLoans(deployer.deployContract(fundName, creationCode, constructorArgs));
 
         fund.addAdaptorToCatalogue(address(aaveATokenAdaptor));
         fund.addAdaptorToCatalogue(address(aaveDebtTokenAdaptor));
@@ -483,8 +483,8 @@ contract FundAaveV3Test is MainnetStarterTest, AdaptorHelperFunctions {
         fund.callOnAdaptor(data);
 
         // Remove dV3USDC and aV3USDC positions.
-        fund.removePosition(1, false);
-        fund.removePosition(0, true);
+        fund.removePosition(1, fund.creditPositions(1), false);
+        fund.removePosition(0, fund.debtPositions(0), true);
 
         // Deposit into the fund.
         uint256 assets = 10_000e6;
@@ -703,7 +703,7 @@ contract FundAaveV3Test is MainnetStarterTest, AdaptorHelperFunctions {
         fund.addPositionToCatalogue(aV3WBTCPosition);
         fund.addPosition(1, aV3WETHPosition, abi.encode(0), false);
         fund.addPosition(2, aV3WBTCPosition, abi.encode(0), false);
-        fund.removePosition(3, false);
+        fund.removePosition(3, fund.creditPositions(3), false);
 
         // Have whale join the fund with 1M USDC.
         uint256 assets = 1_000_000e6;

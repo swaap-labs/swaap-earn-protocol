@@ -52,7 +52,7 @@ contract FundWithAaveFlashLoans is Fund {
     error Fund__CallerNotAavePool();
 
     /**
-     * @notice Allows strategist to utilize Aave flashloans while rebalancing the fund.
+     * @notice Allows rebalancers to utilize Aave flashloans while rebalancing the fund.
      */
     function executeOperation(
         address[] calldata assets,

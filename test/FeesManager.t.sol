@@ -191,10 +191,11 @@ contract FeesManagerTest is MainnetStarterTest, AdaptorHelperFunctions {
         feesManager.setExitFees(address(fund), 0);
 
         vm.expectRevert(FeesManager.FeesManager__OnlyFundOwner.selector);
-        feesManager.setStrategistPlatformCut(address(fund), 0);
-
-        vm.expectRevert(FeesManager.FeesManager__OnlyFundOwner.selector);
         feesManager.setStrategistPayoutAddress(address(fund), address(this));
+
+        vm.prank(fundOwner);
+        vm.expectRevert(FeesManager.FeesManager__OnlyRegistryOwner.selector);
+        feesManager.setStrategistPlatformCut(address(fund), 0);
 
         vm.prank(fundOwner);
         vm.expectRevert(FeesManager.FeesManager__OnlyRegistryOwner.selector);
@@ -797,10 +798,19 @@ contract FeesManagerTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         // minting new shares should trigger fees.
         uint256 totalSupplyBeforeMint = fund.totalSupply();
+
+        uint256 previewDepositedAssets = fund.previewMint(sharesToMint);
         fund.mint(sharesToMint, address(this));
+
         uint256 mintedShares = fund.totalSupply() - totalSupplyBeforeMint;
 
         assertEq(mintedShares, sharesToMint, "Mint should mint the correct amount of shares when enter fees are on.");
+
+        assertEq(
+            previewDepositedAssets,
+            initUserAssetBalance - fund.asset().balanceOf(address(this)),
+            "Mint and previewMint should give the same result when enter fees are on."
+        );
 
         assertEq(
             fund.balanceOf(address(this)),
@@ -809,6 +819,12 @@ contract FeesManagerTest is MainnetStarterTest, AdaptorHelperFunctions {
         );
 
         assertEq(fund.balanceOf(address(feesManager)), 0, "Fees manager should not receive the enter fees.");
+
+        assertGt(
+            initUserAssetBalance - fund.asset().balanceOf(address(this)),
+            fund.balanceOf(address(feesManager)),
+            "User should deposit more assets after minting with enter fees."
+        );
 
         assertApproxEqAbs(
             initUserAssetBalance - fund.asset().balanceOf(address(this)),
@@ -839,7 +855,14 @@ contract FeesManagerTest is MainnetStarterTest, AdaptorHelperFunctions {
         deal(address(fund), address(this), 0);
 
         // deposit new shares should trigger fees.
+        uint256 previewMintedShares = fund.previewDeposit(assetsToDeposit);
         fund.deposit(assetsToDeposit, address(this));
+
+        assertEq(
+            previewMintedShares,
+            fund.balanceOf(address(this)),
+            "Deposit and previewDeposit should give the same result when enter fees are on."
+        );
 
         assertEq(
             fund.asset().balanceOf(address(this)), // if no balance is remaining, the deposit used the correct amount of assets
@@ -849,18 +872,47 @@ contract FeesManagerTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         assertEq(fund.balanceOf(address(feesManager)), 0, "Fees manager should not receive the enter fees.");
 
+        assertLt(
+            fund.balanceOf(address(this)),
+            mintedSharesWithNoFees,
+            "Deposit should mint less shares to the user when enter fees are set."
+        );
+
         assertApproxEqAbs(
             fund.balanceOf(address(this)),
-            (mintedSharesWithNoFees * (_ONE_HUNDRED_PERCENT - enterFees)) / _ONE_HUNDRED_PERCENT,
+            (mintedSharesWithNoFees * _ONE_HUNDRED_PERCENT) / (_ONE_HUNDRED_PERCENT + enterFees),
             1,
             "Deposit should mint the correct amount of shares to the user when enter fees are on."
         );
     }
 
-    function testExitFeesRedeemHook() external {
+    function testDepositAndMintSharePriceAreEqualWithEnterFeesOn() external {
+        FeesManager feesManager = FeesManager(fund.FEES_MANAGER());
+        uint256 _ONE_HUNDRED_PERCENT = 1e4;
+        uint16 enterFees = uint16(_ONE_HUNDRED_PERCENT / 100); // 1%
+
+        feesManager.setEnterFees(address(fund), enterFees); // 1%
+
+        uint256 assetsToDeposit = 1e18;
+        uint256 mintedSharesOnDeposit = fund.previewDeposit(assetsToDeposit);
+
+        uint256 sharesToMint = mintedSharesOnDeposit;
+        uint256 assetsEnteredOnMint = fund.previewMint(sharesToMint);
+
+        assertApproxEqAbs(
+            assetsEnteredOnMint,
+            assetsToDeposit,
+            1,
+            "Mint and deposit should have the same bought share price when etner fees are on."
+        );
+    }
+
+    function testExitFeesRedeemHook(uint16 exitFees) external {
         FeesManager feesManager = FeesManager(fund.FEES_MANAGER());
         uint256 _ONE_HUNDRED_PERCENT = 10000;
-        uint16 enterFees = uint16(_ONE_HUNDRED_PERCENT / 100); // 1%
+
+        // bound between 0.01% and 10%
+        exitFees = uint16(bound(exitFees, _ONE_HUNDRED_PERCENT / 10000, _ONE_HUNDRED_PERCENT / 10));
 
         uint256 initUserShares = initialShares;
         deal(address(fund), address(this), initUserShares);
@@ -870,7 +922,7 @@ contract FeesManagerTest is MainnetStarterTest, AdaptorHelperFunctions {
         uint256 sharesToRedeem = initUserShares / 3;
         uint256 assetsReceivedWithNoFees = fund.previewRedeem(sharesToRedeem);
 
-        feesManager.setExitFees(address(fund), enterFees); // 1%
+        feesManager.setExitFees(address(fund), exitFees);
 
         assertEq(
             fund.balanceOf(address(feesManager)),
@@ -883,8 +935,16 @@ contract FeesManagerTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         // minting new shares should trigger fees.
         uint256 totalSupplyBeforeRedeem = fund.totalSupply();
+        uint256 previewReceivedAssets = fund.previewRedeem(sharesToRedeem);
+
         fund.redeem(sharesToRedeem, address(this), address(this));
         uint256 burnedShares = totalSupplyBeforeRedeem - fund.totalSupply();
+
+        assertEq(
+            previewReceivedAssets,
+            fund.asset().balanceOf(address(this)),
+            "Redeem and previewRedeem should give the same result with exit fees on."
+        );
 
         assertEq(
             sharesToRedeem,
@@ -900,24 +960,32 @@ contract FeesManagerTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         assertEq(fund.balanceOf(address(feesManager)), 0, "Fees manager should not receive the exit fees.");
 
+        assertLt(
+            fund.asset().balanceOf(address(this)),
+            assetsReceivedWithNoFees,
+            "User should receive less assets after redeem with exit fees."
+        );
+
         assertApproxEqAbs(
             fund.asset().balanceOf(address(this)), // received assets
-            (assetsReceivedWithNoFees * (_ONE_HUNDRED_PERCENT - enterFees)) / _ONE_HUNDRED_PERCENT,
+            (assetsReceivedWithNoFees * (_ONE_HUNDRED_PERCENT - exitFees)) / _ONE_HUNDRED_PERCENT,
             1,
             "User should receive the correct amount of assets after redeem with exit fees."
         );
     }
 
-    function testExitFeesWithdrawHook() external {
+    function testExitFeesWithdrawHook(uint16 exitFees) external {
         FeesManager feesManager = FeesManager(fund.FEES_MANAGER());
         uint256 _ONE_HUNDRED_PERCENT = 1e4;
-        uint16 exitFees = uint16(_ONE_HUNDRED_PERCENT / 100); // 1%
+
+        // bound between 0.01% and 10%
+        exitFees = uint16(bound(exitFees, _ONE_HUNDRED_PERCENT / 10000, _ONE_HUNDRED_PERCENT / 10));
 
         uint256 assetsToWithdraw = initialAssets / 3;
         // giving shares ownership to the user
         deal(address(fund), address(this), initialShares);
 
-        feesManager.setExitFees(address(fund), exitFees); // 1%
+        feesManager.setExitFees(address(fund), exitFees);
 
         assertEq(
             fund.balanceOf(address(feesManager)),
@@ -926,7 +994,14 @@ contract FeesManagerTest is MainnetStarterTest, AdaptorHelperFunctions {
         );
 
         // withdraw assets should trigger fees.
+        uint256 previewBurnedShares = fund.previewWithdraw(assetsToWithdraw);
         fund.withdraw(assetsToWithdraw, address(this), address(this));
+
+        assertEq(
+            previewBurnedShares,
+            initialShares - fund.balanceOf(address(this)),
+            "Withdraw and previewWithdraw should give the same result when exit fees are on."
+        );
 
         assertEq(
             fund.asset().balanceOf(address(fund)),
@@ -942,12 +1017,51 @@ contract FeesManagerTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         assertEq(fund.balanceOf(address(feesManager)), 0, "Fees manager should not receive the exit fees.");
 
+        assertGt(
+            initialShares - fund.balanceOf(address(this)),
+            (assetsToWithdraw * initialShares) / initialAssets,
+            "User should burn more shares during withdraw when exit fees are set."
+        );
+
         assertApproxEqRel(
             initialShares - fund.balanceOf(address(this)),
-            (((assetsToWithdraw * initialShares) / initialAssets) * (_ONE_HUNDRED_PERCENT + exitFees)) /
-                _ONE_HUNDRED_PERCENT,
+            (assetsToWithdraw * initialShares * _ONE_HUNDRED_PERCENT) /
+                (initialAssets * (_ONE_HUNDRED_PERCENT - exitFees)),
             1e1,
             "Withdraw should burn the correct amount of shares to the user when exit fees are on."
+        );
+    }
+
+    function testWithdrawAndRedeemSharePriceAreEqualWithExitFeesOn(
+        uint256 receivedAssetsOnWithdraw,
+        uint16 exitFees
+    ) external {
+        FeesManager feesManager = FeesManager(fund.FEES_MANAGER());
+        uint256 _ONE_HUNDRED_PERCENT = 1e4;
+
+        // bound between 0.01% and 10%
+        exitFees = uint16(bound(exitFees, _ONE_HUNDRED_PERCENT / 10000, _ONE_HUNDRED_PERCENT / 10));
+        receivedAssetsOnWithdraw = bound(receivedAssetsOnWithdraw, 1, initialAssets);
+
+        feesManager.setExitFees(address(fund), exitFees);
+
+        uint256 burnedSharesOnWithdraw = fund.previewWithdraw(receivedAssetsOnWithdraw);
+
+        uint256 burnedSharesOnRedeem = burnedSharesOnWithdraw;
+        uint256 receivedAssetsOnRedeem = fund.previewRedeem(burnedSharesOnRedeem);
+
+        assertApproxEqAbs(
+            burnedSharesOnRedeem,
+            burnedSharesOnWithdraw,
+            1,
+            "Burned shares should be the same on redeem and withdraw when exit fees are on."
+        );
+
+        assertApproxEqAbs(
+            receivedAssetsOnRedeem,
+            receivedAssetsOnWithdraw,
+            1,
+            "Received assets should be the same on redeem and withdraw when exit fees are on."
         );
     }
 
@@ -1007,30 +1121,79 @@ contract FeesManagerTest is MainnetStarterTest, AdaptorHelperFunctions {
     function testHighWaterMarkReset() external {
         FeesManager feesManager = FeesManager(fund.FEES_MANAGER());
 
-        // is epected to work just fine as highWaterMarkPrice is not set at this stage
-        feesManager.resetHighWaterMark(address(fund));
+        uint256 performanceFeesRate = Math.WAD / 100; // 1%
 
-        // is epected to fail as we just updated the highWaterMarkPrice state
+        feesManager.setPerformanceFees(address(fund), performanceFeesRate);
+
+        uint256 prevHighWaterMarkPrice = feesManager.getFundFeesData(address(fund)).highWaterMarkPrice;
+
+        uint256 perfFactor = Math.WAD / 10; // 10% performance
+        deal(address(USDC), address(fund), (initialAssets * (Math.WAD + perfFactor)) / Math.WAD);
+
+        // is expected to fail as we just updated the highWaterMarkPrice state
         vm.expectRevert(FeesManager.FeesManager__HighWaterMarkNotYetExpired.selector);
         feesManager.resetHighWaterMark(address(fund));
 
-        _moveForwardAndUpdateOracle(31 days);
+        _moveForwardAndUpdateOracle(91 days);
 
-        // is epected to work just fine as we passed HIGH_WATERMARK_RESET_INTERVAL
+        // is expected to work just fine as enough time has passed
+        feesManager.resetHighWaterMark(address(fund));
+        assertEq(
+            feesManager.getFundFeesData(address(fund)).highWaterMarkPrice,
+            ((prevHighWaterMarkPrice * (Math.WAD + perfFactor - (perfFactor * performanceFeesRate) / Math.WAD)) /
+                Math.WAD),
+            "Water mark price should reset after taking the fees into account."
+        );
+
+        assertEq(
+            feesManager.getFundFeesData(address(fund)).highWaterMarkResetTime,
+            block.timestamp,
+            "Water mark reset time should be updated."
+        );
+
+        perfFactor = Math.WAD; // 100% performance
+        deal(address(USDC), address(fund), (fund.totalAssets() * (Math.WAD + perfFactor)) / Math.WAD);
+        prevHighWaterMarkPrice = feesManager.getFundFeesData(address(fund)).highWaterMarkPrice;
+
+        _moveForwardAndUpdateOracle(1 days);
+
+        // is expected to work just fine as total assets increased significantly
+        feesManager.resetHighWaterMark(address(fund));
+        assertApproxEqAbs(
+            feesManager.getFundFeesData(address(fund)).highWaterMarkPrice,
+            ((prevHighWaterMarkPrice * (Math.WAD + perfFactor - (perfFactor * performanceFeesRate) / Math.WAD)) /
+                Math.WAD),
+            1,
+            "Water mark price should reset after taking the fees into account."
+        );
+
+        assertEq(
+            feesManager.getFundFeesData(address(fund)).highWaterMarkResetTime,
+            block.timestamp,
+            "Water mark reset time should be updated."
+        );
+
+        // is expected to fail as we just updated the highWaterMarkPrice state
+        vm.expectRevert(FeesManager.FeesManager__HighWaterMarkNotYetExpired.selector);
         feesManager.resetHighWaterMark(address(fund));
 
-        // is epected to fail as we just updated the highWaterMarkPrice state
+        _moveForwardAndUpdateOracle(91 days);
+
+        // is expected to work just fine as we passed HIGH_WATERMARK_RESET_INTERVAL
+        feesManager.resetHighWaterMark(address(fund));
+
+        // is expected to fail as we just updated the highWaterMarkPrice state
         vm.expectRevert(FeesManager.FeesManager__HighWaterMarkNotYetExpired.selector);
         feesManager.resetHighWaterMark(address(fund));
 
         deal(address(USDC), address(fund), (fund.totalAssets() * 2), true);
-        // is epected to work just fine as we passed HIGH_WATERMARK_RESET_INTERVAL
+        // is expected to work just fine as we passed HIGH_WATERMARK_RESET_INTERVAL
         feesManager.resetHighWaterMark(address(fund));
 
         vm.expectRevert(FeesManager.FeesManager__HighWaterMarkNotYetExpired.selector);
         feesManager.resetHighWaterMark(address(fund));
 
-        // is epected to fail as we just updated the highWaterMarkPrice state
+        // is expected to fail as we just updated the highWaterMarkPrice state
         vm.expectRevert(FeesManager.FeesManager__HighWaterMarkNotYetExpired.selector);
         feesManager.resetHighWaterMark(address(fund));
     }

@@ -181,7 +181,7 @@ contract RegistryTest is MainnetStarterTest, AdaptorHelperFunctions {
         // doug still tries to claim ownership.
         vm.warp(block.timestamp + registry.TRANSITION_PERIOD() / 2);
         vm.startPrank(doug);
-        vm.expectRevert(bytes(abi.encodeWithSelector(Registry.Registry__TransitionNotPending.selector)));
+        vm.expectRevert(bytes(abi.encodeWithSelector(Registry.Registry__OnlyCallableByPendingOwner.selector)));
         registry.completeTransition();
         vm.stopPrank();
 
@@ -216,7 +216,7 @@ contract RegistryTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         // Doug tries completing it.
         vm.startPrank(doug);
-        vm.expectRevert(bytes(abi.encodeWithSelector(Registry.Registry__TransitionNotPending.selector)));
+        vm.expectRevert(bytes(abi.encodeWithSelector(Registry.Registry__OnlyCallableByPendingOwner.selector)));
         registry.completeTransition();
         vm.stopPrank();
     }

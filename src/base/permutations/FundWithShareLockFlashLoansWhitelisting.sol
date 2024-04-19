@@ -16,12 +16,11 @@ contract FundWithShareLockFlashLoansWhitelisting is FundWithShareLockPeriod, EIP
     bytes32 public constant WHITELIST_TYPEHASH =
         keccak256("Whitelist(address sender,address receiver,uint256 signedAt)");
 
-    /**
-     * @notice The Balancer Vault contract on current network.
-     * @dev For mainnet use 0xBA12222222228d8Ba445958a75a0704d566BF2C8.
-     */
-    address public immutable balancerVault;
+    /// @notice Flag checks if whitelisting is enabled.
     bool public isWhitelistEnabled;
+
+    /// @notice Emitted when the whitelisting requirement to enter is enabled or disabled.
+    event WhitelistingChanged(bool isWhitelistEnabled);
 
     constructor(
         address _owner,
@@ -32,8 +31,7 @@ contract FundWithShareLockFlashLoansWhitelisting is FundWithShareLockPeriod, EIP
         uint32 _holdingPosition,
         bytes memory _holdingPositionConfig,
         uint256 _initialDeposit,
-        uint192 _shareSupplyCap,
-        address _balancerVault
+        uint192 _shareSupplyCap
     )
         FundWithShareLockPeriod(
             _owner,
@@ -46,26 +44,26 @@ contract FundWithShareLockFlashLoansWhitelisting is FundWithShareLockPeriod, EIP
             _initialDeposit,
             _shareSupplyCap
         )
-        EIP712("FundWithShareLockFlashLoansWhitelisting", "1.0")
-    {
-        balancerVault = _balancerVault;
-    }
+        EIP712(_name, "1.0")
+    {}
 
-    // ========================================= Balancer Flash Loan Support =========================================
+    // ========================================= Flash Loan Support =========================================
     /**
      * @notice External contract attempted to initiate a flash loan.
      */
     error Fund__ExternalInitiator();
 
     /**
-     * @notice receiveFlashLoan was not called by Balancer Vault.
+     * @notice receiveFlashLoan was not called by an authorized source.
      */
-    error Fund__CallerNotBalancerVault();
+    error Fund__CallerNotAuthorizedForFlashLoan();
 
     /**
-     * @notice Allows strategist to utilize balancer flashloans while rebalancing the fund.
-     * @dev Balancer does not provide an initiator, so instead insure we are in the `callOnAdaptor` context
-     *      by reverting if `blockExternalReceiver` is false.
+     * @notice Allows rebalancers to utilize flashloans while rebalancing the fund.
+     * @param tokens The tokens being flash loaned.
+     * @param amounts The amounts of tokens being flash loaned.
+     * @param feeAmounts The fees for the flash loan.
+     * @param userData The data for the flash loan.
      */
     function receiveFlashLoan(
         IERC20[] calldata tokens,
@@ -73,7 +71,7 @@ contract FundWithShareLockFlashLoansWhitelisting is FundWithShareLockPeriod, EIP
         uint256[] calldata feeAmounts,
         bytes calldata userData
     ) external {
-        if (msg.sender != balancerVault) revert Fund__CallerNotBalancerVault();
+        if (!registry.approvedFlashLoanSource(msg.sender)) revert Fund__CallerNotAuthorizedForFlashLoan();
         if (!blockExternalReceiver) revert Fund__ExternalInitiator();
 
         AdaptorCall[] memory data = abi.decode(userData, (AdaptorCall[]));
@@ -83,7 +81,7 @@ contract FundWithShareLockFlashLoansWhitelisting is FundWithShareLockPeriod, EIP
 
         // Approve pool to repay all debt.
         for (uint256 i; i < amounts.length; ++i) {
-            ERC20(address(tokens[i])).safeTransfer(balancerVault, (amounts[i] + feeAmounts[i]));
+            ERC20(address(tokens[i])).safeTransfer(msg.sender, (amounts[i] + feeAmounts[i]));
         }
     }
 
@@ -187,6 +185,7 @@ contract FundWithShareLockFlashLoansWhitelisting is FundWithShareLockPeriod, EIP
      */
     function enableWhitelist() external onlyOwner {
         isWhitelistEnabled = true;
+        emit WhitelistingChanged(true);
     }
 
     /**
@@ -194,5 +193,6 @@ contract FundWithShareLockFlashLoansWhitelisting is FundWithShareLockPeriod, EIP
      */
     function disableWhitelist() external onlyOwner {
         isWhitelistEnabled = false;
+        emit WhitelistingChanged(false);
     }
 }

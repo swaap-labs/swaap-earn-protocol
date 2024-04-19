@@ -30,8 +30,7 @@ contract Fund is ERC4626, Ownable {
 
     /**
      * @notice The maximum amount of shares that can be in circulation.
-     * @dev Can be decreased by the strategist.
-     * @dev Can be increased by Swaap Governance.
+     * @dev Can be increase or decreased by Fund's Owner.
      */
     uint192 public shareSupplyCap;
 
@@ -46,7 +45,7 @@ contract Fund is ERC4626, Ownable {
     bool public isShutdown;
 
     /**
-     * @notice This bool is used to stop strategists from abusing Base Adaptor functions(deposit/withdraw).
+     * @notice This bool is used to stop rebalancers from abusing Base Adaptor functions(deposit/withdraw).
      */
     bool public blockExternalReceiver;
 
@@ -94,6 +93,8 @@ contract Fund is ERC4626, Ownable {
     }
 
     // ========================================= PRICE ROUTER CACHE =========================================
+    /// @dev Represents 100% in basis points, where 1 basis point is 1/100th of 1%.
+    uint16 internal constant _BPS_ONE_HUNDRED_PER_CENT = 1e4;
 
     /**
      * @notice Cached price router contract.
@@ -102,7 +103,7 @@ contract Fund is ERC4626, Ownable {
     PriceRouter public priceRouter;
 
     /**
-     * @notice Updates the fund to use the lastest price router in the registry.
+     * @notice Updates the fund to use the latest price router in the registry.
      * @param checkTotalAssets If true totalAssets is checked before and after updating the price router,
      *        and is verified to be withing a +- 5% envelope.
      *        If false totalAssets is only called after updating the price router.]
@@ -112,7 +113,7 @@ contract Fund is ERC4626, Ownable {
      * @param expectedPriceRouter The registry price router differed from the expected price router.
      * @dev `allowableRange` reverts from arithmetic underflow if it is greater than 10_000, this is
      *      desired behavior.
-     * @dev Callable by Swaap Governance.
+     * @dev Callable by the Fund's owner.
      */
     function cachePriceRouter(
         bool checkTotalAssets,
@@ -124,17 +125,17 @@ contract Fund is ERC4626, Ownable {
 
         if (checkTotalAssets) {
             uint256 assetsBefore = totalAssets();
-            minAssets = assetsBefore.mulDivDown(1e4 - allowableRange, 1e4);
-            maxAssets = assetsBefore.mulDivDown(1e4 + allowableRange, 1e4);
+            minAssets = assetsBefore.mulDivDown(_BPS_ONE_HUNDRED_PER_CENT - allowableRange, _BPS_ONE_HUNDRED_PER_CENT);
+            maxAssets = assetsBefore.mulDivDown(_BPS_ONE_HUNDRED_PER_CENT + allowableRange, _BPS_ONE_HUNDRED_PER_CENT);
         }
 
         // Make sure expected price router is equal to price router grabbed from registry.
         _checkRegistryAddressAgainstExpected(_PRICE_ROUTER_REGISTRY_SLOT, expectedPriceRouter);
 
         priceRouter = PriceRouter(expectedPriceRouter);
-        uint256 assetsAfter = totalAssets();
 
         if (checkTotalAssets) {
+            uint256 assetsAfter = totalAssets();
             if (assetsAfter < minAssets || assetsAfter > maxAssets)
                 revert Fund__TotalAssetDeviatedOutsideRange(assetsAfter, minAssets, maxAssets);
         }
@@ -166,12 +167,12 @@ contract Fund is ERC4626, Ownable {
     event PositionSwapped(uint32 newPosition1, uint32 newPosition2, uint256 index1, uint256 index2);
 
     /**
-     * @notice Emitted when Governance adds/removes a position to/from the funds catalogue.
+     * @notice Emitted when owner adds/removes a position to/from the funds catalogue.
      */
     event PositionCatalogueAltered(uint32 positionId, bool inCatalogue);
 
     /**
-     * @notice Emitted when Governance adds/removes an adaptor to/from the funds catalogue.
+     * @notice Emitted when owner adds/removes an adaptor to/from the funds catalogue.
      */
     event AdaptorCatalogueAltered(address adaptor, bool inCatalogue);
 
@@ -225,6 +226,11 @@ contract Fund is ERC4626, Ownable {
     error Fund__RemovingHoldingPosition();
 
     /**
+     * @notice Attempted to remove an index with an unexpected positionId.
+     */
+    error Fund__WrongPositionId();
+
+    /**
      * @notice Attempted to add an invalid holding position.
      * @param positionId the id of the invalid position.
      */
@@ -270,13 +276,13 @@ contract Fund is ERC4626, Ownable {
     }
 
     /**
-     * @notice Maximum amount of positions a fund can have in it's credit/debt arrays.
+     * @notice Maximum amount of positions a fund can have in its credit/debt arrays.
      */
     uint256 internal constant _MAX_POSITIONS = 32;
 
     /**
      * @notice Allows owner to change the holding position.
-     * @dev Callable by Swaap Strategist.
+     * @dev Callable by the Fund's owner.
      */
     function setHoldingPosition(uint32 positionId) public onlyOwner {
         if (!isPositionUsed[positionId]) revert Fund__PositionNotUsed(positionId);
@@ -286,18 +292,18 @@ contract Fund is ERC4626, Ownable {
     }
 
     /**
-     * @notice Positions the strategist is approved to use without any governance intervention.
+     * @notice Positions the rebalancers can use.
      */
     mapping(uint32 => bool) public positionCatalogue;
 
     /**
-     * @notice Adaptors the strategist is approved to use without any governance intervention.
+     * @notice Adaptors the rebalancers can use.
      */
     mapping(address => bool) public adaptorCatalogue;
 
     /**
-     * @notice Allows Governance to add positions to this fund's catalogue.
-     * @dev Callable by Swaap Governance.
+     * @notice Allows the Owner to add positions to this fund's catalogue.
+     * @dev Callable by the Fund's owner.
      */
     function addPositionToCatalogue(uint32 positionId) public onlyOwner {
         // Make sure position is not paused and is trusted.
@@ -307,8 +313,8 @@ contract Fund is ERC4626, Ownable {
     }
 
     /**
-     * @notice Allows Governance to remove positions from this fund's catalogue.
-     * @dev Callable by Swaap Strategist.
+     * @notice Allows owner to remove positions from this fund's catalogue.
+     * @dev Callable by the Fund's owner.
      */
     function removePositionFromCatalogue(uint32 positionId) external onlyOwner {
         positionCatalogue[positionId] = false;
@@ -316,8 +322,8 @@ contract Fund is ERC4626, Ownable {
     }
 
     /**
-     * @notice Allows Governance to add adaptors to this fund's catalogue.
-     * @dev Callable by Swaap Governance.
+     * @notice Allows owner to add adaptors to this fund's catalogue.
+     * @dev Callable by the Fund's owner.
      */
     function addAdaptorToCatalogue(address adaptor) external onlyOwner {
         // Make sure adaptor is not paused and is trusted.
@@ -327,8 +333,8 @@ contract Fund is ERC4626, Ownable {
     }
 
     /**
-     * @notice Allows Governance to remove adaptors from this fund's catalogue.
-     * @dev Callable by Swaap Strategist.
+     * @notice Allows owner to remove adaptors from this fund's catalogue.
+     * @dev Callable by the Fund's owner.
      */
     function removeAdaptorFromCatalogue(address adaptor) external onlyOwner {
         adaptorCatalogue[adaptor] = false;
@@ -340,7 +346,7 @@ contract Fund is ERC4626, Ownable {
      * @param index index at which to insert the position
      * @param positionId id of position to add
      * @param configurationData data used to configure how the position behaves
-     * @dev Callable by Swaap Strategist.
+     * @dev Callable by the Fund's owner.
      */
     function addPosition(
         uint32 index,
@@ -387,13 +393,14 @@ contract Fund is ERC4626, Ownable {
 
     /**
      * @notice Remove the position at a given index from the list of positions used by the fund.
-     * @dev Called by strategist.
+     * @dev Callable by the Fund's owner.
      * @param index index at which to remove the position
-     * @dev Callable by Swaap Strategist.
      */
-    function removePosition(uint32 index, bool inDebtArray) external onlyOwner {
+    function removePosition(uint32 index, uint32 expectedPositionId, bool inDebtArray) external onlyOwner {
         // Get position being removed.
         uint32 positionId = inDebtArray ? debtPositions[index] : creditPositions[index];
+
+        if (expectedPositionId != positionId) revert Fund__WrongPositionId();
 
         // Only remove position if it is empty, and if it is not the holding position.
         uint256 positionBalance = _balanceOf(positionId);
@@ -403,8 +410,8 @@ contract Fund is ERC4626, Ownable {
     }
 
     /**
-     * @notice Allows Swaap Governance to forceably remove a position from the Fund without checking its balance is zero.
-     * @dev Callable by Swaap Governance.
+     * @notice Allows Fund's owner to forceably remove a position from the Fund without checking its balance is zero.
+     * @dev Callable by the Fund's owner.
      */
     function forcePositionOut(uint32 index, uint32 positionId, bool inDebtArray) external onlyOwner {
         // Get position being removed.
@@ -440,7 +447,7 @@ contract Fund is ERC4626, Ownable {
      * @param index1 index of first position to swap
      * @param index2 index of second position to swap
      * @param inDebtArray bool indicating to switch positions in the debt array, or the credit array.
-     * @dev Callable by Swaap Strategist.
+     * @dev Callable by the Fund's owner.
      */
     function swapPositions(uint32 index1, uint32 index2, bool inDebtArray) external onlyOwner {
         // Get the new positions that will be at each index.
@@ -496,7 +503,7 @@ contract Fund is ERC4626, Ownable {
     }
 
     /**
-     * @notice Pauses all user entry/exits, and strategist rebalances.
+     * @notice Pauses all user entry/exits, and rebalances.
      */
     function _whenNotPaused() internal view {
         if (isPaused()) revert Fund__Paused();
@@ -511,7 +518,7 @@ contract Fund is ERC4626, Ownable {
 
     /**
      * @notice Shutdown the fund. Used in an emergency or if the fund has been deprecated.
-     * @dev Callable by Swaap Strategist.
+     * @dev Callable by the Fund's owner.
      */
     function initiateShutdown() external onlyOwner {
         _whenNotShutdown();
@@ -522,7 +529,7 @@ contract Fund is ERC4626, Ownable {
 
     /**
      * @notice Restart the fund.
-     * @dev Callable by Swaap Strategist.
+     * @dev Callable by the Fund's owner.
      */
     function liftShutdown() external onlyOwner {
         if (!isShutdown) revert Fund__ContractNotShutdown();
@@ -534,7 +541,7 @@ contract Fund is ERC4626, Ownable {
     // =========================================== CONSTRUCTOR ===========================================
 
     /**
-     * @notice Delay between the creation of the fund and the end of the pause mode the current pause state.
+     * @notice Delay between the creation of the fund and the end of the pause period.
      */
     uint256 internal constant _DELAY_UNTIL_END_PAUSE = 30 days * 9; // 9 months
 
@@ -682,17 +689,9 @@ contract Fund is ERC4626, Ownable {
      */
     function deposit(uint256 assets, address receiver) public virtual override nonReentrant returns (uint256 shares) {
         // the total supply is the equivalent of total shares after applying the performance and management fees
-        (
-            uint16 _enterFeesRate,
-            uint256 _totalAssets,
-            uint256 _totalSupply
-        ) = _collectFeesAndGetTotalAssetsAndTotalSupply(true);
+        (uint256 _totalAssets, uint256 _totalSupply) = _collectFeesAndGetTotalAssetsAndTotalSupply(true);
 
-        // Check for rounding error since we round down in previewDeposit.
         if ((shares = _convertToShares(assets, _totalAssets, _totalSupply)) == 0) revert Fund__ZeroShares();
-
-        // apply enter fees
-        shares = _applyEnterOrExitFees(_enterFeesRate, shares, false);
 
         if ((_totalSupply + shares) > shareSupplyCap) revert Fund__ShareSupplyCapExceeded();
 
@@ -707,17 +706,10 @@ contract Fund is ERC4626, Ownable {
      */
     function mint(uint256 shares, address receiver) public virtual override nonReentrant returns (uint256 assets) {
         // the total supply is the equivalent of total shares after applying the performance and management fees
-        (
-            uint16 _enterFeesRate,
-            uint256 _totalAssets,
-            uint256 _totalSupply
-        ) = _collectFeesAndGetTotalAssetsAndTotalSupply(true);
+        (uint256 _totalAssets, uint256 _totalSupply) = _collectFeesAndGetTotalAssetsAndTotalSupply(true);
 
         // previewMint rounds up, but initial mint could return zero assets, so check for rounding error.
         if ((assets = _previewMint(shares, _totalAssets, _totalSupply)) == 0) revert Fund__ZeroAssets();
-
-        // apply enter fees
-        assets = _applyEnterOrExitFees(_enterFeesRate, assets, true);
 
         if ((_totalSupply + shares) > shareSupplyCap) revert Fund__ShareSupplyCapExceeded();
 
@@ -764,17 +756,10 @@ contract Fund is ERC4626, Ownable {
         address owner
     ) public override nonReentrant returns (uint256 shares) {
         // the total supply is the equivalent of total shares after applying the performance and management fees
-        (
-            uint16 _exitFeesRate,
-            uint256 _totalAssets,
-            uint256 _totalSupply
-        ) = _collectFeesAndGetTotalAssetsAndTotalSupply(false);
+        (uint256 _totalAssets, uint256 _totalSupply) = _collectFeesAndGetTotalAssetsAndTotalSupply(false);
 
         // No need to check for rounding error, `previewWithdraw` rounds up.
         shares = _previewWithdraw(assets, _totalAssets, _totalSupply);
-
-        // apply exit fees
-        shares = _applyEnterOrExitFees(_exitFeesRate, shares, true);
 
         _exit(assets, shares, receiver, owner);
     }
@@ -798,44 +783,37 @@ contract Fund is ERC4626, Ownable {
         address owner
     ) public override nonReentrant returns (uint256 assets) {
         // the total supply is the equivalent of total shares after applying the performance and management fees
-        (
-            uint16 _exitFeesRate,
-            uint256 _totalAssets,
-            uint256 _totalSupply
-        ) = _collectFeesAndGetTotalAssetsAndTotalSupply(false);
+        (uint256 _totalAssets, uint256 _totalSupply) = _collectFeesAndGetTotalAssetsAndTotalSupply(false);
 
-        // Check for rounding error since we round down in previewRedeem.
         if ((assets = _convertToAssets(shares, _totalAssets, _totalSupply)) == 0) revert Fund__ZeroAssets();
-
-        // apply exit fees
-        assets = _applyEnterOrExitFees(_exitFeesRate, assets, false);
 
         _exit(assets, shares, receiver, owner);
     }
 
     /**
      * @notice Called at the beginning of `previewDeposit`, `previewMint`, `previewWithdraw` and `previewRedeem`.
-     * @return _enterOrExitFees the enter or exit fees that should be applied to the operation
-     * @return _totalAssets the total assets in the fund
-     * @return _totalSupply the total supply of shares after fees if any
+     * @return _totalAssets the virtual total assets in the fund after fees if any
+     * @return _totalSupply the virtual total supply of shares after fees if any
      */
     function _previewTotalAssetsAndTotalSupplyAfterFees(
         bool _isEntering
-    ) internal view virtual returns (uint16, uint256, uint256) {
+    ) internal view virtual returns (uint256, uint256) {
         uint256 _totalAssets = _calculateTotalAssets();
         uint256 _totalSupply = totalSupply;
 
         if (isShutdown) {
-            return (0, _totalAssets, _totalSupply);
+            return (_totalAssets, _totalSupply);
         }
 
-        (uint16 _enterOrExitFees, uint256 feesAsShares) = FEES_MANAGER.previewApplyFeesBeforeJoinExit(
+        (uint16 _enterOrExitFeesRate, uint256 _feesAsShares) = FEES_MANAGER.previewApplyFeesBeforeJoinExit(
             _totalAssets,
             _totalSupply,
             _isEntering
         );
 
-        return (_enterOrExitFees, _totalAssets, _totalSupply + feesAsShares);
+        _totalAssets = _applyEnterOrExitFees(_totalAssets, _enterOrExitFeesRate, _isEntering);
+
+        return (_totalAssets, _totalSupply + _feesAsShares);
     }
 
     /**
@@ -850,56 +828,50 @@ contract Fund is ERC4626, Ownable {
     /**
      * @notice Called at the beginning of `deposit`, `mint`, `withdraw` and `redeem`.
      * @dev This function is called before the fund applies fees.
-     * @return _enterOrExitFeesRate the enter or exit fees rate that should be applied to the operation
-     * @return _totalAssets the total assets in the fund
-     * @return _totalSupply the total supply of shares after fees if any
+     * @return _totalAssets the virtual total assets in the fund after enter or exit fees
+     * @return _totalSupply the total supply of shares after management and performance fees
      */
-    function _collectFeesAndGetTotalAssetsAndTotalSupply(
-        bool _isEntering
-    ) internal virtual returns (uint16, uint256, uint256) {
+    function _collectFeesAndGetTotalAssetsAndTotalSupply(bool _isEntering) internal virtual returns (uint256, uint256) {
         uint256 _totalAssets = _calculateTotalAssets();
         uint256 _totalSupply = totalSupply;
 
         if (isShutdown) {
-            return (0, _totalAssets, _totalSupply);
+            return (_totalAssets, _totalSupply);
         }
 
-        try FEES_MANAGER.applyFeesBeforeJoinExit(
-            _totalAssets,
-            _totalSupply,
-            _isEntering
-        ) returns(uint16 _enterOrExitFeesRate, uint256 _feesAsShares) {
-            
+        try FEES_MANAGER.applyFeesBeforeJoinExit(_totalAssets, _totalSupply, _isEntering) returns (
+            uint16 _enterOrExitFeesRate,
+            uint256 _feesAsShares
+        ) {
             if (_feesAsShares > 0) {
                 _mint(address(FEES_MANAGER), _feesAsShares);
                 _totalSupply += _feesAsShares;
             }
 
-            return (_enterOrExitFeesRate, _totalAssets, _totalSupply);
+            _totalAssets = _applyEnterOrExitFees(_totalAssets, _enterOrExitFeesRate, _isEntering);
 
+            return (_totalAssets, _totalSupply);
         } catch {
             // If fees fail to apply, return with 0 fees. (it should not happen in normal cases)
-            return(0, _totalAssets, _totalSupply);
+            return (_totalAssets, _totalSupply);
         }
-
     }
 
-    uint16 internal constant _BPS_ONE_HUNDRED_PER_CENT = 1e4;
-
+    /// @return virtualTotalAssets the virtual total assets after applying enter or exit fees
     function _applyEnterOrExitFees(
-        uint16 enterOrExitFeeRate,
-        uint256 assetsOrShares,
-        bool increase
+        uint256 _totalAssets,
+        uint16 _enterOrExitFeeRate,
+        bool _isEntering
     ) internal pure returns (uint256) {
-        if (enterOrExitFeeRate == 0) {
-            return assetsOrShares;
+        if (_enterOrExitFeeRate == 0) {
+            return _totalAssets;
         }
 
-        if (increase) {
-            return assetsOrShares.mulDivUp(_BPS_ONE_HUNDRED_PER_CENT + enterOrExitFeeRate, _BPS_ONE_HUNDRED_PER_CENT);
+        if (_isEntering) {
+            return _totalAssets.mulDivUp(_BPS_ONE_HUNDRED_PER_CENT + _enterOrExitFeeRate, _BPS_ONE_HUNDRED_PER_CENT);
         }
 
-        return assetsOrShares.mulDivDown(_BPS_ONE_HUNDRED_PER_CENT - enterOrExitFeeRate, _BPS_ONE_HUNDRED_PER_CENT);
+        return _totalAssets.mulDivDown(_BPS_ONE_HUNDRED_PER_CENT - _enterOrExitFeeRate, _BPS_ONE_HUNDRED_PER_CENT);
     }
 
     /**
@@ -1077,13 +1049,8 @@ contract Fund is ERC4626, Ownable {
      * @return assets that will be deposited
      */
     function previewMint(uint256 shares) public view override returns (uint256 assets) {
-        (
-            uint16 _enterFeesRate,
-            uint256 _totalAssets,
-            uint256 _totalSupply
-        ) = _previewTotalAssetsAndTotalSupplyAfterFees(true);
+        (uint256 _totalAssets, uint256 _totalSupply) = _previewTotalAssetsAndTotalSupplyAfterFees(true);
         assets = _previewMint(shares, _totalAssets, _totalSupply);
-        assets = _applyEnterOrExitFees(_enterFeesRate, assets, true);
     }
 
     /**
@@ -1092,11 +1059,8 @@ contract Fund is ERC4626, Ownable {
      * @return shares that will be redeemed
      */
     function previewWithdraw(uint256 assets) public view override returns (uint256 shares) {
-        (uint16 _exitFeesRate, uint256 _totalAssets, uint256 _totalSupply) = _previewTotalAssetsAndTotalSupplyAfterFees(
-            false
-        );
+        (uint256 _totalAssets, uint256 _totalSupply) = _previewTotalAssetsAndTotalSupplyAfterFees(false);
         shares = _previewWithdraw(assets, _totalAssets, _totalSupply);
-        shares = _applyEnterOrExitFees(_exitFeesRate, shares, true);
     }
 
     /**
@@ -1105,13 +1069,8 @@ contract Fund is ERC4626, Ownable {
      * @return shares that will be minted
      */
     function previewDeposit(uint256 assets) public view override returns (uint256 shares) {
-        (
-            uint16 _enterFeesRate,
-            uint256 _totalAssets,
-            uint256 _totalSupply
-        ) = _previewTotalAssetsAndTotalSupplyAfterFees(true);
+        (uint256 _totalAssets, uint256 _totalSupply) = _previewTotalAssetsAndTotalSupplyAfterFees(true);
         shares = _convertToShares(assets, _totalAssets, _totalSupply);
-        shares = _applyEnterOrExitFees(_enterFeesRate, shares, false);
     }
 
     /**
@@ -1120,11 +1079,8 @@ contract Fund is ERC4626, Ownable {
      * @return assets that will be returned
      */
     function previewRedeem(uint256 shares) public view override returns (uint256 assets) {
-        (uint16 _exitFeesRate, uint256 _totalAssets, uint256 _totalSupply) = _previewTotalAssetsAndTotalSupplyAfterFees(
-            false
-        );
+        (uint256 _totalAssets, uint256 _totalSupply) = _previewTotalAssetsAndTotalSupplyAfterFees(false);
         assets = _convertToAssets(shares, _totalAssets, _totalSupply);
-        assets = _applyEnterOrExitFees(_exitFeesRate, assets, false);
     }
 
     /**
@@ -1136,12 +1092,9 @@ contract Fund is ERC4626, Ownable {
     function _findMax(address owner, bool inShares) internal view virtual returns (uint256 maxOut) {
         _whenNotPaused();
         // Get amount of assets to withdraw.
-        (uint16 _exitFees, uint256 _totalAssets, uint256 _totalSupply) = _previewTotalAssetsAndTotalSupplyAfterFees(
-            false
-        );
+        (uint256 _totalAssets, uint256 _totalSupply) = _previewTotalAssetsAndTotalSupplyAfterFees(false);
 
         uint256 assets = _convertToAssets(balanceOf[owner], _totalAssets, _totalSupply);
-        assets = _applyEnterOrExitFees(_exitFees, assets, false);
 
         uint256 withdrawable = _calculateTotalWithdrawableAssets();
         maxOut = assets <= withdrawable ? assets : withdrawable;
@@ -1228,7 +1181,7 @@ contract Fund is ERC4626, Ownable {
     /**
      * @notice Emitted when `setAutomationActions` is called.
      */
-    event Fund__AutomationActionsUpdated(address newAutomationActions);
+    event Fund__AutomationActionsUpdated(address indexed newAutomationActions);
 
     /**
      * @notice The Automation Actions contract that can rebalance this Fund.
@@ -1240,7 +1193,7 @@ contract Fund is ERC4626, Ownable {
      * @notice Set the Automation Actions contract.
      * @param _registryId Registry Id to get the automation action.
      * @param _expectedAutomationActions The registry automation actions differed from the expected automation actions.
-     * @dev Callable by Swaap Governance.
+     * @dev Callable by the Fund's owner.
      */
     function setAutomationActions(uint256 _registryId, address _expectedAutomationActions) external onlyOwner {
         _checkRegistryAddressAgainstExpected(_registryId, _expectedAutomationActions);
@@ -1280,7 +1233,7 @@ contract Fund is ERC4626, Ownable {
     error Fund__InvalidRebalanceDeviation(uint256 requested, uint256 max);
 
     /**
-     * @notice Strategist attempted to use an adaptor that is either paused or is not trusted by governance.
+     * @notice CallOnAdaptor attempted to use an adaptor that is either paused or is not trusted by the Fund.
      * @param adaptor the adaptor address that is paused or not trusted.
      */
     error Fund__CallToAdaptorNotAllowed(address adaptor);
@@ -1296,9 +1249,9 @@ contract Fund is ERC4626, Ownable {
     uint256 public allowedRebalanceDeviation = 0.0003e18;
 
     /**
-     * @notice Allows governance to change this funds rebalance deviation.
+     * @notice Allows owner to change this funds rebalance deviation.
      * @param newDeviation the new rebalance deviation value.
-     * @dev Callable by Swaap Governance.
+     * @dev Callable by the Fund's owner.
      */
     function setRebalanceDeviation(uint256 newDeviation) external onlyOwner {
         if (newDeviation > MAX_REBALANCE_DEVIATION)
@@ -1323,7 +1276,7 @@ contract Fund is ERC4626, Ownable {
     /**
      * @notice Emitted when adaptor calls are made.
      */
-    event AdaptorCalled(address adaptor, bytes data);
+    event AdaptorCalled(address indexed adaptor, bytes data);
 
     /**
      * @notice Internal helper function that accepts an Adaptor Call array, and makes calls to each adaptor.
@@ -1341,16 +1294,16 @@ contract Fund is ERC4626, Ownable {
     }
 
     /**
-     * @notice Allows strategists to manage their Fund using arbitrary logic calls to adaptors.
-     * @dev There are several safety checks in this function to prevent strategists from abusing it.
+     * @notice Allows owner or Automation Actions to manage the Fund using arbitrary logic calls to trusted adaptors.
+     * @dev There are several safety checks in this function to prevent rebalancers from abusing it.
      *      - `blockExternalReceiver`
      *      - `totalAssets` must not change by much
      *      - `totalShares` must remain constant
      *      - adaptors must be set up to be used with this fund
-     * @dev Since `totalAssets` is allowed to deviate slightly, strategists could abuse this by sending
-     *      multiple `callOnAdaptor` calls rapidly, to gradually change the share price.
-     *      To mitigate this, rate limiting will be put in place on the Swaap side.
-     * @dev Callable by Swaap Strategist, and Automation Actions contract.
+     * @dev Since `totalAssets` is allowed to deviate slightly, rebalancers could abuse this by sending
+     *      multiple `callOnAdaptor` calls rapidly, to gradually change the share price (for example when swapping unfairly).
+     *      To mitigate this, a Fund can be limited in the total volume that can be done in a period of time by the Registry.
+     * @dev Callable by the Fund's owner, and Automation Actions address.
      */
     function callOnAdaptor(AdaptorCall[] calldata data) external virtual nonReentrant {
         if (msg.sender != owner() && msg.sender != automationActions) revert Fund__CallerNotApprovedToRebalance();
@@ -1393,7 +1346,7 @@ contract Fund is ERC4626, Ownable {
 
     /**
      * @notice Increases the share supply cap.
-     * @dev Callable by Swaap Governance.
+     * @dev Callable by the Fund's owner.
      */
     function setShareSupplyCap(uint192 _newShareSupplyCap) public onlyOwner {
         shareSupplyCap = _newShareSupplyCap;
@@ -1408,17 +1361,13 @@ contract Fund is ERC4626, Ownable {
         if (isShutdown) return 0;
 
         uint192 _cap = shareSupplyCap;
-        if ((_cap = shareSupplyCap) == type(uint192).max) return type(uint256).max;
 
-        (uint16 _enterFees, uint256 _totalAssets, uint256 _totalSupply) = _previewTotalAssetsAndTotalSupplyAfterFees(
-            true
-        );
+        (uint256 _totalAssets, uint256 _totalSupply) = _previewTotalAssetsAndTotalSupplyAfterFees(true);
 
         if (_totalSupply >= _cap) return 0;
         else {
             uint256 shareDelta = _cap - _totalSupply;
-            uint256 assets = _convertToAssets(shareDelta, _totalAssets, _totalSupply);
-            return _applyEnterOrExitFees(_enterFees, assets, true);
+            return _convertToAssets(shareDelta, _totalAssets, _totalSupply);
         }
     }
 
@@ -1429,9 +1378,7 @@ contract Fund is ERC4626, Ownable {
     function maxMint(address) public view override returns (uint256) {
         if (isShutdown) return 0;
 
-        uint192 _cap;
-        if ((_cap = shareSupplyCap) == type(uint192).max) return type(uint256).max;
-
+        uint192 _cap = shareSupplyCap;
         uint256 _totalSupply = totalSupply;
 
         return _totalSupply >= _cap ? 0 : _cap - _totalSupply;

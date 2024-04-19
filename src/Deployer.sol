@@ -7,7 +7,17 @@ import { CREATE3 } from "@solmate/utils/CREATE3.sol";
 contract Deployer is Owned {
     mapping(address => bool) public isDeployer;
 
+    /**
+     * @notice Raised when a non-deployer tries to deploy a contract.
+     */
     error Deployer__NotADeployer();
+
+    /**
+     * @notice Emitted on `adjustDeployer` calls.
+     * @param deployer the address of the deployer
+     * @param state the new state of the deployer
+     */
+    event DeployerAdjusted(address indexed deployer, bool state);
 
     /**
      * @notice Emitted on `deployContract` calls.
@@ -16,7 +26,7 @@ contract Deployer is Owned {
      * @param creationCodeHash keccak256 hash of the creation code
      *        - useful to determine creation code is the same across multiple chains
      */
-    event ContractDeployed(string name, address contractAddress, bytes32 creationCodeHash);
+    event ContractDeployed(string indexed name, address contractAddress, bytes32 creationCodeHash);
 
     constructor(address _owner, address[] memory _deployers) Owned(_owner) {
         for (uint256 i; i < _deployers.length; ++i) adjustDeployer(_deployers[i], true);
@@ -24,6 +34,7 @@ contract Deployer is Owned {
 
     function adjustDeployer(address _deployer, bool _state) public onlyOwner {
         isDeployer[_deployer] = _state;
+        emit DeployerAdjusted(_deployer, _state);
     }
 
     /**
@@ -36,14 +47,12 @@ contract Deployer is Owned {
      *        - can be obtained by calling type(contractName).creationCode
      * @param constructorArgs the contract constructor arguments if any
      *        - must be of form abi.encode(arg1, arg2, ...)
-     * @param value non zero if constructor needs to be payable
      */
     function deployContract(
         string calldata name,
         bytes memory creationCode,
-        bytes calldata constructorArgs,
-        uint256 value
-    ) external returns (address) {
+        bytes calldata constructorArgs
+    ) external payable returns (address) {
         if (!isDeployer[msg.sender]) revert Deployer__NotADeployer();
 
         bytes32 creationCodeHash = keccak256(creationCode);
@@ -55,7 +64,7 @@ contract Deployer is Owned {
 
         bytes32 salt = convertNameToBytes32(name);
 
-        address contractAddress = CREATE3.deploy(salt, creationCode, value);
+        address contractAddress = CREATE3.deploy(salt, creationCode, msg.value);
 
         emit ContractDeployed(name, contractAddress, creationCodeHash);
 

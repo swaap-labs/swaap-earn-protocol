@@ -74,13 +74,13 @@ contract FundFraxLendCollateralAndDebtTestV1 is MainnetStarterTest, AdaptorHelpe
         creationCode = type(CollateralFTokenAdaptorV1).creationCode;
         constructorArgs = abi.encode(address(FRAX), minHealthFactor);
         collateralFTokenAdaptorV1 = CollateralFTokenAdaptorV1(
-            deployer.deployContract("FraxLend Collateral fToken Adaptor V 0.1", creationCode, constructorArgs, 0)
+            deployer.deployContract("FraxLend Collateral fToken Adaptor V 0.1", creationCode, constructorArgs)
         );
 
         creationCode = type(DebtFTokenAdaptorV1).creationCode;
         constructorArgs = abi.encode(ACCOUNT_FOR_INTEREST, address(FRAX), minHealthFactor);
         debtFTokenAdaptorV1 = DebtFTokenAdaptorV1(
-            deployer.deployContract("FraxLend debtToken Adaptor V 1.0", creationCode, constructorArgs, 0)
+            deployer.deployContract("FraxLend debtToken Adaptor V 1.0", creationCode, constructorArgs)
         );
 
         PriceRouter.ChainlinkDerivativeStorage memory stor;
@@ -103,9 +103,14 @@ contract FundFraxLendCollateralAndDebtTestV1 is MainnetStarterTest, AdaptorHelpe
         settings = PriceRouter.AssetSettings(CHAINLINK_DERIVATIVE, address(mockWbtcUsd));
         priceRouter.addAsset(WBTC, settings, abi.encode(stor), price);
 
-        price = uint256(mockCvxEth.latestAnswer());
+        price = uint256(mockCvxEth.latestAnswer()).mulWadDown(uint256(mockWethUsd.latestAnswer()));
         settings = PriceRouter.AssetSettings(CHAINLINK_DERIVATIVE, address(mockCvxEth));
-        priceRouter.addAsset(CVX, settings, abi.encode(stor), price);
+        priceRouter.addAsset(
+            CVX,
+            settings,
+            abi.encode(PriceRouter.ChainlinkDerivativeStorage({ min: 0, max: 0, heartbeat: 0, inETH: true })),
+            price
+        );
 
         // Setup Fund:
 
@@ -153,7 +158,7 @@ contract FundFraxLendCollateralAndDebtTestV1 is MainnetStarterTest, AdaptorHelpe
             type(uint192).max
         );
 
-        fund = Fund(deployer.deployContract(fundName, creationCode, constructorArgs, 0));
+        fund = Fund(deployer.deployContract(fundName, creationCode, constructorArgs));
 
         fund.addAdaptorToCatalogue(address(collateralFTokenAdaptorV1));
         fund.addAdaptorToCatalogue(address(debtFTokenAdaptorV1));

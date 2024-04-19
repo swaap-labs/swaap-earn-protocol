@@ -75,11 +75,7 @@ contract SwaapV2AdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         registry.trustPosition(usdcPosition, address(erc20Adaptor), abi.encode(address(USDC))); // holdingPosition for tests
         registry.trustPosition(wethPosition, address(erc20Adaptor), abi.encode(address(WETH))); // holdingPosition for tests
-        registry.trustPosition(
-            safeguardUsdcWethPosition,
-            address(swaapV2Adaptor),
-            abi.encode(address(USDC_WETH_SPT))
-        );
+        registry.trustPosition(safeguardUsdcWethPosition, address(swaapV2Adaptor), abi.encode(address(USDC_WETH_SPT)));
 
         string memory fundName = "Swaap Fund V0.0";
         uint256 initialDeposit = 1e6;
@@ -89,8 +85,7 @@ contract SwaapV2AdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
             USDC, // holdingAsset,
             usdcPosition, // holdingPosition,
             abi.encode(0), // holdingPositionConfig,
-            initialDeposit,
-            swaapV2Vault
+            initialDeposit
         );
 
         fund.addAdaptorToCatalogue(address(swaapV2Adaptor));
@@ -118,6 +113,9 @@ contract SwaapV2AdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         fund.deposit(assets, address(this));
 
+        // approve swaap v2 for flashloan
+        registry.setApprovedFlashLoanSource(swaapV2Vault, true);
+
         address[] memory tokens = new address[](1);
         tokens[0] = address(USDC);
         uint256[] memory amounts = new uint256[](1);
@@ -144,7 +142,7 @@ contract SwaapV2AdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
         );
     }
 
-    function testBalancerFlashLoanChecks() external {
+    function testSwaapFlashLoanChecks() external {
         // Try calling `receiveFlashLoan` directly on the Fund.
         IERC20[] memory tokens;
         uint256[] memory amounts;
@@ -154,11 +152,13 @@ contract SwaapV2AdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
         vm.expectRevert(
             bytes(
                 abi.encodeWithSelector(
-                    FundWithShareLockFlashLoansWhitelisting.Fund__CallerNotBalancerVault.selector
+                    FundWithShareLockFlashLoansWhitelisting.Fund__CallerNotAuthorizedForFlashLoan.selector
                 )
             )
         );
         fund.receiveFlashLoan(tokens, amounts, feeAmounts, userData);
+
+        registry.setApprovedFlashLoanSource(swaapV2Vault, true);
 
         // Attacker tries to initiate a flashloan to control the Fund.
         vm.expectRevert(
@@ -191,8 +191,7 @@ contract SwaapV2AdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
             USDC_WETH_SPT,
             safeguardUsdcWethPosition,
             abi.encode(0),
-            initialDeposit,
-            swaapV2Vault
+            initialDeposit
         );
 
         uint256 totalAssetsBefore = swaapFund.totalAssets();
@@ -248,11 +247,7 @@ contract SwaapV2AdaptorTest is MainnetStarterTest, AdaptorHelperFunctions {
             "Fund totalAssets should be correct after joining a swaap pool."
         );
 
-        assertEq(
-            USDC_WETH_SPT.balanceOf(address(fund)),
-            eqSPT,
-            "Fund should have received the exact number of SPT."
-        );
+        assertEq(USDC_WETH_SPT.balanceOf(address(fund)), eqSPT, "Fund should have received the exact number of SPT.");
     }
 
     function testAllowlistJoin(uint256 assets) external {

@@ -41,12 +41,12 @@ contract FundAaveTest is MainnetStarterTest, AdaptorHelperFunctions {
         creationCode = type(AaveATokenAdaptor).creationCode;
         constructorArgs = abi.encode(address(pool), address(WETH), 1.05e18);
         aaveATokenAdaptor = AaveATokenAdaptor(
-            deployer.deployContract("Aave AToken Adaptor V0.0", creationCode, constructorArgs, 0)
+            deployer.deployContract("Aave AToken Adaptor V0.0", creationCode, constructorArgs)
         );
         creationCode = type(AaveDebtTokenAdaptor).creationCode;
         constructorArgs = abi.encode(address(pool), 1.05e18);
         aaveDebtTokenAdaptor = AaveDebtTokenAdaptor(
-            deployer.deployContract("Aave DebtToken Adaptor V0.0", creationCode, constructorArgs, 0)
+            deployer.deployContract("Aave DebtToken Adaptor V0.0", creationCode, constructorArgs)
         );
 
         PriceRouter.ChainlinkDerivativeStorage memory stor;
@@ -99,7 +99,7 @@ contract FundAaveTest is MainnetStarterTest, AdaptorHelperFunctions {
             address(pool)
         );
 
-        fund = FundWithAaveFlashLoans(deployer.deployContract(fundName, creationCode, constructorArgs, 0));
+        fund = FundWithAaveFlashLoans(deployer.deployContract(fundName, creationCode, constructorArgs));
 
         fund.addAdaptorToCatalogue(address(aaveATokenAdaptor));
         fund.addAdaptorToCatalogue(address(aaveDebtTokenAdaptor));
@@ -314,8 +314,8 @@ contract FundAaveTest is MainnetStarterTest, AdaptorHelperFunctions {
         fund.callOnAdaptor(data);
 
         // Remove dV2USDC and aV2USDC positions.
-        fund.removePosition(1, false);
-        fund.removePosition(0, true);
+        fund.removePosition(1, fund.creditPositions(1), false);
+        fund.removePosition(0, fund.debtPositions(0), true);
 
         fund.addPosition(1, aV2WETHPosition, abi.encode(1.1e18), false);
         fund.addPosition(0, debtWETHPosition, abi.encode(0), true);
@@ -558,7 +558,7 @@ contract FundAaveTest is MainnetStarterTest, AdaptorHelperFunctions {
         fund.addPositionToCatalogue(aV2WBTCPosition);
         fund.addPosition(1, aV2WETHPosition, abi.encode(0), false);
         fund.addPosition(2, aV2WBTCPosition, abi.encode(0), false);
-        fund.removePosition(3, false);
+        fund.removePosition(3, fund.creditPositions(3), false);
 
         // Have whale join the fund with 1M USDC.
         uint256 assets = 1_000_000e6;

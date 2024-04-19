@@ -280,7 +280,7 @@ contract FundAaveV2MorphoTest is MainnetStarterTest, AdaptorHelperFunctions {
 
     function testTakingOutLoansInUntrackedPosition(uint256 assets) external {
         _setupFundForBorrowing(fund);
-        fund.removePosition(0, true);
+        fund.removePosition(0, fund.debtPositions(0), true);
 
         assets = bound(assets, 0.01e18, 100e18);
         deal(address(WETH), address(this), assets);
@@ -479,7 +479,7 @@ contract FundAaveV2MorphoTest is MainnetStarterTest, AdaptorHelperFunctions {
         fund.callOnAdaptor(data);
 
         // Remove unused aWETH Morpho position from the fund.
-        fund.removePosition(3, false);
+        fund.removePosition(3, fund.creditPositions(3), false);
 
         assets = 10e18;
         // assets = bound(assets, 1e18, 100e18);

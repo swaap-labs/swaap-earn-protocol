@@ -19,7 +19,7 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
     // adaptorData = abi.encode(uint8 accountId, address aToken)
     // Where:
     // `accountId` is the account extension id this adaptor is working with
-    // `aToken` is the aToken address position this adaptor is working with
+    // `aToken` is the aToken address the position this adaptor is working with
     //================= Configuration Data Specification =================
     // configurationData = abi.encode(minimumHealthFactor uint256)
     // Where:
@@ -31,9 +31,9 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
     //      position reverts if a user withdraw lowers health factor below minimum
     //
     // **************************** IMPORTANT ****************************
-    // Funds with multiple aToken positions MUST only specify minimum
-    // health factor on ONE of the positions. Failing to do so will result
-    // in user withdraws temporarily being blocked.
+    // It's advised for Funds with multiple aToken positions to specify the minimum
+    // health factor on ONE of the positions only as withdrawing from multiple positions
+    // can lead to a lower health factor than expected and thus revert.
     // An aToken should always have a position in the fund as well as a position
     // for its underlying asset. The adapter does not check the latter for gas optimzation purposes.
     //====================================================================
@@ -53,7 +53,13 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
      * amount before going under the minimum configured HF.
      * @dev This value can be modified based on testing.
      */
-    uint256 internal constant CUSHION = 0.01e18;
+    uint256 internal constant _CUSHION = 0.01e18;
+
+    /// @dev Used to convert from BPS (4 decimals) to WAD (18 decimals).
+    uint256 internal constant _BPS_TO_WAD = 1e14;
+
+    /// @dev expected USD units as base currency.
+    uint256 internal constant _USD_CURRENCY_UNIT = 1e8;
 
     /**
      * @notice The Aave V3 Oracle on current network.
@@ -201,15 +207,15 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
         uint256 maxBorrowableWithMin;
 
         // Add cushion to min health factor.
-        minHealthFactor += CUSHION;
+        minHealthFactor += _CUSHION;
 
         // If current health factor is less than the minHealthFactor + 2X cushion, return 0.
-        if (healthFactor < (minHealthFactor + CUSHION)) return 0;
+        if (healthFactor < (minHealthFactor + _CUSHION)) return 0;
         // Calculate max amount withdrawable while preserving minimum health factor.
         else {
             maxBorrowableWithMin =
                 totalCollateralBase -
-                minHealthFactor.mulDivDown(totalDebtBase, (currentLiquidationThreshold * 1e14));
+                minHealthFactor.mulDivDown(totalDebtBase, (currentLiquidationThreshold * _BPS_TO_WAD));
         }
         /// @dev We want right side of "-" to have 8 decimals, so we need to dviide by 18 decimals.
         // `currentLiquidationThreshold` has 4 decimals, so multiply by 1e14 to get 18 decimals on denominator.
@@ -253,7 +259,7 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
 
         // Make sure Aave Oracle uses USD base asset with 8 decimals.
         // BASE_CURRENCY and BASE_CURRENCY_UNIT are both immutable values, so only check this on initial position setup.
-        if (aaveOracle.BASE_CURRENCY() != address(0) || aaveOracle.BASE_CURRENCY_UNIT() != 1e8)
+        if (aaveOracle.BASE_CURRENCY() != address(0) || aaveOracle.BASE_CURRENCY_UNIT() != _USD_CURRENCY_UNIT)
             revert AaveV3ATokenAdaptor__OracleUsesDifferentBase();
     }
 
@@ -286,7 +292,7 @@ contract AaveV3ATokenManagerAdaptor is BaseAdaptor, AaveV3AccountHelper {
         pool.supply(address(tokenToDeposit), amountToDeposit, accountAddress, 0);
 
         // Zero out approvals if necessary.
-        _revokeExternalApproval(ERC20(tokenToDeposit), address(pool));
+        _revokeExternalApproval(tokenToDeposit, address(pool));
     }
 
     /**

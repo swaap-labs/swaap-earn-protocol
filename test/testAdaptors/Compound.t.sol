@@ -238,7 +238,7 @@ contract FundCompoundTest is MainnetStarterTest, AdaptorHelperFunctions {
 
         // Remove cDAI as a position from Fund.
         fund.setHoldingPosition(daiPosition);
-        fund.removePosition(0, false);
+        fund.removePosition(0, fund.creditPositions(0), false);
 
         // Add DAI to the Fund.
         uint256 assets = 100_000e18;
@@ -316,7 +316,7 @@ contract FundCompoundTest is MainnetStarterTest, AdaptorHelperFunctions {
         fund.callOnAdaptor(data);
         // Remove cDAI as a position from Fund.
         fund.setHoldingPosition(daiPosition);
-        fund.removePosition(0, false);
+        fund.removePosition(0, fund.creditPositions(0), false);
 
         // Add DAI to the Fund.
         uint256 assets = 100_000e18;

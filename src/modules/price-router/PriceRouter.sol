@@ -5,6 +5,7 @@ import { SafeTransferLib } from "@solmate/utils/SafeTransferLib.sol";
 import { ERC20 } from "@solmate/tokens/ERC20.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { IChainlinkAggregator } from "src/interfaces/external/IChainlinkAggregator.sol";
+import { IChainlinkAggregatorProxy } from "src/interfaces/external/IChainlinkAggregatorProxy.sol";
 import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import { Math } from "src/utils/Math.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
@@ -29,16 +30,16 @@ contract PriceRouter is Ownable {
     event AddAsset(address indexed asset);
 
     event IntentToEditAsset(
-        address asset,
+        address indexed asset,
         AssetSettings _settings,
         bytes _storage,
         bytes32 editHash,
         uint256 assetEditableAt
     );
 
-    event EditAssetCancelled(address asset, bytes32 editHash);
+    event EditAssetCancelled(address indexed asset, bytes32 editHash);
 
-    event EditAssetComplete(address asset, bytes32 editHash);
+    event EditAssetComplete(address indexed asset, bytes32 editHash);
 
     Registry public immutable registry;
     ERC20 public immutable WETH;
@@ -70,17 +71,17 @@ contract PriceRouter is Ownable {
     /**
      * @notice Emitted when an ownership transition is started.
      */
-    event OwnerTransitionStarted(address newOwner, uint256 startTime);
+    event OwnerTransitionStarted(address indexed pendingOwner, uint256 startTime);
 
     /**
      * @notice Emitted when an ownership transition is cancelled.
      */
-    event OwnerTransitionCancelled();
+    event OwnerTransitionCancelled(address indexed pendingOwner);
 
     /**
      * @notice Emitted when an ownership transition is completed.
      */
-    event OwnerTransitionComplete(address newOwner);
+    event OwnerTransitionComplete(address indexed newOwner);
 
     /**
      * @notice Attempted to call a function intended for Zero Id address.
@@ -130,6 +131,8 @@ contract PriceRouter is Ownable {
         if (pendingOwner != address(0)) revert PriceRouter__TransitionPending();
         if (newOwner == address(0)) revert PriceRouter__NewOwnerCanNotBeZero();
 
+        emit OwnerTransitionStarted(newOwner, transitionStart);
+
         pendingOwner = newOwner;
         transitionStart = block.timestamp;
     }
@@ -138,8 +141,12 @@ contract PriceRouter is Ownable {
      * @notice Allows Zero Id address to cancel an ongoing owner transition.
      */
     function cancelTransition() external {
+        address _pendingOwner = pendingOwner;
+
         if (msg.sender != registry.getAddress(0)) revert PriceRouter__OnlyCallableByZeroId();
-        if (pendingOwner == address(0)) revert PriceRouter__TransitionNotPending();
+        if (_pendingOwner == address(0)) revert PriceRouter__TransitionNotPending();
+
+        emit OwnerTransitionCancelled(_pendingOwner);
 
         pendingOwner = address(0);
         transitionStart = 0;
@@ -149,11 +156,14 @@ contract PriceRouter is Ownable {
      * @notice Allows pending owner to complete the ownership transition.
      */
     function completeTransition() external {
-        if (pendingOwner == address(0)) revert PriceRouter__TransitionNotPending();
-        if (msg.sender != pendingOwner) revert PriceRouter__OnlyCallableByPendingOwner();
+        address _pendingOwner = pendingOwner;
+
+        if (msg.sender != _pendingOwner) revert PriceRouter__OnlyCallableByPendingOwner();
         if (block.timestamp < transitionStart + TRANSITION_PERIOD) revert PriceRouter__TransitionPending();
 
-        _transferOwnership(pendingOwner);
+        _transferOwnership(_pendingOwner);
+
+        emit OwnerTransitionComplete(_pendingOwner);
 
         pendingOwner = address(0);
         transitionStart = 0;
@@ -205,6 +215,11 @@ contract PriceRouter is Ownable {
     error PriceRouter__AssetNotEditable(address asset);
 
     /**
+     * @notice Attempted to edit an asset that is pending edit.
+     */
+    error PriceRouter__AssetPendingEdit(address asset);
+
+    /**
      * @notice Attempted to cancel the editing of an asset that is not pending edit.
      */
     error PriceRouter__AssetNotPendingEdit(address asset);
@@ -226,6 +241,12 @@ contract PriceRouter is Ownable {
      */
     error PriceRouter__MinPriceGreaterThanMaxPrice(uint256 min, uint256 max);
 
+    /// @dev The price buffer for Chainlink aggregator minimum price.
+    uint256 internal constant _CHAINLINK_MIN_PRICE_BUFFER = 1.1e18; // 10%
+
+    /// @dev The price buffer for Chainlink aggregator maximum price.
+    uint256 internal constant _CHAINLINK_MAX_PRICE_BUFFER = 0.9e18; // 10%
+
     /**
      * @notice The allowed deviation between the expected answer vs the actual answer.
      */
@@ -237,9 +258,9 @@ contract PriceRouter is Ownable {
     uint64 public constant EDIT_ASSET_DELAY = 7 days;
 
     /**
-     * @notice Stores the timestamp when an asset can be editted.
+     * @notice Stores the info that an asset can be editted to.
      */
-    mapping(bytes32 => uint256) public assetEditableTimestamp;
+    mapping(ERC20 => bytes32) public assetEditableHash;
 
     /**
      * @notice Allows caller to call multiple functions in a single TX.
@@ -282,12 +303,16 @@ contract PriceRouter is Ownable {
      * @param _storage arbitrary bytes data used to configure `_asset` pricing
      */
     function startEditAsset(ERC20 _asset, AssetSettings memory _settings, bytes memory _storage) external onlyOwner {
+        // Make sure the asset does not have a pending edit.
+        if (assetEditableHash[_asset] != bytes32(0)) revert PriceRouter__AssetPendingEdit(address(_asset));
+
         // Make sure the asset has been added.
         if (getAssetSettings[_asset].derivative == 0) revert PriceRouter__AssetNotAdded(address(_asset));
-        bytes32 editHash = keccak256(abi.encode(_asset, _settings, _storage));
 
         uint256 assetEditableAt = block.timestamp + EDIT_ASSET_DELAY;
-        assetEditableTimestamp[editHash] = assetEditableAt;
+        bytes32 editHash = keccak256(abi.encode(_asset, _settings, _storage, assetEditableAt));
+
+        assetEditableHash[_asset] = editHash;
 
         emit IntentToEditAsset(address(_asset), _settings, _storage, editHash, assetEditableAt);
     }
@@ -299,22 +324,25 @@ contract PriceRouter is Ownable {
      * @param _settings the settings for `_asset`
      *        @dev The `derivative` value in settings MUST be non zero.
      * @param _storage arbitrary bytes data used to configure `_asset` pricing
+     * @param assetEditableAt the timestamp after which `_asset` is editable
+     * @param _expectedAnswer the expected answer for the asset from  `_getPriceInUSD`
      */
     function completeEditAsset(
         ERC20 _asset,
         AssetSettings memory _settings,
         bytes memory _storage,
+        uint256 assetEditableAt,
         uint256 _expectedAnswer
     ) external onlyOwner {
-        bytes32 editHash = keccak256(abi.encode(_asset, _settings, _storage));
+        bytes32 expectedEditHash = keccak256(abi.encode(_asset, _settings, _storage, assetEditableAt));
 
         // Make sure asset can be edited.
-        uint256 assetEditableAt = assetEditableTimestamp[editHash];
-        if (assetEditableAt == 0 || block.timestamp < assetEditableAt)
+        bytes32 editHash = assetEditableHash[_asset];
+        if (editHash == bytes32(0) || editHash != expectedEditHash || block.timestamp < assetEditableAt)
             revert PriceRouter__AssetNotEditable(address(_asset));
 
-        // Reset edit timestamp.
-        assetEditableTimestamp[editHash] = 0;
+        // Reset asset editable inputs.
+        delete assetEditableHash[_asset];
 
         // Edit the asset.
         _updateAsset(_asset, _settings, _storage, _expectedAnswer);
@@ -325,18 +353,14 @@ contract PriceRouter is Ownable {
     /**
      * @notice Cancel a pending edit for `_asset`.
      * @param _asset the asset to cancel editing of in the pricing router
-     * @param _settings the settings for `_asset`
-     *        @dev The `derivative` value in settings MUST be non zero.
-     * @param _storage arbitrary bytes data used to configure `_asset` pricing
      */
-    function cancelEditAsset(ERC20 _asset, AssetSettings memory _settings, bytes memory _storage) external onlyOwner {
-        bytes32 editHash = keccak256(abi.encode(_asset, _settings, _storage));
+    function cancelEditAsset(ERC20 _asset) external onlyOwner {
+        bytes32 editHash = assetEditableHash[_asset];
 
-        // Make sure asset is pending edit.
-        uint256 assetEditableAt = assetEditableTimestamp[editHash];
-        if (assetEditableAt == 0) revert PriceRouter__AssetNotPendingEdit(address(_asset));
+        // make sure the asset was pending to edit.
+        if (editHash == bytes32(0)) revert PriceRouter__AssetNotPendingEdit(address(_asset));
 
-        assetEditableTimestamp[editHash] = 0;
+        delete assetEditableHash[_asset];
 
         emit EditAssetCancelled(address(_asset), editHash);
     }
@@ -347,6 +371,7 @@ contract PriceRouter is Ownable {
      * @param _settings the settings for `_asset`
      *        @dev The `derivative` value in settings MUST be non zero.
      * @param _storage arbitrary bytes data used to configure `_asset` pricing
+     * @param _expectedAnswer the expected answer for the asset from  `_getPriceInUSD`
      */
     function _updateAsset(
         ERC20 _asset,
@@ -369,8 +394,8 @@ contract PriceRouter is Ownable {
         } else revert PriceRouter__UnknownDerivative(_settings.derivative);
 
         // Check `_getPriceInUSD` against `_expectedAnswer`.
-        uint256 minAnswer = _expectedAnswer.mulWadDown((1e18 - EXPECTED_ANSWER_DEVIATION));
-        uint256 maxAnswer = _expectedAnswer.mulWadDown((1e18 + EXPECTED_ANSWER_DEVIATION));
+        uint256 minAnswer = _expectedAnswer.mulWadDown((Math.WAD - EXPECTED_ANSWER_DEVIATION));
+        uint256 maxAnswer = _expectedAnswer.mulWadDown((Math.WAD + EXPECTED_ANSWER_DEVIATION));
 
         getAssetSettings[_asset] = _settings;
         uint256 answer = _getPriceInUSD(_asset, _settings);
@@ -419,8 +444,6 @@ contract PriceRouter is Ownable {
     function getValue(ERC20 baseAsset, uint256 amount, ERC20 quoteAsset) external view returns (uint256 value) {
         AssetSettings memory baseSettings = getAssetSettings[baseAsset];
         AssetSettings memory quoteSettings = getAssetSettings[quoteAsset];
-        if (baseSettings.derivative == 0) revert PriceRouter__UnsupportedAsset(address(baseAsset));
-        if (quoteSettings.derivative == 0) revert PriceRouter__UnsupportedAsset(address(quoteAsset));
         uint256 priceBaseUSD = _getPriceInUSD(baseAsset, baseSettings);
         uint256 priceQuoteUSD = _getPriceInUSD(quoteAsset, quoteSettings);
         value = _getValueInQuote(priceBaseUSD, priceQuoteUSD, baseAsset.decimals(), quoteAsset.decimals(), amount);
@@ -461,8 +484,6 @@ contract PriceRouter is Ownable {
     function getExchangeRate(ERC20 baseAsset, ERC20 quoteAsset) public view returns (uint256 exchangeRate) {
         AssetSettings memory baseSettings = getAssetSettings[baseAsset];
         AssetSettings memory quoteSettings = getAssetSettings[quoteAsset];
-        if (baseSettings.derivative == 0) revert PriceRouter__UnsupportedAsset(address(baseAsset));
-        if (quoteSettings.derivative == 0) revert PriceRouter__UnsupportedAsset(address(quoteAsset));
 
         exchangeRate = _getExchangeRate(baseAsset, baseSettings, quoteAsset, quoteSettings, quoteAsset.decimals());
     }
@@ -479,13 +500,11 @@ contract PriceRouter is Ownable {
     ) external view returns (uint256[] memory exchangeRates) {
         uint8 quoteAssetDecimals = quoteAsset.decimals();
         AssetSettings memory quoteSettings = getAssetSettings[quoteAsset];
-        if (quoteSettings.derivative == 0) revert PriceRouter__UnsupportedAsset(address(quoteAsset));
 
         uint256 numOfAssets = baseAssets.length;
         exchangeRates = new uint256[](numOfAssets);
         for (uint256 i; i < numOfAssets; ++i) {
             AssetSettings memory baseSettings = getAssetSettings[baseAssets[i]];
-            if (baseSettings.derivative == 0) revert PriceRouter__UnsupportedAsset(address(baseAssets[i]));
             exchangeRates[i] = _getExchangeRate(
                 baseAssets[i],
                 baseSettings,
@@ -537,6 +556,8 @@ contract PriceRouter is Ownable {
             price = _getPriceForTwapDerivative(asset, settings.source);
         } else if (settings.derivative == 3) {
             price = Extension(settings.source).getPriceInUSD(asset);
+        } else if (settings.derivative == 0) {
+            revert PriceRouter__UnsupportedAsset(address(asset));
         } else revert PriceRouter__UnknownDerivative(settings.derivative);
 
         return price;
@@ -593,7 +614,6 @@ contract PriceRouter is Ownable {
         uint256 quotePrice;
         {
             AssetSettings memory quoteSettings = getAssetSettings[quoteAsset];
-            if (quoteSettings.derivative == 0) revert PriceRouter__UnsupportedAsset(address(quoteAsset));
             quotePrice = _getPriceInUSD(quoteAsset, quoteSettings);
         }
         uint256 valueInQuote;
@@ -608,7 +628,6 @@ contract PriceRouter is Ownable {
                 uint256 basePrice;
                 {
                     AssetSettings memory baseSettings = getAssetSettings[baseAsset];
-                    if (baseSettings.derivative == 0) revert PriceRouter__UnsupportedAsset(address(baseAsset));
                     basePrice = _getPriceInUSD(baseAsset, baseSettings);
                 }
                 valueInQuote += _getValueInQuote(
@@ -645,6 +664,11 @@ contract PriceRouter is Ownable {
     error PriceRouter__BufferedMinOverflow();
 
     /**
+     * @notice Aggregator price feed is not in the expected decimals. (8 when in USD or 18 when in ETH)
+     */
+    error PriceRouter__InvalidPriceDecimals();
+
+    /**
      * @notice Returns Chainlink Derivative Storage
      */
     mapping(ERC20 => ChainlinkDerivativeStorage) public getChainlinkDerivativeStorage;
@@ -663,14 +687,14 @@ contract PriceRouter is Ownable {
         ChainlinkDerivativeStorage memory parameters = abi.decode(_storage, (ChainlinkDerivativeStorage));
 
         // Use Chainlink to get the min and max of the asset.
-        IChainlinkAggregator aggregator = IChainlinkAggregator(IChainlinkAggregator(_source).aggregator());
+        IChainlinkAggregator aggregator = IChainlinkAggregator(IChainlinkAggregatorProxy(_source).aggregator());
         uint256 minFromChainklink = uint256(uint192(aggregator.minAnswer()));
         uint256 maxFromChainlink = uint256(uint192(aggregator.maxAnswer()));
 
         // Add a ~10% buffer to minimum and maximum price from Chainlink because Chainlink can stop updating
         // its price before/above the min/max price.
-        uint256 bufferedMinPrice = (minFromChainklink * 1.1e18) / 1e18;
-        uint256 bufferedMaxPrice = (maxFromChainlink * 0.9e18) / 1e18;
+        uint256 bufferedMinPrice = (minFromChainklink * _CHAINLINK_MIN_PRICE_BUFFER) / Math.WAD;
+        uint256 bufferedMaxPrice = (maxFromChainlink * _CHAINLINK_MAX_PRICE_BUFFER) / Math.WAD;
 
         if (parameters.min == 0) {
             // Revert if bufferedMinPrice overflows because uint80 is too small to hold the minimum price,
@@ -693,6 +717,12 @@ contract PriceRouter is Ownable {
 
         if (parameters.min >= parameters.max)
             revert PriceRouter__MinPriceGreaterThanMaxPrice(parameters.min, parameters.max);
+
+        if (parameters.inETH) {
+            if (aggregator.decimals() != 18) revert PriceRouter__InvalidPriceDecimals();
+        } else {
+            if (aggregator.decimals() != 8) revert PriceRouter__InvalidPriceDecimals();
+        }
 
         parameters.heartbeat = parameters.heartbeat != 0 ? parameters.heartbeat : DEFAULT_HEART_BEAT;
 
