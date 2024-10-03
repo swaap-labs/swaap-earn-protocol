@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity 0.8.21;
+pragma solidity ^0.8.21;
 
 import "src/utils/LogExpMathv08.sol";
 import "src/utils/Math.sol";
